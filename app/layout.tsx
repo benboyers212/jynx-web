@@ -1,24 +1,26 @@
 import "./globals.css";
-import { Inter } from "next/font/google";
+import type { Metadata } from "next";
+import { DM_Sans } from "next/font/google";
 
-const inter = Inter({
+const dmSans = DM_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Jynx",
   description: "Your schedule system",
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className={dmSans.variable}>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }
