@@ -8,19 +8,16 @@ const tabs = [
   { label: "Schedule", href: "/", active: true },
   { label: "Goals", href: "/goals" },
   { label: "Chat", href: "/chat" },
-
-  // New: Files tab (sits under Chat)
   { label: "Files", href: "/files" },
 ];
 
-// Olive green we’ll use throughout (easy + consistent)
 const OLIVE = "#556B2F";
 
 function getTagStyle(tag: string) {
   const base = {
     borderColor: "rgba(17,17,17,0.10)",
     color: "#111111",
-    backgroundColor: "rgba(85,107,47,0.10)", // olive tint default
+    backgroundColor: "rgba(85,107,47,0.10)",
   };
 
   const map: Record<
@@ -65,11 +62,12 @@ function getTagStyle(tag: string) {
 export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white">
-      {/* Soft pulse keyframes for the ambient dot */}
+      {/* Pulse is ONLY for the outer ring. The dot itself stays visible. */}
       <style>{`
-        @keyframes jynxPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(85,107,47,0.18); }
-          50% { box-shadow: 0 0 0 10px rgba(85,107,47,0); }
+        @keyframes jynxRing {
+          0%   { transform: scale(1);   opacity: 0.22; }
+          70%  { transform: scale(2.8); opacity: 0.00; }
+          100% { transform: scale(2.8); opacity: 0.00; }
         }
       `}</style>
 
@@ -117,8 +115,31 @@ export default function Home() {
         {/* Main content */}
         <div className="flex-1">
           <header className="border-b border-neutral-200 bg-white">
-            <div className="max-w-6xl mx-auto px-6 py-4 text-center text-lg font-semibold">
-              Schedule
+            <div className="max-w-6xl mx-auto px-6 py-6 flex justify-center">
+              <div className="flex flex-col items-center gap-2 text-center">
+                {/* Dot inline with title */}
+                <div className="flex items-center gap-2">
+                  <span className="relative inline-flex h-2.5 w-2.5">
+                    {/* animated ring */}
+                    <span
+                      className="absolute inset-0 rounded-full"
+                      style={{
+                        backgroundColor: OLIVE,
+                        animation: "jynxRing 2.8s ease-out infinite",
+                      }}
+                    />
+                    {/* solid dot (always visible) */}
+                    <span
+                      className="relative rounded-full h-2.5 w-2.5"
+                      style={{ backgroundColor: OLIVE }}
+                    />
+                  </span>
+
+                  <div className="text-lg font-semibold leading-tight">Schedule</div>
+                </div>
+
+                <div className="text-xs text-neutral-500">Today · Optimized for focus</div>
+              </div>
             </div>
           </header>
 
@@ -183,8 +204,20 @@ export default function Home() {
 
             {/* Right column */}
             <aside className="col-span-12 lg:col-span-4 space-y-6">
+              {/* NEW: Today’s focus (olive tint) */}
+              <div
+                className="rounded-2xl border border-neutral-200 p-5"
+                style={{ background: "rgba(85,107,47,0.04)" }}
+              >
+                <div className="text-sm font-semibold mb-2">Today’s focus</div>
+                <div className="text-sm text-neutral-700 leading-relaxed">
+                  Your most demanding work is earlier today. Protect that window and keep
+                  distractions low.
+                </div>
+              </div>
+
               <div className="rounded-2xl border border-neutral-200 bg-white p-6">
-                <div className="text-sm font-semibold mb-4">Focus snapshot</div>
+                <div className="text-sm font-semibold mb-4">Patterns</div>
 
                 <ul className="space-y-3 text-sm list-disc pl-5">
                   <li>Most productive in the late morning</li>
@@ -205,7 +238,8 @@ export default function Home() {
                 </div>
 
                 <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
-                  Example: Move my gym after class, and add a 45-min F305 study block before dinner.
+                  Example: Move my gym after class, and add a 45-min F305 study block before
+                  dinner.
                 </div>
 
                 <div className="mt-4 flex justify-center">
@@ -254,27 +288,37 @@ function TimeBlock({
       </div>
 
       <div className="relative flex-1">
-        {/* Timeline spine (lighter + cleaner) */}
+        {/* Timeline spine */}
         <div className="absolute left-[-20px] top-0 bottom-0 w-[2px] bg-neutral-200/70" />
 
-        {/* Ambient intelligence dot (click to complete) */}
+        {/* Timeline dot (always visible) */}
         <button
           type="button"
           onClick={() => setCompleted((v) => !v)}
-          className="absolute left-[-27px] top-1/2 -translate-y-1/2 h-[14px] w-[14px] rounded-full ring-[5px] ring-white shadow-sm transition"
+          className="absolute left-[-27px] top-1/2 -translate-y-1/2 h-[14px] w-[14px] rounded-full ring-[5px] ring-white shadow-sm transition z-10"
           style={{
             backgroundColor: completed ? "#CBD5E1" : olive,
-            animation: completed ? "none" : "jynxPulse 6.5s ease-in-out infinite",
             cursor: "pointer",
           }}
           aria-label={completed ? "Mark as not complete" : "Mark as complete"}
           title={completed ? "Mark as not complete" : "Mark as complete"}
         >
+          {/* pulsing ring ONLY when not completed */}
+          {!completed && (
+            <span
+              className="absolute inset-0 rounded-full"
+              style={{
+                backgroundColor: olive,
+                animation: "jynxRing 2.8s ease-out infinite",
+              }}
+            />
+          )}
+
           {completed && (
             <svg
               viewBox="0 0 20 20"
               fill="currentColor"
-              className="h-[10px] w-[10px] mx-auto text-white"
+              className="relative h-[10px] w-[10px] mx-auto text-white"
               style={{ marginTop: "1px" }}
             >
               <path
@@ -286,7 +330,7 @@ function TimeBlock({
           )}
         </button>
 
-        {/* Card (modern) */}
+        {/* Card */}
         <div
           className="rounded-2xl border border-neutral-200/80 bg-white px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.03)] transition hover:-translate-y-[1px] hover:shadow-[0_10px_30px_rgba(0,0,0,0.06)]"
           style={{
@@ -300,7 +344,6 @@ function TimeBlock({
               <div className="text-xs text-neutral-500 mt-1">{meta}</div>
             </div>
 
-            {/* Tag */}
             <span
               className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide"
               style={getTagStyle(tag)}
