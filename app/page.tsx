@@ -1,4 +1,6 @@
+"use client";
 import Link from "next/link";
+import { useState } from "react";
 
 const tabs = [
   { label: "MyJynx", href: "/myjynx" },
@@ -6,14 +8,71 @@ const tabs = [
   { label: "Schedule", href: "/", active: true },
   { label: "Goals", href: "/goals" },
   { label: "Chat", href: "/chat" },
+
+  // New: Files tab (sits under Chat)
+  { label: "Files", href: "/files" },
 ];
 
 // Olive green we’ll use throughout (easy + consistent)
 const OLIVE = "#556B2F";
 
+function getTagStyle(tag: string) {
+  const base = {
+    borderColor: "rgba(17,17,17,0.10)",
+    color: "#111111",
+    backgroundColor: "rgba(85,107,47,0.10)", // olive tint default
+  };
+
+  const map: Record<
+    string,
+    { backgroundColor: string; color: string; borderColor: string }
+  > = {
+    Class: {
+      backgroundColor: "rgba(85,107,47,0.12)",
+      color: "#2F3A1F",
+      borderColor: "rgba(85,107,47,0.25)",
+    },
+    Work: {
+      backgroundColor: "rgba(17,17,17,0.06)",
+      color: "#111111",
+      borderColor: "rgba(17,17,17,0.12)",
+    },
+    Health: {
+      backgroundColor: "rgba(85,107,47,0.16)",
+      color: "#243016",
+      borderColor: "rgba(85,107,47,0.30)",
+    },
+    Prep: {
+      backgroundColor: "rgba(85,107,47,0.08)",
+      color: "#33401F",
+      borderColor: "rgba(85,107,47,0.20)",
+    },
+    Study: {
+      backgroundColor: "rgba(17,17,17,0.05)",
+      color: "#111111",
+      borderColor: "rgba(17,17,17,0.10)",
+    },
+    Life: {
+      backgroundColor: "rgba(85,107,47,0.09)",
+      color: "#2F3A1F",
+      borderColor: "rgba(85,107,47,0.20)",
+    },
+  };
+
+  return map[tag] ?? base;
+}
+
 export default function Home() {
   return (
-    <main className="min-h-screen bg-neutral-50">
+    <main className="min-h-screen bg-gradient-to-b from-neutral-50 to-white">
+      {/* Soft pulse keyframes for the ambient dot */}
+      <style>{`
+        @keyframes jynxPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(85,107,47,0.18); }
+          50% { box-shadow: 0 0 0 10px rgba(85,107,47,0); }
+        }
+      `}</style>
+
       <div className="flex min-h-screen">
         {/* Sidebar */}
         <aside className="w-64 border-r border-neutral-200 bg-white hidden md:flex flex-col">
@@ -43,7 +102,10 @@ export default function Home() {
               >
                 <span>{t.label}</span>
                 {t.active && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.18)" }}>
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(255,255,255,0.18)" }}
+                  >
                     Active
                   </span>
                 )}
@@ -60,7 +122,7 @@ export default function Home() {
             </div>
           </header>
 
-          <div className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-12 gap-10">
+          <div className="max-w-6xl mx-auto px-6 py-7 grid grid-cols-12 gap-8">
             {/* Schedule */}
             <section className="col-span-12 lg:col-span-8">
               <Section title="Today · Thu, Sep 12">
@@ -182,24 +244,67 @@ function TimeBlock({
   tag: string;
   olive: string;
 }) {
+  const [completed, setCompleted] = useState(false);
+
   return (
     <div className="flex gap-6">
-      <div className="w-24 text-sm font-semibold">{time}</div>
+      {/* Time */}
+      <div className="w-24 text-sm font-semibold flex items-center text-neutral-900">
+        {time}
+      </div>
 
       <div className="relative flex-1">
-        <div className="absolute left-[-20px] top-0 bottom-0 w-[2px] bg-neutral-300" />
-        <div
-          className="absolute left-[-26px] top-3 h-4 w-4 rounded-full"
-          style={{ backgroundColor: olive }}
-        />
+        {/* Timeline spine (lighter + cleaner) */}
+        <div className="absolute left-[-20px] top-0 bottom-0 w-[2px] bg-neutral-200/70" />
 
-        <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4">
-          <div className="flex justify-between gap-4">
+        {/* Ambient intelligence dot (click to complete) */}
+        <button
+          type="button"
+          onClick={() => setCompleted((v) => !v)}
+          className="absolute left-[-27px] top-1/2 -translate-y-1/2 h-[14px] w-[14px] rounded-full ring-[5px] ring-white shadow-sm transition"
+          style={{
+            backgroundColor: completed ? "#CBD5E1" : olive,
+            animation: completed ? "none" : "jynxPulse 6.5s ease-in-out infinite",
+            cursor: "pointer",
+          }}
+          aria-label={completed ? "Mark as not complete" : "Mark as complete"}
+          title={completed ? "Mark as not complete" : "Mark as complete"}
+        >
+          {completed && (
+            <svg
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="h-[10px] w-[10px] mx-auto text-white"
+              style={{ marginTop: "1px" }}
+            >
+              <path
+                fillRule="evenodd"
+                d="M16.7 5.3a1 1 0 010 1.4l-7.4 7.4a1 1 0 01-1.4 0L3.3 9.9a1 1 0 011.4-1.4l3 3 6.7-6.7a1 1 0 011.4 0z"
+                clipRule="evenodd"
+              />
+            </svg>
+          )}
+        </button>
+
+        {/* Card (modern) */}
+        <div
+          className="rounded-2xl border border-neutral-200/80 bg-white px-5 py-4 shadow-[0_1px_0_rgba(0,0,0,0.03)] transition hover:-translate-y-[1px] hover:shadow-[0_10px_30px_rgba(0,0,0,0.06)]"
+          style={{
+            opacity: completed ? 0.92 : 1,
+            filter: completed ? "saturate(0.95)" : "none",
+          }}
+        >
+          <div className="flex justify-between items-center gap-4">
             <div>
-              <div className="text-sm font-semibold">{title}</div>
+              <div className="text-sm font-semibold text-neutral-900">{title}</div>
               <div className="text-xs text-neutral-500 mt-1">{meta}</div>
             </div>
-            <span className="text-[11px] border border-neutral-200 rounded-full px-2 py-1">
+
+            {/* Tag */}
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide"
+              style={getTagStyle(tag)}
+            >
               {tag}
             </span>
           </div>

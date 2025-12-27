@@ -2,38 +2,21 @@
 
 /* App variables */
 :root {
+  color-scheme: light; /* force light mode */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #111111;
 
   /* Jynx brand accent */
   --jynx-olive: #4b5e3c;
-
-  /* Font variable used by layout.tsx */
-  --font-dm-sans: ui-sans-serif;
 }
 
 /* Tailwind v4 theme bridge */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-
-  /* Use DM Sans for Tailwind's font-sans */
-  --font-sans: var(--font-dm-sans);
-}
-
-/* Optional dark mode (kept from your original) */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-
-  /* DM Sans is injected by Next (layout.tsx). This tells the browser to use it. */
-  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system,
-    Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
