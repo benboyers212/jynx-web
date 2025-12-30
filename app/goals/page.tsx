@@ -9,7 +9,6 @@ const tabs = [
   { label: "MyJynx", href: "/myjynx" },
   { label: "Groups", href: "/groups" },
   { label: "Schedule", href: "/" },
-  { label: "Goals", href: "/goals", active: true },
   { label: "Chat", href: "/chat" },
   { label: "Files", href: "/files" },
 ];
