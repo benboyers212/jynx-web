@@ -5,14 +5,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const OLIVE = "#556B2F";
 
-const tabs = [
-  { label: "MyJynx", href: "/myjynx" },
-  { label: "Groups", href: "/groups" },
-  { label: "Schedule", href: "/", active: true },
-  { label: "Chat", href: "/chat" },
-  { label: "Files", href: "/files" },
-];
-
 type EventType = "class" | "work" | "health" | "prep" | "study" | "life";
 
 type BaseEvent = {
@@ -24,6 +16,9 @@ type BaseEvent = {
   time: string;
   location?: string;
   completed?: boolean;
+
+  // NEW: simple “importance” (UI shell)
+  importance?: 1 | 2 | 3 | 4 | 5;
 };
 
 type ClassDetails = {
@@ -70,7 +65,10 @@ function getTagStyleDark(tag: string) {
     backgroundColor: "rgba(255,255,255,0.06)",
   };
 
-  const map: Record<string, { backgroundColor: string; color: string; borderColor: string }> = {
+  const map: Record<
+    string,
+    { backgroundColor: string; color: string; borderColor: string }
+  > = {
     Class: {
       backgroundColor: "rgba(85,107,47,0.14)",
       color: "rgba(235,245,230,0.95)",
@@ -132,6 +130,7 @@ export default function Home() {
       meta: "Hodge Hall 2056 · Exam 1 review",
       location: "Hodge Hall 2056",
       completed: false,
+      importance: 4,
       details: {
         class: {
           courseCode: "F305",
@@ -161,6 +160,7 @@ export default function Home() {
       title: "Deep Work — Problem Set",
       meta: "Focus block · 90 min",
       completed: false,
+      importance: 5,
       details: {
         work: {
           owner: "You",
@@ -181,10 +181,16 @@ export default function Home() {
       title: "Gym",
       meta: "Chest + tris · 60 min",
       completed: false,
+      importance: 3,
       details: {
         health: {
           duration: "60 min",
-          plan: ["Incline chest press", "Cable fly", "Triceps pushdown", "Incline walk 10 min"],
+          plan: [
+            "Incline chest press",
+            "Cable fly",
+            "Triceps pushdown",
+            "Incline walk 10 min",
+          ],
           notes: "Keep it crisp. Leave 1–2 reps in the tank on first sets.",
         },
       },
@@ -197,6 +203,7 @@ export default function Home() {
       title: "Prep — F305 reading",
       meta: "Ch. 7 · 25 min",
       completed: false,
+      importance: 2,
     },
   ]);
 
@@ -211,6 +218,7 @@ export default function Home() {
         meta: "Portfolio theory",
         location: "Hodge Hall 2056",
         completed: false,
+        importance: 3,
         details: {
           class: {
             courseCode: "F305",
@@ -221,7 +229,9 @@ export default function Home() {
             shortSummary:
               "Portfolio construction, diversification, efficient frontier, and how risk factors drive returns.",
             syllabusFiles: [{ name: "F305 Syllabus (PDF)", href: "/files" }],
-            assignmentsDue: [{ title: "Reading: Ch. 7", due: "Before class", points: "—" }],
+            assignmentsDue: [
+              { title: "Reading: Ch. 7", due: "Before class", points: "—" },
+            ],
           },
         },
       },
@@ -233,6 +243,7 @@ export default function Home() {
         title: "Study — F305",
         meta: "Review notes · 60 min",
         completed: false,
+        importance: 3,
       },
       {
         id: "t3",
@@ -242,27 +253,57 @@ export default function Home() {
         title: "Dinner + reset",
         meta: "Light night · 45 min",
         completed: false,
+        importance: 2,
       },
     ],
     []
   );
 
+  // Tomorrow collapsible (so it’s there, but not shouting)
+  const [tomorrowOpen, setTomorrowOpen] = useState(false);
+
   // Drawer state
   const [selected, setSelected] = useState<EventRecord | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<"Overview" | "Files" | "Assignments" | "Notes">(
-    "Overview"
-  );
+  const [drawerTab, setDrawerTab] = useState<
+    "Overview" | "Files" | "Assignments" | "Notes"
+  >("Overview");
 
-  // Quick chat input
+  // Quick chat
   const [quickChat, setQuickChat] = useState("");
   const quickChatRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // "Thoughts?" mini card when event is opened
+  // Thoughts mini card
   const [thoughtsOpen, setThoughtsOpen] = useState(false);
   const [thoughtsText, setThoughtsText] = useState("");
 
-  // Autosize quick chat + thoughts
+  // NEW: Adjust modal (schedule controls)
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [freeTimePct, setFreeTimePct] = useState(22); // UI shell
+  const [protectFocus, setProtectFocus] = useState(true);
+  const [autoRebalance, setAutoRebalance] = useState(true);
+
+  // square sizing that never overflows viewport
+  const adjustSize = "min(92vw, 860px, 85vh)";
+
+  // Add-event form (inside Adjust)
+  const [addForm, setAddForm] = useState<{
+    time: string;
+    title: string;
+    meta: string;
+    tag: EventRecord["tag"];
+    type: EventType;
+    importance: 1 | 2 | 3 | 4 | 5;
+  }>({
+    time: "3:30 PM",
+    title: "",
+    meta: "",
+    tag: "Work",
+    type: "work",
+    importance: 3,
+  });
+
+  // Autosize quick chat
   useEffect(() => {
     const el = quickChatRef.current;
     if (!el) return;
@@ -280,20 +321,22 @@ export default function Home() {
 
   function closeDrawer() {
     setDrawerOpen(false);
-    // keep selected for transition; clear after
     setTimeout(() => setSelected(null), 200);
     setThoughtsOpen(false);
   }
 
-  // ESC to close drawer
+  // ESC closes drawer / adjust
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") closeDrawer();
+      if (e.key === "Escape") {
+        if (adjustOpen) setAdjustOpen(false);
+        if (drawerOpen) closeDrawer();
+      }
     }
-    if (drawerOpen) window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawerOpen]);
+  }, [drawerOpen, adjustOpen]);
 
   function toggleComplete(id: string) {
     setTodayEvents((prev) =>
@@ -301,10 +344,39 @@ export default function Home() {
     );
   }
 
+  function setImportance(id: string, importance: 1 | 2 | 3 | 4 | 5) {
+    setTodayEvents((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, importance } : e))
+    );
+    if (selected?.id === id) setSelected((s) => (s ? { ...s, importance } : s));
+  }
+
+  function removeEvent(id: string) {
+    setTodayEvents((prev) => prev.filter((e) => e.id !== id));
+    if (selected?.id === id) closeDrawer();
+  }
+
+  function addEvent() {
+    if (!addForm.title.trim()) return;
+    const newEv: EventRecord = {
+      id: uid(),
+      type: addForm.type,
+      tag: addForm.tag,
+      time: addForm.time.trim(),
+      title: addForm.title.trim(),
+      meta: addForm.meta.trim() || "—",
+      completed: false,
+      importance: addForm.importance,
+    };
+    setTodayEvents((prev) =>
+      [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time))
+    );
+    setAddForm((p) => ({ ...p, title: "", meta: "" }));
+  }
+
   function sendQuickChat() {
     const text = quickChat.trim();
     if (!text) return;
-    // UI shell action — for now we just clear and optionally route to /chat later
     setQuickChat("");
     alert(`UI shell — would send to assistant:\n\n"${text}"`);
   }
@@ -324,120 +396,94 @@ export default function Home() {
       </div>
 
       <div className="relative flex h-full">
-        {/* Tabs sidebar */}
-        <aside className="w-64 border-r border-white/10 bg-neutral-950/60 backdrop-blur hidden md:flex flex-col">
-          <div className="px-5 py-4 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl border border-white/12 bg-white/6 flex items-center justify-center text-xs font-semibold">
-                LOGO
-              </div>
-              <div>
-                <div className="text-sm font-semibold tracking-wide">Jynx</div>
-                <div className="text-xs text-neutral-400">Your schedule system</div>
-              </div>
-            </div>
-          </div>
-
-          <nav className="p-3 space-y-1">
-            {tabs.map((t) => (
-              <Link
-                key={t.label}
-                href={t.href}
-                className="flex items-center justify-between rounded-xl px-3 py-2 text-sm transition"
-                style={
-                  t.active
-                    ? { backgroundColor: OLIVE, color: "white", fontWeight: 700 }
-                    : { color: "#D4D4D4" }
-                }
-              >
-                <span>{t.label}</span>
-                {t.active && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15">
-                    Active
-                  </span>
-                )}
-              </Link>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Main */}
         <div className="flex-1 flex flex-col h-full">
-          {/* Header */}
-          <header className="border-b border-white/10 bg-neutral-950/45 backdrop-blur shrink-0">
-            <div className="max-w-6xl mx-auto px-6 py-4 flex items-center">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{
-                      backgroundColor: OLIVE,
-                      boxShadow: "0 0 0 4px rgba(85,107,47,0.18)",
-                    }}
-                  />
-                  <div className="text-sm font-semibold tracking-wide">Schedule</div>
-                </div>
-                <div className="text-xs text-neutral-400 mt-1">Today · Optimized for focus</div>
-              </div>
-
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  className="rounded-xl px-3 py-2 text-xs font-semibold border bg-white/6 hover:bg-white/10 transition"
-                  style={oliveSoftStyle}
-                  onClick={() => alert("UI shell")}
-                >
-                  Optimize
-                </button>
-                <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] text-neutral-200">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400/80" />
-                  UI shell
-                </div>
-              </div>
-            </div>
-          </header>
-
-          {/* Body scroll */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-6xl mx-auto px-6 py-6 grid grid-cols-12 gap-6">
-              {/* Schedule timeline */}
-              <section className="col-span-12 lg:col-span-8">
-                <Section title="Today · Thu, Sep 12">
-                  {todayEvents.map((e) => (
+            <div className="max-w-[1280px] mx-auto px-6 pt-6 pb-10 grid grid-cols-12 gap-6">
+              {/* Schedule timeline (wide) */}
+              <section className="col-span-12 lg:col-span-9">
+                <Section
+                  title="Today"
+                  subtitle="Thu, Sep 12"
+                  right={
+                    <div className="flex items-center gap-2">
+                      <PillStat label="Free time" value={`${freeTimePct}%`} />
+                      <button
+                        onClick={() => setAdjustOpen(true)}
+                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
+                        style={oliveSoftStyle}
+                      >
+                        Adjust
+                      </button>
+                    </div>
+                  }
+                >
+                  {todayEvents.map((e, idx) => (
                     <TimeBlock
                       key={e.id}
                       event={e}
                       olive={OLIVE}
+                      isLast={idx === todayEvents.length - 1}
                       onToggleComplete={() => toggleComplete(e.id)}
                       onOpen={() => openDrawer(e)}
                     />
                   ))}
                 </Section>
 
-                <Section title="Tomorrow · Fri, Sep 13">
-                  {tomorrowEvents.map((e) => (
-                    <TimeBlock
-                      key={e.id}
-                      event={e}
-                      olive={OLIVE}
-                      onToggleComplete={() => alert("UI shell")}
-                      onOpen={() => openDrawer(e)}
-                    />
-                  ))}
-                </Section>
+                {/* Tomorrow — collapsible so it’s there but not competing */}
+                <div className="mb-8">
+                  <button
+                    className="w-full flex items-center justify-between rounded-3xl border bg-white/6 backdrop-blur px-4 py-3 hover:bg-white/8 transition"
+                    style={oliveSoftStyle}
+                    onClick={() => setTomorrowOpen((v) => !v)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={cx(
+                          "transition-transform",
+                          tomorrowOpen ? "rotate-180" : ""
+                        )}
+                      >
+                        ▾
+                      </span>
+                      <div className="text-sm font-semibold">Tomorrow</div>
+                      <div className="text-xs text-neutral-400">Fri, Sep 13</div>
+                    </div>
+                    <div className="text-[11px] text-neutral-400">
+                      {tomorrowEvents.length} items
+                    </div>
+                  </button>
+
+                  {tomorrowOpen && (
+                    <div className="mt-4 space-y-4">
+                      {tomorrowEvents.map((e, idx) => (
+                        <TimeBlock
+                          key={e.id}
+                          event={e}
+                          olive={OLIVE}
+                          isLast={idx === tomorrowEvents.length - 1}
+                          onToggleComplete={() => alert("UI shell")}
+                          onOpen={() => openDrawer(e)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </section>
 
-              {/* Right column */}
-              <aside className="col-span-12 lg:col-span-4 space-y-4">
+              {/* Right rail */}
+              <aside className="col-span-12 lg:col-span-3 lg:pl-8 space-y-4 flex flex-col items-end">
                 {/* Today’s focus */}
-                <div className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
+                <div
+                  className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
+                  style={oliveCardStyle}
+                >
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Today’s focus</div>
                       <div className="text-[11px] text-neutral-400">nudge</div>
                     </div>
                     <div className="mt-2 text-sm text-neutral-200 leading-relaxed">
-                      Your most demanding work is earlier today. Protect that window and keep
-                      distractions low.
+                      Your most demanding work is earlier today. Protect that window and keep distractions low.
                     </div>
                     <div className="mt-3 flex gap-2">
                       <button
@@ -458,7 +504,10 @@ export default function Home() {
                 </div>
 
                 {/* Patterns */}
-                <div className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
+                <div
+                  className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
+                  style={oliveCardStyle}
+                >
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Patterns</div>
@@ -472,16 +521,19 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Quick chat — now actually typeable */}
-                <div className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
+                {/* Quick chat (schedule-specific, smaller + clearer label) */}
+                <div
+                  className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
+                  style={oliveCardStyle}
+                >
                   <div className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Quick chat</div>
-                      <div className="text-[11px] text-neutral-400">assistant</div>
+                      <div className="text-sm font-semibold">Schedule assistant</div>
+                      <div className="text-[11px] text-neutral-400">quick</div>
                     </div>
 
                     <div className="mt-2 text-sm text-neutral-200 leading-relaxed">
-                      Ask about conflicts, changes, what to focus on next, or optimizing today.
+                      Conflicts, swaps, adding free time, or rebalancing your day.
                     </div>
 
                     <div className="mt-3 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3">
@@ -489,7 +541,7 @@ export default function Home() {
                         ref={quickChatRef}
                         value={quickChat}
                         onChange={(e) => setQuickChat(e.target.value)}
-                        placeholder='Example: "Move my gym after class and add a 45-min F305 study block before dinner."'
+                        placeholder='Example: "Move gym to 5pm and add 30min deep work after class."'
                         rows={1}
                         className="w-full resize-none bg-transparent outline-none text-sm text-neutral-100 placeholder:text-neutral-500 leading-relaxed"
                         style={{ height: 0 }}
@@ -582,16 +634,40 @@ export default function Home() {
                     {selected?.time}
                     {selected?.location ? ` · ${selected.location}` : ""}
                   </div>
-                  {selected?.tag && (
-                    <div className="mt-2">
+
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {selected?.tag && (
                       <span
                         className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
                         style={getTagStyleDark(selected.tag)}
                       >
                         {selected.tag}
                       </span>
-                    </div>
-                  )}
+                    )}
+
+                    {/* Importance control (quick + tangible) */}
+                    {selected?.id && (
+                      <div className="flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1.5">
+                        <span className="text-[11px] text-neutral-400">Importance</span>
+                        <select
+                          value={selected.importance ?? 3}
+                          onChange={(e) =>
+                            setImportance(
+                              selected.id,
+                              Number(e.target.value) as 1 | 2 | 3 | 4 | 5
+                            )
+                          }
+                          className="bg-transparent text-[11px] text-neutral-200 outline-none"
+                        >
+                          <option value={1}>1</option>
+                          <option value={2}>2</option>
+                          <option value={3}>3</option>
+                          <option value={4}>4</option>
+                          <option value={5}>5</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <button
@@ -602,7 +678,7 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Tabs (based on type) */}
+              {/* Tabs */}
               <div className="mt-4 flex gap-2 flex-wrap">
                 {(["Overview", "Assignments", "Files", "Notes"] as const).map((t) => (
                   <button
@@ -624,7 +700,7 @@ export default function Home() {
 
             {/* Drawer body */}
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-              {/* Mini "Thoughts?" card */}
+              {/* Thoughts mini card */}
               {thoughtsOpen && (
                 <div className="rounded-3xl border bg-white/6" style={oliveCardStyle}>
                   <div className="p-4">
@@ -643,7 +719,7 @@ export default function Home() {
                     <textarea
                       value={thoughtsText}
                       onChange={(e) => setThoughtsText(e.target.value)}
-                      placeholder="e.g., I should ask a question about CAPM in office hours…"
+                      placeholder="e.g., Ask about CAPM intuition in office hours…"
                       className="mt-3 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3 text-sm outline-none placeholder:text-neutral-500 resize-none"
                       rows={3}
                     />
@@ -667,7 +743,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Content based on type + tab */}
               <DrawerContent selected={selected} tab={drawerTab} />
             </div>
 
@@ -681,12 +756,14 @@ export default function Home() {
                 >
                   Edit
                 </button>
-                <button
-                  className="rounded-2xl px-4 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
-                  onClick={() => alert("UI shell — Delete event")}
-                >
-                  Delete
-                </button>
+                {selected?.id && (
+                  <button
+                    className="rounded-2xl px-4 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                    onClick={() => removeEvent(selected.id)}
+                  >
+                    Drop
+                  </button>
+                )}
                 <div className="ml-auto" />
                 <button
                   className="rounded-2xl px-4 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
@@ -698,6 +775,319 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Adjust overlay */}
+        {adjustOpen && (
+          <>
+            <button
+              className="fixed inset-0 bg-black/65 backdrop-blur-[1px] z-[60]"
+              style={{ animation: "fadeIn 180ms ease-out" }}
+              onClick={() => setAdjustOpen(false)}
+              aria-label="Close adjust"
+            />
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
+              <div
+                className="relative rounded-3xl border bg-neutral-950/90 backdrop-blur overflow-hidden"
+                style={{
+                  width: adjustSize,
+                  height: adjustSize,
+                  borderColor: "rgba(85,107,47,0.40)",
+                  boxShadow:
+                    "0 0 0 1px rgba(85,107,47,0.25), 0 30px 120px rgba(0,0,0,0.70)",
+                  animation: "fadeScaleIn 220ms ease-out",
+                }}
+              >
+                <div className="px-5 py-4 border-b border-white/10 flex items-center">
+                  <div>
+                    <div className="text-sm font-semibold">Adjust</div>
+                    <div className="text-xs text-neutral-400 mt-0.5">
+                      Tune free time, focus protection, and quick edits (UI shell).
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAdjustOpen(false)}
+                    className="ml-auto rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* scroll area inside square */}
+                <div className="p-5 h-[calc(100%-56px-64px)] overflow-y-auto">
+                  <div className="grid grid-cols-12 gap-4">
+                    {/* Controls */}
+                    <div className="col-span-12 md:col-span-6 space-y-4">
+                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold">Free time</div>
+                          <div className="text-xs text-neutral-300">
+                            {freeTimePct}%
+                          </div>
+                        </div>
+                        <div className="text-xs text-neutral-400 mt-1">
+                          More free time = fewer blocks packed back-to-back.
+                        </div>
+                        <input
+                          type="range"
+                          min={10}
+                          max={45}
+                          value={freeTimePct}
+                          onChange={(e) => setFreeTimePct(Number(e.target.value))}
+                          className="mt-3 w-full accent-[rgba(85,107,47,0.95)]"
+                        />
+                        <div className="mt-2 flex justify-between text-[11px] text-neutral-500">
+                          <span>10%</span>
+                          <span>45%</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4 space-y-3">
+                        <ToggleRow
+                          label="Protect focus blocks"
+                          desc="Keeps deep work earlier, reduces interruptions."
+                          value={protectFocus}
+                          onChange={setProtectFocus}
+                        />
+                        <ToggleRow
+                          label="Auto rebalance"
+                          desc="When you add/drop, the day gets re-packed."
+                          value={autoRebalance}
+                          onChange={setAutoRebalance}
+                        />
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                        <div className="text-sm font-semibold">Drop an event</div>
+                        <div className="text-xs text-neutral-400 mt-1">
+                          Quick remove (UI shell).
+                        </div>
+                        <div className="mt-3 space-y-2 max-h-[220px] overflow-auto pr-1">
+                          {todayEvents.map((e) => (
+                            <div
+                              key={e.id}
+                              className="flex items-center gap-2 rounded-2xl border border-white/10 bg-neutral-900/35 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs text-neutral-300 truncate">
+                                  {e.time} · {e.title}
+                                </div>
+                                <div className="text-[11px] text-neutral-500 truncate">
+                                  {e.meta}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => removeEvent(e.id)}
+                                className="rounded-xl px-2 py-1 text-[11px] font-semibold border border-white/12 bg-white/6 hover:bg-white/10 transition"
+                              >
+                                Drop
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Add / Importance */}
+                    <div className="col-span-12 md:col-span-6 space-y-4">
+                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                        <div className="text-sm font-semibold">Add an event</div>
+                        <div className="text-xs text-neutral-400 mt-1">
+                          Adds to Today (UI shell).
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-12 gap-2">
+                          <div className="col-span-4">
+                            <Label>Time</Label>
+                            <input
+                              value={addForm.time}
+                              onChange={(e) =>
+                                setAddForm((p) => ({
+                                  ...p,
+                                  time: e.target.value,
+                                }))
+                              }
+                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                            />
+                          </div>
+                          <div className="col-span-8">
+                            <Label>Title</Label>
+                            <input
+                              value={addForm.title}
+                              onChange={(e) =>
+                                setAddForm((p) => ({
+                                  ...p,
+                                  title: e.target.value,
+                                }))
+                              }
+                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              placeholder="e.g., Call Dylan"
+                            />
+                          </div>
+
+                          <div className="col-span-12">
+                            <Label>Meta</Label>
+                            <input
+                              value={addForm.meta}
+                              onChange={(e) =>
+                                setAddForm((p) => ({
+                                  ...p,
+                                  meta: e.target.value,
+                                }))
+                              }
+                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              placeholder="e.g., 20 min · quick sync"
+                            />
+                          </div>
+
+                          <div className="col-span-6">
+                            <Label>Type</Label>
+                            <select
+                              value={addForm.type}
+                              onChange={(e) =>
+                                setAddForm((p) => ({
+                                  ...p,
+                                  type: e.target.value as EventType,
+                                }))
+                              }
+                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                            >
+                              <option value="class">class</option>
+                              <option value="work">work</option>
+                              <option value="health">health</option>
+                              <option value="prep">prep</option>
+                              <option value="study">study</option>
+                              <option value="life">life</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-6">
+                            <Label>Tag</Label>
+                            <select
+                              value={addForm.tag}
+                              onChange={(e) =>
+                                setAddForm((p) => ({
+                                  ...p,
+                                  tag: e.target.value as any,
+                                }))
+                              }
+                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                            >
+                              <option>Class</option>
+                              <option>Work</option>
+                              <option>Health</option>
+                              <option>Prep</option>
+                              <option>Study</option>
+                              <option>Life</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-12">
+                            <Label>Importance</Label>
+                            <div className="mt-1 flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={1}
+                                max={5}
+                                value={addForm.importance}
+                                onChange={(e) =>
+                                  setAddForm((p) => ({
+                                    ...p,
+                                    importance: Number(e.target.value) as
+                                      | 1
+                                      | 2
+                                      | 3
+                                      | 4
+                                      | 5,
+                                  }))
+                                }
+                                className="flex-1 accent-[rgba(85,107,47,0.95)]"
+                              />
+                              <span className="text-sm text-neutral-200 w-6 text-center">
+                                {addForm.importance}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            onClick={addEvent}
+                            disabled={!addForm.title.trim()}
+                            className={cx(
+                              "rounded-2xl px-3 py-2 text-xs font-semibold border transition",
+                              addForm.title.trim()
+                                ? "bg-white/10 hover:bg-white/14 border-white/12"
+                                : "bg-white/5 border-white/5 text-neutral-500 cursor-not-allowed"
+                            )}
+                            style={addForm.title.trim() ? oliveSoftStyle : undefined}
+                          >
+                            Add
+                          </button>
+                          <button
+                            onClick={() =>
+                              setAddForm((p) => ({ ...p, title: "", meta: "" }))
+                            }
+                            className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                        <div className="text-sm font-semibold">What this is (for now)</div>
+                        <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
+                          This “Adjust” panel is the control center. Later it becomes the place where
+                          Jynx actually rebalances your day (importance, constraints, free time).
+                        </div>
+                        <div className="mt-3 text-xs text-neutral-500">
+                          UI shell: protectFocus={String(protectFocus)} · autoRebalance={String(autoRebalance)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 border-t border-white/10 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => setAdjustOpen(false)}
+                    className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => alert("UI shell — would apply rebalance")}
+                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
+                    style={oliveSoftStyle}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+
+              <style jsx>{`
+                @keyframes fadeIn {
+                  from {
+                    opacity: 0;
+                  }
+                  to {
+                    opacity: 1;
+                  }
+                }
+                @keyframes fadeScaleIn {
+                  from {
+                    opacity: 0;
+                    transform: scale(0.975);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: scale(1);
+                  }
+                }
+              `}</style>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
@@ -710,17 +1100,14 @@ function DrawerContent({
   selected: EventRecord | null;
   tab: "Overview" | "Files" | "Assignments" | "Notes";
 }) {
-  if (!selected) {
+  if (!selected)
     return (
       <div className="text-sm text-neutral-400">
         Select an event to view details.
       </div>
     );
-  }
 
   const type = selected.type;
-
-  // Defaults
   const classD = selected.details?.class;
   const workD = selected.details?.work;
   const healthD = selected.details?.health;
@@ -804,7 +1191,7 @@ function DrawerContent({
   if (tab === "Assignments") {
     if (type === "class" && classD?.assignmentsDue?.length) {
       return (
-        <Panel title="Assignments" subtitle="due before next class">
+        <Panel title="Assignments" subtitle="due soon">
           <div className="space-y-2">
             {classD.assignmentsDue.map((a) => (
               <div
@@ -812,12 +1199,16 @@ function DrawerContent({
                 className="rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-neutral-100">{a.title}</div>
+                  <div className="text-sm font-semibold text-neutral-100">
+                    {a.title}
+                  </div>
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/12 text-neutral-200">
                     {a.points ?? "—"}
                   </span>
                 </div>
-                <div className="mt-1 text-xs text-neutral-400">Due: {a.due}</div>
+                <div className="mt-1 text-xs text-neutral-400">
+                  Due: {a.due}
+                </div>
               </div>
             ))}
           </div>
@@ -837,7 +1228,7 @@ function DrawerContent({
   if (tab === "Files") {
     if (type === "class" && classD?.syllabusFiles?.length) {
       return (
-        <Panel title="Files" subtitle="syllabus + materials">
+        <Panel title="Files" subtitle="materials">
           <div className="space-y-2">
             {classD.syllabusFiles.map((f) => (
               <Link
@@ -876,13 +1267,12 @@ function DrawerContent({
     return (
       <Panel title="Files" subtitle="not available yet">
         <div className="text-sm text-neutral-400">
-          Wire this to your Files tab later (file ids, uploads, etc.).
+          Wire this to your Files tab later.
         </div>
       </Panel>
     );
   }
 
-  // Notes tab
   return (
     <Panel title="Notes" subtitle="freeform">
       <textarea
@@ -941,14 +1331,82 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  subtitle,
+  right,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mb-8">
-      <div className="text-[11px] font-medium text-neutral-400 uppercase tracking-wider mb-3">
-        {title}
+      <div className="flex items-end justify-between gap-4 mb-3">
+        <div className="flex items-baseline gap-2">
+          <div className="text-sm font-semibold text-neutral-100">{title}</div>
+          {subtitle ? <div className="text-xs text-neutral-500">{subtitle}</div> : null}
+        </div>
+        {right ?? null}
       </div>
       <div className="space-y-4">{children}</div>
     </div>
+  );
+}
+
+function PillStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1.5">
+      <span className="text-[11px] text-neutral-400">{label}</span>
+      <span className="text-[11px] font-semibold text-neutral-200">{value}</span>
+    </div>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <div className="text-[11px] text-neutral-400 font-medium">{children}</div>;
+}
+
+function ToggleRow({
+  label,
+  desc,
+  value,
+  onChange,
+}: {
+  label: string;
+  desc: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className="w-full flex items-start gap-3 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3 hover:bg-white/6 transition text-left"
+    >
+      <div
+        className="mt-0.5 h-4 w-7 rounded-full border border-white/15 relative"
+        style={{
+          background: value ? "rgba(85,107,47,0.35)" : "rgba(255,255,255,0.06)",
+          boxShadow: value ? "0 0 0 1px rgba(85,107,47,0.25)" : undefined,
+        }}
+      >
+        <div
+          className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full"
+          style={{
+            left: value ? 16 : 2,
+            background: value ? "rgba(235,245,230,0.95)" : "rgba(255,255,255,0.45)",
+            transition: "left 140ms ease",
+          }}
+        />
+      </div>
+      <div className="flex-1">
+        <div className="text-sm font-semibold text-neutral-100">{label}</div>
+        <div className="text-xs text-neutral-400 mt-0.5">{desc}</div>
+      </div>
+    </button>
   );
 }
 
@@ -957,13 +1415,30 @@ function TimeBlock({
   olive,
   onToggleComplete,
   onOpen,
+  isLast,
 }: {
   event: EventRecord;
   olive: string;
   onToggleComplete: () => void;
   onOpen: () => void;
+  isLast?: boolean;
 }) {
   const completed = !!event.completed;
+
+  const completedCardStyle: React.CSSProperties = completed
+    ? {
+        opacity: 0.72,
+        filter: "blur(1.15px) saturate(0.92)",
+        borderColor: "rgba(255,255,255,0.12)",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.22)",
+      }
+    : {
+        opacity: 1,
+        filter: "none",
+        borderColor: "rgba(85,107,47,0.50)",
+        boxShadow:
+          "0 0 0 1px rgba(85,107,47,0.35), 0 16px 44px rgba(0,0,0,0.35)",
+      };
 
   return (
     <div className="flex gap-5">
@@ -973,23 +1448,29 @@ function TimeBlock({
       </div>
 
       <div className="relative flex-1">
-        {/* Timeline spine */}
-        <div className="absolute left-[-16px] top-0 bottom-0 w-[2px] bg-white/10" />
+        {/* Timeline spine (quieter + nicer) */}
+        <div
+          className="absolute left-[-16px] top-[-8px] bottom-[-8px] w-[2px]"
+          style={{
+            background: isLast
+              ? "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))"
+              : "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.10))",
+          }}
+        />
 
-        {/* Timeline dot (clickable to complete) */}
+        {/* Dot */}
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onToggleComplete();
           }}
-          className="absolute left-[-23px] top-1/2 -translate-y-1/2 h-[16px] w-[16px] rounded-full ring-[6px] ring-neutral-950 shadow-sm transition z-10 flex items-center justify-center"
+          className="absolute left-[-26px] top-1/2 -translate-y-1/2 h-[18px] w-[18px] rounded-full ring-[7px] ring-neutral-950 transition z-10 flex items-center justify-center"
           style={{
-            backgroundColor: completed ? "rgba(255,255,255,0.18)" : olive,
+            backgroundColor: completed ? "rgba(255,255,255,0.16)" : olive,
             boxShadow: completed
               ? "0 0 0 1px rgba(255,255,255,0.12)"
               : "0 0 0 1px rgba(85,107,47,0.55), 0 0 22px rgba(85,107,47,0.22)",
-            cursor: "pointer",
           }}
           aria-label={completed ? "Mark as not complete" : "Mark as complete"}
           title={completed ? "Mark as not complete" : "Mark as complete"}
@@ -998,7 +1479,7 @@ function TimeBlock({
             <svg
               viewBox="0 0 20 20"
               fill="none"
-              className="h-[10px] w-[10px]"
+              className="h-[11px] w-[11px]"
               aria-hidden="true"
             >
               <path
@@ -1012,39 +1493,64 @@ function TimeBlock({
           )}
         </button>
 
-        {/* Card (click to open drawer) */}
+        {/* Card */}
         <button
           type="button"
           onClick={onOpen}
           className={cx(
-            "w-full text-left rounded-3xl border bg-white/6 backdrop-blur px-4 py-3 transition",
+            "group w-full text-left rounded-3xl border bg-white/6 backdrop-blur px-4 py-3 transition",
             "hover:-translate-y-[1px] hover:bg-white/8"
           )}
-          style={{
-            borderColor: completed ? "rgba(255,255,255,0.12)" : "rgba(85,107,47,0.50)",
-            boxShadow: completed
-              ? "0 10px 30px rgba(0,0,0,0.25)"
-              : "0 0 0 1px rgba(85,107,47,0.35), 0 16px 44px rgba(0,0,0,0.35)",
-            opacity: completed ? 0.88 : 1,
-          }}
+          style={completedCardStyle}
         >
           <div className="flex justify-between items-center gap-4">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-neutral-100 truncate">
                 {event.title}
               </div>
-              <div className="text-xs text-neutral-400 mt-1 truncate">{event.meta}</div>
+              <div className="text-xs text-neutral-400 mt-1 truncate">
+                {event.meta}
+              </div>
             </div>
 
-            <span
-              className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border shrink-0"
-              style={getTagStyleDark(event.tag)}
-            >
-              {event.tag}
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* tiny importance hint (non-invasive) */}
+              <span className="hidden sm:inline text-[11px] text-neutral-500 tabular-nums">
+                {event.importance ?? ""}
+              </span>
+
+              <span
+                className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
+                style={getTagStyleDark(event.tag)}
+              >
+                {event.tag}
+              </span>
+            </div>
           </div>
+
+          {/* Hover behavior: unblur completed items */}
+          {completed && (
+            <style jsx>{`
+              button.group:hover {
+                filter: none !important;
+                opacity: 0.92 !important;
+              }
+            `}</style>
+          )}
         </button>
       </div>
     </div>
   );
+}
+
+/** simple helper: rough ordering for AM/PM strings (UI shell) */
+function timeSort(t: string) {
+  const m = t.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  if (!m) return 999999;
+  let hh = parseInt(m[1], 10);
+  const mm = parseInt(m[2] ?? "0", 10);
+  const ap = m[3].toUpperCase();
+  if (ap === "PM" && hh !== 12) hh += 12;
+  if (ap === "AM" && hh === 12) hh = 0;
+  return hh * 60 + mm;
 }

@@ -1,17 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const OLIVE = "#556B2F";
-
-const tabs = [
-  { label: "MyJynx", href: "/myjynx" },
-  { label: "Groups", href: "/groups" },
-  { label: "Schedule", href: "/" },
-  { label: "Chat", href: "/chat", active: true },
-  { label: "Files", href: "/files" },
-];
 
 type Role = "user" | "assistant";
 
@@ -56,6 +47,10 @@ function uid() {
 }
 
 export default function ChatPage() {
+  // ✅ FIX: avoid hydration mismatch from rendering time on server vs client
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const [threads, setThreads] = useState<Thread[]>(() => {
     const now = Date.now();
     return [
@@ -91,6 +86,10 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [historyQuery, setHistoryQuery] = useState("");
   const [cardsOpen, setCardsOpen] = useState(true);
+
+  // Files (composer)
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -147,22 +146,55 @@ export default function ChatPage() {
     setMessages([]);
     setInput("");
     setCardsOpen(true);
+    setAttachedFiles([]);
+  }
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const list = Array.from(e.target.files ?? []);
+    if (!list.length) return;
+
+    // simple de-dupe by name+size+lastModified
+    setAttachedFiles((prev) => {
+      const seen = new Set(prev.map((f) => `${f.name}|${f.size}|${f.lastModified}`));
+      const next = [...prev];
+      for (const f of list) {
+        const key = `${f.name}|${f.size}|${f.lastModified}`;
+        if (!seen.has(key)) next.push(f);
+      }
+      return next;
+    });
+
+    // allow re-picking same file later
+    e.target.value = "";
+  }
+
+  function removeFileAt(idx: number) {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function onSend() {
     const text = input.trim();
-    if (!text) return;
+    if (!text && attachedFiles.length === 0) return;
 
     const now = Date.now();
 
+    const filesLine =
+      attachedFiles.length > 0
+        ? `\n\nAttached:\n${attachedFiles.map((f) => `• ${f.name}`).join("\n")}`
+        : "";
+
     setMessages((prev) => [
       ...prev,
-      { id: uid(), role: "user", content: text, createdAt: now },
+      { id: uid(), role: "user", content: (text || "(sent files)") + filesLine, createdAt: now },
       {
         id: uid(),
         role: "assistant",
         content:
-          "Got it. (UI shell) — this is where the assistant response will appear once wired to your backend.",
+          "Got it. (UI shell) — files are attached in the UI for now. Once wired, this will upload + reference them in the thread.",
         createdAt: now + 250,
       },
     ]);
@@ -170,13 +202,25 @@ export default function ChatPage() {
     setThreads((prev) =>
       prev.map((t) => {
         if (t.id !== activeThreadId) return t;
-        const title =
-          t.title === "New chat" || t.title === "" ? shortPreview(text, 34) : t.title;
-        return { ...t, title, lastMessagePreview: shortPreview(text, 70) };
+
+        const baseTitle =
+          t.title === "New chat" || t.title === ""
+            ? shortPreview(text || "Files", 34)
+            : t.title;
+
+        const previewBase =
+          text || (attachedFiles.length ? `Attached ${attachedFiles.length} file(s)` : "");
+        const preview =
+          attachedFiles.length && text
+            ? `${shortPreview(text, 52)} • +${attachedFiles.length} file(s)`
+            : shortPreview(previewBase, 70);
+
+        return { ...t, title: baseTitle, lastMessagePreview: preview };
       })
     );
 
     setInput("");
+    setAttachedFiles([]);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -187,18 +231,13 @@ export default function ChatPage() {
   }
 
   // === Styling tokens ===
-  const panelBase =
-    "rounded-3xl border bg-white/6 backdrop-blur";
-  const panelInner =
-    "rounded-2xl border bg-neutral-900/40";
-  const buttonBase =
-    "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
+  const panelBase = "rounded-3xl border bg-white/6 backdrop-blur";
+  const panelInner = "rounded-2xl border bg-neutral-900/40";
+  const buttonBase = "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
 
-  // Prominent olive border (this is the main change you asked for)
   const oliveCardStyle: React.CSSProperties = {
     borderColor: "rgba(85,107,47,0.60)",
-    boxShadow:
-      "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.40)",
+    boxShadow: "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.40)",
   };
 
   const oliveSoftStyle: React.CSSProperties = {
@@ -207,7 +246,7 @@ export default function ChatPage() {
   };
 
   return (
-    <main className="h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
+    <main className="h-full bg-neutral-950 text-neutral-100 overflow-hidden">
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
@@ -221,46 +260,11 @@ export default function ChatPage() {
       </div>
 
       <div className="relative flex h-full">
-        {/* Tabs Sidebar */}
-        <aside className="w-64 border-r border-white/10 bg-neutral-950/60 backdrop-blur hidden md:flex flex-col">
-          <div className="px-5 py-4 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl border border-white/12 bg-white/6 flex items-center justify-center text-xs font-semibold">
-                LOGO
-              </div>
-              <div>
-                <div className="text-sm font-semibold tracking-wide">Jynx</div>
-                <div className="text-xs text-neutral-400">Your schedule system</div>
-              </div>
-            </div>
-          </div>
-
-          <nav className="p-3 space-y-1">
-            {tabs.map((t) => (
-              <Link
-                key={t.label}
-                href={t.href}
-                className="flex items-center justify-between rounded-xl px-3 py-2 text-sm transition"
-                style={
-                  t.active
-                    ? { backgroundColor: OLIVE, color: "white", fontWeight: 700 }
-                    : { color: "#D4D4D4" }
-                }
-              >
-                <span>{t.label}</span>
-                {t.active && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15">
-                    Active
-                  </span>
-                )}
-              </Link>
-            ))}
-          </nav>
-        </aside>
-
         {/* History */}
-        <aside className="w-[290px] border-r border-white/10 bg-neutral-950/45 backdrop-blur hidden lg:flex flex-col">
+        <aside className="w-[320px] border-r border-white/10 bg-neutral-950/45 backdrop-blur hidden md:flex flex-col">
           <div className="p-4 border-b border-white/10">
+            {/* ✅ REMOVED: redundant Jynx logo block */}
+
             <div className="flex items-center gap-2">
               <div className="text-sm font-semibold tracking-wide">History</div>
               <div className="ml-auto" />
@@ -305,6 +309,7 @@ export default function ChatPage() {
                               setMessages([]);
                               setCardsOpen(true);
                               setInput("");
+                              setAttachedFiles([]);
                             }}
                             className={cx(
                               "w-full text-left rounded-2xl px-3 py-3 border transition relative",
@@ -327,8 +332,11 @@ export default function ChatPage() {
                                   {t.lastMessagePreview || "—"}
                                 </div>
                               </div>
+
                               <div className="text-[11px] text-neutral-500 whitespace-nowrap">
-                                {formatTime(t.createdAt)}
+                                <span suppressHydrationWarning>
+                                  {mounted ? formatTime(t.createdAt) : ""}
+                                </span>
                               </div>
                             </div>
                           </button>
@@ -342,8 +350,8 @@ export default function ChatPage() {
           </div>
         </aside>
 
-        {/* Main column: header + scrollable content + sticky composer */}
-        <section className="flex-1 flex flex-col h-full">
+        {/* Main column */}
+        <section className="flex-1 flex flex-col h-full min-w-0">
           {/* Header */}
           <header className="border-b border-white/10 bg-neutral-950/45 backdrop-blur shrink-0">
             <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
@@ -365,13 +373,14 @@ export default function ChatPage() {
             </div>
           </header>
 
-          {/* Scrollable content area (composer stays visible) */}
+          {/* Scrollable content area */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-6xl mx-auto px-6 py-5 pb-28">
-              {/* PRE-CHAT: compact dashboard ONLY */}
+            {/* ⬇️ IMPORTANT: extra bottom padding so composer never gets clipped */}
+            <div className="max-w-6xl mx-auto px-6 py-5 pb-48">
+              {/* PRE-CHAT: compact dashboard ONLY (2 cards) */}
               {!hasChatted ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* A */}
+                  {/* Today’s Priorities */}
                   <div className={panelBase} style={oliveCardStyle}>
                     <div className="p-4">
                       <div className="flex items-center gap-2">
@@ -428,55 +437,7 @@ export default function ChatPage() {
                     </div>
                   </div>
 
-                  {/* B */}
-                  <div className={panelBase} style={oliveCardStyle}>
-                    <div className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-7 w-7 rounded-2xl flex items-center justify-center border border-white/12 bg-white/6 text-xs"
-                          style={oliveSoftStyle}
-                        >
-                          ⏱
-                        </div>
-                        <div className="text-sm font-semibold">Schedule Snapshot</div>
-                        <div className="ml-auto text-[11px] text-neutral-400">today</div>
-                      </div>
-
-                      <div className="mt-3 space-y-2">
-                        {[
-                          { time: "Morning", label: "Deep work block", tag: "90m" },
-                          { time: "Afternoon", label: "Class / meetings", tag: "2–3h" },
-                          { time: "Evening", label: "Gym + dinner", tag: "75m" },
-                        ].map((b) => (
-                          <div
-                            key={b.time}
-                            className={cx(panelInner, "px-3 py-2 flex items-center gap-3")}
-                            style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                          >
-                            <div className="w-20 text-xs text-neutral-400">{b.time}</div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm text-neutral-100 truncate">{b.label}</div>
-                            </div>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/12 text-neutral-200">
-                              {b.tag}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-3">
-                        <button
-                          className={cx(buttonBase, "bg-white/10 hover:bg-white/14")}
-                          style={oliveSoftStyle}
-                          onClick={() => alert("UI shell")}
-                        >
-                          Optimize
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* F (fixed height + internal scroll so the whole page doesn’t push composer off-screen) */}
+                  {/* Suggested Actions */}
                   <div className={panelBase} style={oliveCardStyle}>
                     <div className="p-4">
                       <div className="flex items-center gap-2">
@@ -490,7 +451,7 @@ export default function ChatPage() {
                         <div className="ml-auto text-[11px] text-neutral-400">AI nudges</div>
                       </div>
 
-                      <div className="mt-3 space-y-2 max-h-[170px] overflow-y-auto pr-1">
+                      <div className="mt-3 space-y-2 max-h-[260px] overflow-y-auto pr-1">
                         {[
                           "You have a big gap midday — want a 60–90m focus block inserted?",
                           "If you move gym 30m earlier, you’ll avoid a late-night crush.",
@@ -509,52 +470,16 @@ export default function ChatPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* D */}
-                  <div className={panelBase} style={oliveCardStyle}>
-                    <div className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-7 w-7 rounded-2xl flex items-center justify-center border border-white/12 bg-white/6 text-xs"
-                          style={oliveSoftStyle}
-                        >
-                          ⬇
-                        </div>
-                        <div className="text-sm font-semibold">Inbox</div>
-                        <div className="ml-auto text-[11px] text-neutral-400">drop-off zone</div>
-                      </div>
-
-                      <div className="mt-3 rounded-3xl border border-dashed border-white/18 bg-neutral-900/35 px-4 py-5 text-center">
-                        <div className="text-sm text-neutral-200">Drop files / notes here (later)</div>
-                        <div className="mt-1 text-xs text-neutral-400">
-                          For now, this is a placeholder card.
-                        </div>
-
-                        <div className="mt-3 flex justify-center gap-2">
-                          <Link
-                            href="/files"
-                            className={cx(buttonBase, "bg-white/10 hover:bg-white/14")}
-                            style={oliveSoftStyle}
-                          >
-                            Go to Files
-                          </Link>
-                          <button
-                            className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12")}
-                            onClick={() => alert("UI shell")}
-                          >
-                            Upload (later)
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               ) : (
                 <>
-                  {/* Chat mode: overview bar (toggle ALWAYS works now) */}
+                  {/* Chat mode: overview bar */}
                   <button
                     onClick={() => setCardsOpen((v) => !v)}
-                    className={cx(panelBase, "w-full px-4 py-3 flex items-center gap-3 hover:bg-white/8 transition")}
+                    className={cx(
+                      panelBase,
+                      "w-full px-4 py-3 flex items-center gap-3 hover:bg-white/8 transition"
+                    )}
                     style={oliveCardStyle}
                   >
                     <div
@@ -566,7 +491,7 @@ export default function ChatPage() {
                     <div className="min-w-0 flex-1 text-left">
                       <div className="text-sm font-semibold">Today Overview</div>
                       <div className="text-xs text-neutral-400 truncate">
-                        Priorities • Schedule • Suggested actions • Inbox
+                        Priorities • Suggested actions
                       </div>
                     </div>
                     <div className="text-xs text-neutral-200">{cardsOpen ? "Hide" : "Show"}</div>
@@ -574,7 +499,6 @@ export default function ChatPage() {
 
                   {cardsOpen && (
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Re-show all 4 cards in compact form */}
                       <div className={panelBase} style={oliveCardStyle}>
                         <div className="p-4">
                           <div className="text-sm font-semibold">Today’s Priorities</div>
@@ -594,63 +518,25 @@ export default function ChatPage() {
 
                       <div className={panelBase} style={oliveCardStyle}>
                         <div className="p-4">
-                          <div className="text-sm font-semibold">Schedule Snapshot</div>
-                          <div className="mt-3 space-y-2 text-sm text-neutral-200">
-                            <div className="flex items-center justify-between rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2">
-                              <span>Morning</span>
-                              <span className="text-xs text-neutral-400">Deep work</span>
-                            </div>
-                            <div className="flex items-center justify-between rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2">
-                              <span>Afternoon</span>
-                              <span className="text-xs text-neutral-400">Class / meetings</span>
-                            </div>
-                            <div className="flex items-center justify-between rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2">
-                              <span>Evening</span>
-                              <span className="text-xs text-neutral-400">Gym + dinner</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className={panelBase} style={oliveCardStyle}>
-                        <div className="p-4">
                           <div className="text-sm font-semibold">Suggested Actions</div>
                           <div className="mt-3 space-y-2 text-sm text-neutral-200">
                             <button
-                              onClick={() => setInput("Insert a 60–90m focus block in my midday gap and adjust my schedule.")}
+                              onClick={() =>
+                                setInput(
+                                  "Insert a 60–90m focus block in my midday gap and adjust my schedule."
+                                )
+                              }
                               className="w-full text-left rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 hover:bg-white/6 transition"
                             >
                               Insert a focus block midday
                             </button>
                             <button
-                              onClick={() => setInput("Move gym 30 minutes earlier and re-balance the rest of my evening.")}
+                              onClick={() =>
+                                setInput("Move gym 30 minutes earlier and re-balance the rest of my evening.")
+                              }
                               className="w-full text-left rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 hover:bg-white/6 transition"
                             >
                               Move gym earlier
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className={panelBase} style={oliveCardStyle}>
-                        <div className="p-4">
-                          <div className="text-sm font-semibold">Inbox</div>
-                          <div className="mt-3 rounded-2xl border border-dashed border-white/18 bg-neutral-900/35 px-3 py-6 text-center text-sm text-neutral-300">
-                            Drop-off zone (files/notes) — placeholder
-                          </div>
-                          <div className="mt-3 flex gap-2">
-                            <Link
-                              href="/files"
-                              className={cx(buttonBase, "bg-white/10 hover:bg-white/14")}
-                              style={oliveSoftStyle}
-                            >
-                              Files
-                            </Link>
-                            <button
-                              onClick={() => alert("UI shell")}
-                              className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12")}
-                            >
-                              Upload (later)
                             </button>
                           </div>
                         </div>
@@ -689,8 +575,11 @@ export default function ChatPage() {
                             <div className="text-sm leading-relaxed text-neutral-100 whitespace-pre-wrap">
                               {m.content}
                             </div>
+
                             <div className="mt-2 text-[11px] text-neutral-500">
-                              {formatTime(m.createdAt)}
+                              <span suppressHydrationWarning>
+                                {mounted ? formatTime(m.createdAt) : ""}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -703,12 +592,56 @@ export default function ChatPage() {
             </div>
           </div>
 
-          {/* Sticky Composer (ALWAYS visible) */}
-          <div className="border-t border-white/10 bg-neutral-950/70 backdrop-blur shrink-0">
+          {/* ✅ Composer */}
+          <div className="sticky bottom-0 z-50 border-t border-white/10 bg-neutral-950/80 backdrop-blur shrink-0">
             <div className="max-w-6xl mx-auto px-6 py-4">
-              <div className="mx-auto max-w-3xl">
-                <div className="rounded-3xl border bg-white/6 px-3 py-3" style={oliveCardStyle}>
+              <div className="mx-auto max-w-4xl">
+                <div className="rounded-3xl border bg-white/6 px-4 py-4" style={oliveCardStyle}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    multiple
+                    onChange={onPickFiles}
+                  />
+
+                  {attachedFiles.length > 0 && (
+                    <div className="pb-3">
+                      <div className="flex flex-wrap gap-2">
+                        {attachedFiles.map((f, idx) => (
+                          <div
+                            key={`${f.name}-${f.size}-${f.lastModified}-${idx}`}
+                            className="flex items-center gap-2 rounded-full border border-white/12 bg-neutral-900/40 px-3 py-1.5"
+                            style={oliveSoftStyle}
+                          >
+                            <span className="text-[11px] text-neutral-200 max-w-[260px] truncate">
+                              {f.name}
+                            </span>
+                            <button
+                              onClick={() => removeFileAt(idx)}
+                              className="text-[11px] text-neutral-400 hover:text-neutral-200 transition"
+                              aria-label={`Remove ${f.name}`}
+                              title="Remove"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-end gap-3">
+                    <button
+                      onClick={openFilePicker}
+                      className="shrink-0 h-11 w-11 rounded-2xl border border-white/12 bg-white/6 hover:bg-white/10 transition flex items-center justify-center"
+                      style={oliveSoftStyle}
+                      title="Add file"
+                      aria-label="Add file"
+                    >
+                      +
+                    </button>
+
                     <textarea
                       ref={textareaRef}
                       value={input}
@@ -722,15 +655,15 @@ export default function ChatPage() {
 
                     <button
                       onClick={onSend}
-                      disabled={!input.trim()}
+                      disabled={!input.trim() && attachedFiles.length === 0}
                       className={cx(
-                        "shrink-0 rounded-2xl px-4 py-2 text-xs font-semibold transition border",
-                        input.trim()
+                        "shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold transition border",
+                        input.trim() || attachedFiles.length
                           ? "border-white/12 bg-white/12 hover:bg-white/16"
                           : "border-white/5 bg-white/5 text-neutral-500 cursor-not-allowed"
                       )}
                       style={
-                        input.trim()
+                        input.trim() || attachedFiles.length
                           ? {
                               boxShadow:
                                 "0 0 0 2px rgba(85,107,47,0.40), 0 12px 30px rgba(0,0,0,0.35)",
@@ -742,7 +675,7 @@ export default function ChatPage() {
                     </button>
                   </div>
 
-                  <div className="mt-2 flex items-center gap-2 px-2">
+                  <div className="mt-2 flex items-center gap-2 px-1">
                     <span className="text-[11px] text-neutral-500">
                       Enter to send • Shift+Enter for a new line
                     </span>
@@ -753,20 +686,18 @@ export default function ChatPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {[
-                    "Build my schedule today",
-                    "What should I prioritize next?",
-                    "Optimize my day into time blocks",
-                  ].map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => setInput(q)}
-                      className="rounded-full border border-white/12 bg-white/6 px-3 py-1.5 text-[11px] text-neutral-200 hover:bg-white/10 transition"
-                      style={oliveSoftStyle}
-                    >
-                      {q}
-                    </button>
-                  ))}
+                  {["Build my schedule today", "What should I prioritize next?", "Optimize my day into time blocks"].map(
+                    (q) => (
+                      <button
+                        key={q}
+                        onClick={() => setInput(q)}
+                        className="rounded-full border border-white/12 bg-white/6 px-3 py-1.5 text-[11px] text-neutral-200 hover:bg-white/10 transition"
+                        style={oliveSoftStyle}
+                      >
+                        {q}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             </div>
