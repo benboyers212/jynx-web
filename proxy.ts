@@ -5,9 +5,10 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
 ]);
 
-export const middleware = clerkMiddleware(async (auth, req) => {
+export const proxy = clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req)) {
-    await auth.protect({ unauthenticatedUrl: "/login" });
+    const loginUrl = new URL("/login", req.url); // ✅ absolute using current origin
+    await auth.protect({ unauthenticatedUrl: loginUrl.toString() });
   }
 });
 
