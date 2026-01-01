@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const OLIVE = "#556B2F";
 
-type EventType = "class" | "work" | "health" | "prep" | "study" | "life";
+type EventType = "class" | "work" | "health" | "prep" | "study" | "life" | "free";
 
 type BaseEvent = {
   id: string;
@@ -13,12 +13,19 @@ type BaseEvent = {
   tag: string;
   title: string;
   meta: string;
-  time: string;
+
+  // start + end (for clean flow)
+  time: string; // start
+  endTime?: string;
+
   location?: string;
   completed?: boolean;
 
-  // NEW: simple “importance” (UI shell)
+  // importance 1–5 (UI shell)
   importance?: 1 | 2 | 3 | 4 | 5;
+
+  // internal only
+  isFree?: boolean;
 };
 
 type ClassDetails = {
@@ -99,9 +106,44 @@ function getTagStyleDark(tag: string) {
       color: "rgba(235,245,230,0.92)",
       borderColor: "rgba(85,107,47,0.36)",
     },
+    Flexible: {
+      backgroundColor: "rgba(255,255,255,0.05)",
+      color: "rgba(255,255,255,0.72)",
+      borderColor: "rgba(255,255,255,0.10)",
+    },
   };
 
   return map[tag] ?? base;
+}
+
+function getImportanceLabel(i?: 1 | 2 | 3 | 4 | 5) {
+  if (!i) return "Medium";
+  if (i >= 4) return "High";
+  if (i <= 2) return "Low";
+  return "Medium";
+}
+
+function getImportancePillStyle(level: "High" | "Medium" | "Low") {
+  if (level === "High") {
+    return {
+      backgroundColor: "rgba(85,107,47,0.18)",
+      borderColor: "rgba(85,107,47,0.52)",
+      color: "rgba(235,245,230,0.95)",
+      boxShadow: "0 0 0 1px rgba(85,107,47,0.18)",
+    } as React.CSSProperties;
+  }
+  if (level === "Low") {
+    return {
+      backgroundColor: "rgba(255,255,255,0.05)",
+      borderColor: "rgba(255,255,255,0.10)",
+      color: "rgba(255,255,255,0.72)",
+    } as React.CSSProperties;
+  }
+  return {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.12)",
+    color: "rgba(255,255,255,0.80)",
+  } as React.CSSProperties;
 }
 
 const oliveCardStyle: React.CSSProperties = {
@@ -126,6 +168,7 @@ export default function Home() {
       type: "class",
       tag: "Class",
       time: "9:30 AM",
+      endTime: "10:45 AM",
       title: "F305 — Intermediate Investments",
       meta: "Hodge Hall 2056 · Exam 1 review",
       location: "Hodge Hall 2056",
@@ -157,6 +200,7 @@ export default function Home() {
       type: "work",
       tag: "Work",
       time: "11:00 AM",
+      endTime: "12:30 PM",
       title: "Deep Work — Problem Set",
       meta: "Focus block · 90 min",
       completed: false,
@@ -178,6 +222,7 @@ export default function Home() {
       type: "health",
       tag: "Health",
       time: "2:00 PM",
+      endTime: "3:00 PM",
       title: "Gym",
       meta: "Chest + tris · 60 min",
       completed: false,
@@ -200,6 +245,7 @@ export default function Home() {
       type: "prep",
       tag: "Prep",
       time: "7:00 PM",
+      endTime: "7:25 PM",
       title: "Prep — F305 reading",
       meta: "Ch. 7 · 25 min",
       completed: false,
@@ -207,59 +253,59 @@ export default function Home() {
     },
   ]);
 
-  const tomorrowEvents: EventRecord[] = useMemo(
-    () => [
-      {
-        id: "t1",
-        type: "class",
-        tag: "Class",
-        time: "10:00 AM",
-        title: "F305 — Lecture",
-        meta: "Portfolio theory",
-        location: "Hodge Hall 2056",
-        completed: false,
-        importance: 3,
-        details: {
-          class: {
-            courseCode: "F305",
-            instructor: "Prof. Kim",
-            email: "kim@iu.edu",
-            room: "Hodge Hall 2056",
-            meetingPattern: "Tue/Thu · 9:30–10:45 AM",
-            shortSummary:
-              "Portfolio construction, diversification, efficient frontier, and how risk factors drive returns.",
-            syllabusFiles: [{ name: "F305 Syllabus (PDF)", href: "/files" }],
-            assignmentsDue: [
-              { title: "Reading: Ch. 7", due: "Before class", points: "—" },
-            ],
-          },
+  const [tomorrowEvents, setTomorrowEvents] = useState<EventRecord[]>([
+    {
+      id: "t1",
+      type: "class",
+      tag: "Class",
+      time: "10:00 AM",
+      endTime: "10:45 AM",
+      title: "F305 — Lecture",
+      meta: "Portfolio theory",
+      location: "Hodge Hall 2056",
+      completed: false,
+      importance: 3,
+      details: {
+        class: {
+          courseCode: "F305",
+          instructor: "Prof. Kim",
+          email: "kim@iu.edu",
+          room: "Hodge Hall 2056",
+          meetingPattern: "Tue/Thu · 9:30–10:45 AM",
+          shortSummary:
+            "Portfolio construction, diversification, efficient frontier, and how risk factors drive returns.",
+          syllabusFiles: [{ name: "F305 Syllabus (PDF)", href: "/files" }],
+          assignmentsDue: [
+            { title: "Reading: Ch. 7", due: "Before class", points: "—" },
+          ],
         },
       },
-      {
-        id: "t2",
-        type: "study",
-        tag: "Study",
-        time: "1:00 PM",
-        title: "Study — F305",
-        meta: "Review notes · 60 min",
-        completed: false,
-        importance: 3,
-      },
-      {
-        id: "t3",
-        type: "life",
-        tag: "Life",
-        time: "6:30 PM",
-        title: "Dinner + reset",
-        meta: "Light night · 45 min",
-        completed: false,
-        importance: 2,
-      },
-    ],
-    []
-  );
+    },
+    {
+      id: "t2",
+      type: "study",
+      tag: "Study",
+      time: "1:00 PM",
+      endTime: "2:00 PM",
+      title: "Study — F305",
+      meta: "Review notes · 60 min",
+      completed: false,
+      importance: 3,
+    },
+    {
+      id: "t3",
+      type: "life",
+      tag: "Life",
+      time: "6:30 PM",
+      endTime: "7:15 PM",
+      title: "Dinner + reset",
+      meta: "Light night · 45 min",
+      completed: false,
+      importance: 2,
+    },
+  ]);
 
-  // Tomorrow collapsible (so it’s there, but not shouting)
+  // Tomorrow collapsible
   const [tomorrowOpen, setTomorrowOpen] = useState(false);
 
   // Drawer state
@@ -283,12 +329,14 @@ export default function Home() {
   const [protectFocus, setProtectFocus] = useState(true);
   const [autoRebalance, setAutoRebalance] = useState(true);
 
-  // square sizing that never overflows viewport
-  const adjustSize = "min(92vw, 860px, 85vh)";
+  // Make Adjust modal wider (keep content the same)
+  const adjustW = "min(96vw, 1160px)";
+  const adjustH = "min(86vh, 760px)";
 
   // Add-event form (inside Adjust)
   const [addForm, setAddForm] = useState<{
     time: string;
+    endTime: string;
     title: string;
     meta: string;
     tag: EventRecord["tag"];
@@ -296,12 +344,31 @@ export default function Home() {
     importance: 1 | 2 | 3 | 4 | 5;
   }>({
     time: "3:30 PM",
+    endTime: "3:50 PM",
     title: "",
     meta: "",
     tag: "Work",
     type: "work",
     importance: 3,
   });
+
+  // Focus (right rail)
+  const [focusMode, setFocusMode] = useState<
+    "Auto" | "Morning" | "Afternoon" | "Evening"
+  >("Auto");
+
+  const focusCopy = useMemo(() => {
+    const map: Record<typeof focusMode, string> = {
+      Auto: "Auto: Jynx chooses the focus based on what’s scheduled next.",
+      Morning:
+        "Protect your early block. Keep distractions low and stay on rails.",
+      Afternoon:
+        "Use the mid-day gap well. Keep transitions clean and don’t drift.",
+      Evening:
+        "Close loops. Light prep, reset, and set up tomorrow so your morning starts clean.",
+    };
+    return map[focusMode];
+  }, [focusMode]);
 
   // Autosize quick chat
   useEffect(() => {
@@ -312,6 +379,9 @@ export default function Home() {
   }, [quickChat]);
 
   function openDrawer(ev: EventRecord) {
+    // Don’t open the drawer for free-time “gap bars”
+    if (ev.isFree) return;
+
     setSelected(ev);
     setDrawerOpen(true);
     setDrawerTab("Overview");
@@ -338,13 +408,15 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerOpen, adjustOpen]);
 
-  function toggleComplete(id: string) {
-    setTodayEvents((prev) =>
+  function toggleComplete(which: "today" | "tomorrow", id: string) {
+    const setter = which === "today" ? setTodayEvents : setTomorrowEvents;
+    setter((prev) =>
       prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e))
     );
   }
 
   function setImportance(id: string, importance: 1 | 2 | 3 | 4 | 5) {
+    // only editing today's for UI shell (matches your prior behavior)
     setTodayEvents((prev) =>
       prev.map((e) => (e.id === id ? { ...e, importance } : e))
     );
@@ -363,6 +435,7 @@ export default function Home() {
       type: addForm.type,
       tag: addForm.tag,
       time: addForm.time.trim(),
+      endTime: addForm.endTime.trim(),
       title: addForm.title.trim(),
       meta: addForm.meta.trim() || "—",
       completed: false,
@@ -380,6 +453,16 @@ export default function Home() {
     setQuickChat("");
     alert(`UI shell — would send to assistant:\n\n"${text}"`);
   }
+
+  // Build "display blocks" with free-time inserted between scheduled events
+  const todayBlocks = useMemo(
+    () => buildBlocksWithFreeTime(todayEvents),
+    [todayEvents]
+  );
+  const tomorrowBlocks = useMemo(
+    () => buildBlocksWithFreeTime(tomorrowEvents),
+    [tomorrowEvents]
+  );
 
   return (
     <main className="h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
@@ -417,16 +500,12 @@ export default function Home() {
                     </div>
                   }
                 >
-                  {todayEvents.map((e, idx) => (
-                    <TimeBlock
-                      key={e.id}
-                      event={e}
-                      olive={OLIVE}
-                      isLast={idx === todayEvents.length - 1}
-                      onToggleComplete={() => toggleComplete(e.id)}
-                      onOpen={() => openDrawer(e)}
-                    />
-                  ))}
+                  <TimelineWithDayparts
+                    blocks={todayBlocks}
+                    olive={OLIVE}
+                    onToggleComplete={(id) => toggleComplete("today", id)}
+                    onOpen={openDrawer}
+                  />
                 </Section>
 
                 {/* Tomorrow — collapsible so it’s there but not competing */}
@@ -454,17 +533,13 @@ export default function Home() {
                   </button>
 
                   {tomorrowOpen && (
-                    <div className="mt-4 space-y-4">
-                      {tomorrowEvents.map((e, idx) => (
-                        <TimeBlock
-                          key={e.id}
-                          event={e}
-                          olive={OLIVE}
-                          isLast={idx === tomorrowEvents.length - 1}
-                          onToggleComplete={() => alert("UI shell")}
-                          onOpen={() => openDrawer(e)}
-                        />
-                      ))}
+                    <div className="mt-4">
+                      <TimelineWithDayparts
+                        blocks={tomorrowBlocks}
+                        olive={OLIVE}
+                        onToggleComplete={(id) => toggleComplete("tomorrow", id)}
+                        onOpen={openDrawer}
+                      />
                     </div>
                   )}
                 </div>
@@ -472,19 +547,47 @@ export default function Home() {
 
               {/* Right rail */}
               <aside className="col-span-12 lg:col-span-3 lg:pl-8 space-y-4 flex flex-col items-end">
-                {/* Today’s focus */}
+                {/* Focus */}
                 <div
                   className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
                   style={oliveCardStyle}
                 >
                   <div className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Today’s focus</div>
-                      <div className="text-[11px] text-neutral-400">nudge</div>
+                      <div className="text-sm font-semibold">Focus</div>
+                      <div className="text-[11px] text-neutral-400">
+                        {focusMode === "Auto" ? "auto" : "manual"}
+                      </div>
                     </div>
-                    <div className="mt-2 text-sm text-neutral-200 leading-relaxed">
-                      Your most demanding work is earlier today. Protect that window and keep distractions low.
+
+                    {/* keep these INSIDE the card + wrap */}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(["Auto", "Morning", "Afternoon", "Evening"] as const).map(
+                        (k) => {
+                          const active = focusMode === k;
+                          return (
+                            <button
+                              key={k}
+                              onClick={() => setFocusMode(k)}
+                              className={cx(
+                                "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
+                                active
+                                  ? "bg-white/12 border-white/14"
+                                  : "bg-white/6 border-white/10 hover:bg-white/10"
+                              )}
+                              style={active ? oliveSoftStyle : undefined}
+                            >
+                              {k}
+                            </button>
+                          );
+                        }
+                      )}
                     </div>
+
+                    <div className="mt-3 text-sm text-neutral-200 leading-relaxed">
+                      {focusCopy}
+                    </div>
+
                     <div className="mt-3 flex gap-2">
                       <button
                         className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
@@ -503,32 +606,16 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Patterns */}
+                {/* Quick chat */}
                 <div
                   className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
                   style={oliveCardStyle}
                 >
                   <div className="p-4">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Patterns</div>
-                      <div className="text-[11px] text-neutral-400">insights</div>
-                    </div>
-                    <ul className="mt-3 space-y-2 text-sm text-neutral-200 list-disc pl-5">
-                      <li>Most productive in the late morning</li>
-                      <li>Schedule hardest tasks before 2 PM</li>
-                      <li>Short prep blocks beat long sessions</li>
-                    </ul>
-                  </div>
-                </div>
-
-                {/* Quick chat (schedule-specific, smaller + clearer label) */}
-                <div
-                  className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
-                  style={oliveCardStyle}
-                >
-                  <div className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Schedule assistant</div>
+                      <div className="text-sm font-semibold">
+                        Schedule assistant
+                      </div>
                       <div className="text-[11px] text-neutral-400">quick</div>
                     </div>
 
@@ -612,7 +699,8 @@ export default function Home() {
             drawerOpen ? "translate-x-0" : "translate-x-full"
           )}
           style={{
-            boxShadow: "0 0 0 1px rgba(85,107,47,0.25), -24px 0 80px rgba(0,0,0,0.60)",
+            boxShadow:
+              "0 0 0 1px rgba(85,107,47,0.25), -24px 0 80px rgba(0,0,0,0.60)",
           }}
         >
           <div className="h-full flex flex-col">
@@ -631,7 +719,7 @@ export default function Home() {
                     {selected?.title ?? "Event"}
                   </div>
                   <div className="mt-1 text-xs text-neutral-400">
-                    {selected?.time}
+                    {formatRange(selected?.time, selected?.endTime)}
                     {selected?.location ? ` · ${selected.location}` : ""}
                   </div>
 
@@ -645,25 +733,29 @@ export default function Home() {
                       </span>
                     )}
 
-                    {/* Importance control (quick + tangible) */}
+                    {/* Importance control */}
                     {selected?.id && (
                       <div className="flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1.5">
-                        <span className="text-[11px] text-neutral-400">Importance</span>
+                        <span className="text-[11px] text-neutral-400">
+                          Importance
+                        </span>
+
                         <select
-                          value={selected.importance ?? 3}
-                          onChange={(e) =>
-                            setImportance(
-                              selected.id,
-                              Number(e.target.value) as 1 | 2 | 3 | 4 | 5
-                            )
-                          }
+                          value={getImportanceLabel(selected.importance)}
+                          onChange={(e) => {
+                            const tier = e.target.value as
+                              | "Low"
+                              | "Medium"
+                              | "High";
+                            const mapped: 1 | 2 | 3 | 4 | 5 =
+                              tier === "High" ? 4 : tier === "Low" ? 2 : 3;
+                            setImportance(selected.id, mapped);
+                          }}
                           className="bg-transparent text-[11px] text-neutral-200 outline-none"
                         >
-                          <option value={1}>1</option>
-                          <option value={2}>2</option>
-                          <option value={3}>3</option>
-                          <option value={4}>4</option>
-                          <option value={5}>5</option>
+                          <option value="High">High</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Low">Low</option>
                         </select>
                       </div>
                     )}
@@ -680,21 +772,23 @@ export default function Home() {
 
               {/* Tabs */}
               <div className="mt-4 flex gap-2 flex-wrap">
-                {(["Overview", "Assignments", "Files", "Notes"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setDrawerTab(t)}
-                    className={cx(
-                      "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                      drawerTab === t
-                        ? "bg-white/12 border-white/14"
-                        : "bg-white/6 border-white/10 hover:bg-white/10"
-                    )}
-                    style={drawerTab === t ? oliveSoftStyle : undefined}
-                  >
-                    {t}
-                  </button>
-                ))}
+                {(["Overview", "Assignments", "Files", "Notes"] as const).map(
+                  (t) => (
+                    <button
+                      key={t}
+                      onClick={() => setDrawerTab(t)}
+                      className={cx(
+                        "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
+                        drawerTab === t
+                          ? "bg-white/12 border-white/14"
+                          : "bg-white/6 border-white/10 hover:bg-white/10"
+                      )}
+                      style={drawerTab === t ? oliveSoftStyle : undefined}
+                    >
+                      {t}
+                    </button>
+                  )
+                )}
               </div>
             </div>
 
@@ -702,7 +796,10 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
               {/* Thoughts mini card */}
               {thoughtsOpen && (
-                <div className="rounded-3xl border bg-white/6" style={oliveCardStyle}>
+                <div
+                  className="rounded-3xl border bg-white/6"
+                  style={oliveCardStyle}
+                >
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Thoughts?</div>
@@ -714,7 +811,8 @@ export default function Home() {
                       </button>
                     </div>
                     <div className="mt-2 text-xs text-neutral-400">
-                      Quick note to yourself (or something you want the assistant to remember).
+                      Quick note to yourself (or something you want the assistant
+                      to remember).
                     </div>
                     <textarea
                       value={thoughtsText}
@@ -789,8 +887,8 @@ export default function Home() {
               <div
                 className="relative rounded-3xl border bg-neutral-950/90 backdrop-blur overflow-hidden"
                 style={{
-                  width: adjustSize,
-                  height: adjustSize,
+                  width: adjustW,
+                  height: adjustH,
                   borderColor: "rgba(85,107,47,0.40)",
                   boxShadow:
                     "0 0 0 1px rgba(85,107,47,0.25), 0 30px 120px rgba(0,0,0,0.70)",
@@ -812,7 +910,7 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* scroll area inside square */}
+                {/* scroll area */}
                 <div className="p-5 h-[calc(100%-56px-64px)] overflow-y-auto">
                   <div className="grid grid-cols-12 gap-4">
                     {/* Controls */}
@@ -856,12 +954,13 @@ export default function Home() {
                         />
                       </div>
 
+                      {/* KEEP: Drop an event */}
                       <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
                         <div className="text-sm font-semibold">Drop an event</div>
                         <div className="text-xs text-neutral-400 mt-1">
                           Quick remove (UI shell).
                         </div>
-                        <div className="mt-3 space-y-2 max-h-[220px] overflow-auto pr-1">
+                        <div className="mt-3 space-y-2 max-h-[260px] overflow-auto pr-1">
                           {todayEvents.map((e) => (
                             <div
                               key={e.id}
@@ -869,7 +968,7 @@ export default function Home() {
                             >
                               <div className="min-w-0 flex-1">
                                 <div className="text-xs text-neutral-300 truncate">
-                                  {e.time} · {e.title}
+                                  {formatRange(e.time, e.endTime)} · {e.title}
                                 </div>
                                 <div className="text-[11px] text-neutral-500 truncate">
                                   {e.meta}
@@ -887,7 +986,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Add / Importance */}
+                    {/* Add / Info */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
                       <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
                         <div className="text-sm font-semibold">Add an event</div>
@@ -896,8 +995,8 @@ export default function Home() {
                         </div>
 
                         <div className="mt-3 grid grid-cols-12 gap-2">
-                          <div className="col-span-4">
-                            <Label>Time</Label>
+                          <div className="col-span-6">
+                            <Label>Start</Label>
                             <input
                               value={addForm.time}
                               onChange={(e) =>
@@ -909,7 +1008,21 @@ export default function Home() {
                               className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
                             />
                           </div>
-                          <div className="col-span-8">
+                          <div className="col-span-6">
+                            <Label>End</Label>
+                            <input
+                              value={addForm.endTime}
+                              onChange={(e) =>
+                                setAddForm((p) => ({
+                                  ...p,
+                                  endTime: e.target.value,
+                                }))
+                              }
+                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                            />
+                          </div>
+
+                          <div className="col-span-12">
                             <Label>Title</Label>
                             <input
                               value={addForm.title}
@@ -983,7 +1096,7 @@ export default function Home() {
 
                           <div className="col-span-12">
                             <Label>Importance</Label>
-                            <div className="mt-1 flex items-center gap-2">
+                            <div className="mt-1 flex items-center gap-3">
                               <input
                                 type="range"
                                 min={1}
@@ -1002,8 +1115,8 @@ export default function Home() {
                                 }
                                 className="flex-1 accent-[rgba(85,107,47,0.95)]"
                               />
-                              <span className="text-sm text-neutral-200 w-6 text-center">
-                                {addForm.importance}
+                              <span className="text-sm text-neutral-200 w-16 text-right">
+                                {getImportanceLabel(addForm.importance)}
                               </span>
                             </div>
                           </div>
@@ -1034,6 +1147,7 @@ export default function Home() {
                         </div>
                       </div>
 
+                      {/* KEEP: What this is */}
                       <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
                         <div className="text-sm font-semibold">What this is (for now)</div>
                         <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
@@ -1041,7 +1155,8 @@ export default function Home() {
                           Jynx actually rebalances your day (importance, constraints, free time).
                         </div>
                         <div className="mt-3 text-xs text-neutral-500">
-                          UI shell: protectFocus={String(protectFocus)} · autoRebalance={String(autoRebalance)}
+                          UI shell: protectFocus={String(protectFocus)} · autoRebalance=
+                          {String(autoRebalance)}
                         </div>
                       </div>
                     </div>
@@ -1077,7 +1192,7 @@ export default function Home() {
                 @keyframes fadeScaleIn {
                   from {
                     opacity: 0;
-                    transform: scale(0.975);
+                    transform: scale(0.985);
                   }
                   to {
                     opacity: 1;
@@ -1090,6 +1205,66 @@ export default function Home() {
         )}
       </div>
     </main>
+  );
+}
+
+function TimelineWithDayparts({
+  blocks,
+  olive,
+  onToggleComplete,
+  onOpen,
+}: {
+  blocks: EventRecord[];
+  olive: string;
+  onToggleComplete: (id: string) => void;
+  onOpen: (ev: EventRecord) => void;
+}) {
+  // boundaries: Morning < 12:00, Afternoon 12:00–5:00, Evening >= 5:00
+  const marks = useMemo(() => {
+    const firstAfternoonIdx = blocks.findIndex(
+      (b) => timeSort(b.time) >= 12 * 60
+    );
+    const firstEveningIdx = blocks.findIndex((b) => timeSort(b.time) >= 17 * 60);
+    return { firstAfternoonIdx, firstEveningIdx };
+  }, [blocks]);
+
+  return (
+    <div className="space-y-3">
+      <DaypartLine label="MORNING" hint="Before noon" />
+      <div className="space-y-3">
+        {blocks.map((e, idx) => {
+          const showAfternoon =
+            idx === marks.firstAfternoonIdx && marks.firstAfternoonIdx !== -1;
+          const showEvening =
+            idx === marks.firstEveningIdx && marks.firstEveningIdx !== -1;
+          return (
+            <div key={e.id}>
+              {showAfternoon ? <DaypartLine label="AFTERNOON" hint="12–5 PM" /> : null}
+              {showEvening ? <DaypartLine label="EVENING" hint="After 5 PM" /> : null}
+              <TimeBlock
+                event={e}
+                olive={olive}
+                isLast={idx === blocks.length - 1}
+                onToggleComplete={() => onToggleComplete(e.id)}
+                onOpen={() => onOpen(e)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DaypartLine({ label, hint }: { label: string; hint?: string }) {
+  return (
+    <div className="flex items-center gap-3 pt-1 pb-2">
+      <div className="text-[11px] tracking-widest text-neutral-500 font-semibold">
+        {label}
+      </div>
+      <div className="h-px flex-1 bg-white/8" />
+      {hint ? <div className="text-[11px] text-neutral-500">{hint}</div> : null}
+    </div>
   );
 }
 
@@ -1314,7 +1489,9 @@ function Panel({
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold">{title}</div>
-          {subtitle ? <div className="text-[11px] text-neutral-400">{subtitle}</div> : null}
+          {subtitle ? (
+            <div className="text-[11px] text-neutral-400">{subtitle}</div>
+          ) : null}
         </div>
         <div className="mt-3">{children}</div>
       </div>
@@ -1347,11 +1524,13 @@ function Section({
       <div className="flex items-end justify-between gap-4 mb-3">
         <div className="flex items-baseline gap-2">
           <div className="text-sm font-semibold text-neutral-100">{title}</div>
-          {subtitle ? <div className="text-xs text-neutral-500">{subtitle}</div> : null}
+          {subtitle ? (
+            <div className="text-xs text-neutral-500">{subtitle}</div>
+          ) : null}
         </div>
         {right ?? null}
       </div>
-      <div className="space-y-4">{children}</div>
+      <div>{children}</div>
     </div>
   );
 }
@@ -1397,7 +1576,9 @@ function ToggleRow({
           className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full"
           style={{
             left: value ? 16 : 2,
-            background: value ? "rgba(235,245,230,0.95)" : "rgba(255,255,255,0.45)",
+            background: value
+              ? "rgba(235,245,230,0.95)"
+              : "rgba(255,255,255,0.45)",
             transition: "left 140ms ease",
           }}
         />
@@ -1407,6 +1588,69 @@ function ToggleRow({
         <div className="text-xs text-neutral-400 mt-0.5">{desc}</div>
       </div>
     </button>
+  );
+}
+
+/**
+ * ✅ Free time = “lane”, not a card
+ * - subtle dashed capsule
+ * - + Add appears on hover
+ */
+function GapBar({
+  start,
+  end,
+  hint = "flexible",
+  onAdd,
+}: {
+  start: string;
+  end?: string;
+  hint?: string;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="group w-full">
+      <div
+        className="rounded-2xl px-4 py-3 border bg-white/[0.03]"
+        style={{
+          borderStyle: "dashed",
+          borderColor: "rgba(255,255,255,0.14)",
+          boxShadow: "inset 0 0 0 1px rgba(85,107,47,0.07)",
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5"
+            style={{
+              borderColor: "rgba(85,107,47,0.30)",
+              background: "rgba(85,107,47,0.09)",
+              color: "rgba(255,255,255,0.82)",
+            }}
+          >
+            <span className="text-[11px] font-semibold">Free time</span>
+          </span>
+
+          <div className="min-w-0 flex items-center gap-2 text-[11px] text-neutral-400">
+            <span className="truncate">
+              {start}
+              {end ? `–${end}` : ""}
+            </span>
+            <span className="text-neutral-600">•</span>
+            <span className="font-semibold text-neutral-300">{hint}</span>
+          </div>
+
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAdd();
+            }}
+            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity rounded-full border border-white/12 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-neutral-200 hover:bg-white/8"
+          >
+            + Add
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1424,8 +1668,9 @@ function TimeBlock({
   isLast?: boolean;
 }) {
   const completed = !!event.completed;
+  const isFree = !!event.isFree;
 
-  const completedCardStyle: React.CSSProperties = completed
+  const cardStyle: React.CSSProperties = completed
     ? {
         opacity: 0.72,
         filter: "blur(1.15px) saturate(0.92)",
@@ -1435,74 +1680,108 @@ function TimeBlock({
     : {
         opacity: 1,
         filter: "none",
-        borderColor: "rgba(85,107,47,0.50)",
-        boxShadow:
-          "0 0 0 1px rgba(85,107,47,0.35), 0 16px 44px rgba(0,0,0,0.35)",
+        borderColor: isFree ? "rgba(255,255,255,0.08)" : "rgba(85,107,47,0.50)",
+        boxShadow: isFree
+          ? "none"
+          : "0 0 0 1px rgba(85,107,47,0.35), 0 16px 44px rgba(0,0,0,0.35)",
       };
 
+  const importanceLevel = getImportanceLabel(event.importance);
+
+  // ✅ Free time dot = hollow marker
+  const dotBg = isFree
+    ? "rgba(0,0,0,0)"
+    : completed
+    ? "rgba(255,255,255,0.16)"
+    : olive;
+
+  const dotShadow = isFree
+    ? "0 0 0 2px rgba(255,255,255,0.16)"
+    : completed
+    ? "0 0 0 1px rgba(255,255,255,0.12)"
+    : "0 0 0 1px rgba(85,107,47,0.55), 0 0 22px rgba(85,107,47,0.22)";
+
   return (
-    <div className="flex gap-5">
-      {/* Time */}
-      <div className="w-24 text-sm font-semibold flex items-center text-neutral-200">
-        {event.time}
-      </div>
+    <div className="relative pl-8">
+      {/* timeline spine */}
+      <div
+        className="absolute left-[10px] top-[-10px] bottom-[-10px] w-[2px]"
+        style={{
+          background: isLast
+            ? "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))"
+            : "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.10))",
+        }}
+      />
 
-      <div className="relative flex-1">
-        {/* Timeline spine (quieter + nicer) */}
-        <div
-          className="absolute left-[-16px] top-[-8px] bottom-[-8px] w-[2px]"
-          style={{
-            background: isLast
-              ? "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))"
-              : "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.10))",
-          }}
-        />
+      {/* dot */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!isFree) onToggleComplete();
+        }}
+        className={cx(
+          "absolute left-[1px] top-6 h-[18px] w-[18px] rounded-full ring-[7px] ring-neutral-950 transition z-10 flex items-center justify-center",
+          isFree ? "cursor-default" : "cursor-pointer"
+        )}
+        style={{
+          backgroundColor: dotBg,
+          boxShadow: dotShadow,
+        }}
+        aria-label={
+          isFree
+            ? "Free time marker"
+            : completed
+            ? "Mark as not complete"
+            : "Mark as complete"
+        }
+        title={
+          isFree ? "Free time" : completed ? "Mark as not complete" : "Mark as complete"
+        }
+      >
+        {!isFree && completed && (
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            className="h-[11px] w-[11px]"
+            aria-hidden="true"
+          >
+            <path
+              d="M16.5 6.0L8.5 14.0L4.0 9.5"
+              stroke="rgba(255,255,255,0.95)"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </button>
 
-        {/* Dot */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleComplete();
-          }}
-          className="absolute left-[-26px] top-1/2 -translate-y-1/2 h-[18px] w-[18px] rounded-full ring-[7px] ring-neutral-950 transition z-10 flex items-center justify-center"
-          style={{
-            backgroundColor: completed ? "rgba(255,255,255,0.16)" : olive,
-            boxShadow: completed
-              ? "0 0 0 1px rgba(255,255,255,0.12)"
-              : "0 0 0 1px rgba(85,107,47,0.55), 0 0 22px rgba(85,107,47,0.22)",
-          }}
-          aria-label={completed ? "Mark as not complete" : "Mark as complete"}
-          title={completed ? "Mark as not complete" : "Mark as complete"}
-        >
-          {completed && (
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              className="h-[11px] w-[11px]"
-              aria-hidden="true"
-            >
-              <path
-                d="M16.5 6.0L8.5 14.0L4.0 9.5"
-                stroke="rgba(255,255,255,0.95)"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-        </button>
-
-        {/* Card */}
+      {/* CONTENT */}
+      {isFree ? (
+        <div className="py-1">
+          <GapBar
+            start={event.time}
+            end={event.endTime}
+            hint="flexible"
+            onAdd={() => alert("UI shell — add something into this free time")}
+          />
+        </div>
+      ) : (
         <button
           type="button"
           onClick={onOpen}
           className={cx(
-            "group w-full text-left rounded-3xl border bg-white/6 backdrop-blur px-4 py-3 transition",
-            "hover:-translate-y-[1px] hover:bg-white/8"
+            "group w-full text-left rounded-3xl border backdrop-blur px-4 py-3 transition",
+            "bg-white/6 hover:bg-white/8 hover:-translate-y-[1px]"
           )}
-          style={completedCardStyle}
+          style={cardStyle}
         >
+          {/* time range INSIDE the block */}
+          <div className="text-[11px] text-neutral-400 mb-1">
+            {formatRange(event.time, event.endTime)}
+          </div>
+
           <div className="flex justify-between items-center gap-4">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-neutral-100 truncate">
@@ -1514,9 +1793,11 @@ function TimeBlock({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* tiny importance hint (non-invasive) */}
-              <span className="hidden sm:inline text-[11px] text-neutral-500 tabular-nums">
-                {event.importance ?? ""}
+              <span
+                className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
+                style={getImportancePillStyle(importanceLevel)}
+              >
+                {importanceLevel}
               </span>
 
               <span
@@ -1538,9 +1819,59 @@ function TimeBlock({
             `}</style>
           )}
         </button>
-      </div>
+      )}
     </div>
   );
+}
+
+function formatRange(start?: string, end?: string) {
+  if (!start && !end) return "—";
+  if (start && end) return `${start}–${end}`;
+  return start ?? end ?? "—";
+}
+
+/** Build free-time blocks between events (clean flow). */
+function buildBlocksWithFreeTime(events: EventRecord[]) {
+  const sorted = [...events].sort((a, b) => timeSort(a.time) - timeSort(b.time));
+  const out: EventRecord[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i];
+    out.push(cur);
+
+    const next = sorted[i + 1];
+    if (!next) continue;
+
+    const curEnd = cur.endTime ? timeSort(cur.endTime) : timeSort(cur.time) + 60;
+    const nextStart = timeSort(next.time);
+
+    // only insert if meaningful gap (>= 20 min)
+    if (nextStart - curEnd >= 20) {
+      out.push({
+        id: `free-${cur.id}-${next.id}`,
+        type: "free",
+        tag: "Flexible",
+        title: "Free time",
+        meta: `${minsToTime(curEnd)}–${minsToTime(nextStart)} · flexible`,
+        time: minsToTime(curEnd),
+        endTime: minsToTime(nextStart),
+        completed: false,
+        importance: 1,
+        isFree: true,
+      });
+    }
+  }
+
+  return out;
+}
+
+function minsToTime(mins: number) {
+  let h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const ap = h >= 12 ? "PM" : "AM";
+  if (h === 0) h = 12;
+  if (h > 12) h -= 12;
+  return `${h}:${String(m).padStart(2, "0")} ${ap}`;
 }
 
 /** simple helper: rough ordering for AM/PM strings (UI shell) */

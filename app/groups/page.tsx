@@ -1,17 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 const OLIVE = "#556B2F";
 
-/** NEW: visibility (solves “class isn’t public/private”) */
+/** visibility (solves “class isn’t public/private”) */
 type GroupVisibility = "Public" | "Private" | "Verified";
 
-/** NEW: add Class mode */
+/** add Class mode */
 type GroupMode = "Class" | "Study" | "Accountability" | "Project" | "Light";
 type GroupCategory = "Study" | "Fitness" | "Work" | "Life";
 
-/** NEW: class-specific data shell */
+/** class-specific data shell */
 type ClassStats = {
   avgTimePerWeek: string; // "4.2 hrs"
   exam1Avg: string; // "7.1 hrs"
@@ -43,9 +43,7 @@ type Group = {
   description: string;
   members: number;
 
-  /** replaces old privacy */
   visibility: GroupVisibility;
-
   category: GroupCategory;
 
   // Purpose / “what is this for?”
@@ -58,11 +56,11 @@ type Group = {
   scheduleRelevant?: boolean;
   activityLabel: string;
 
-  /** NEW: chat rules (UI shell only) */
+  /** chat rules (UI shell only) */
   chatEnabled?: boolean; // only true for Private groups (for now)
   memberLimit?: number; // 20 for Private unless org (later)
 
-  /** NEW: class shell */
+  /** class shell */
   classInfo?: ClassInfo;
 };
 
@@ -80,7 +78,7 @@ const INITIAL_YOUR_GROUPS: Group[] = [
     structure: "Structured",
     scheduleRelevant: true,
     activityLabel: "Active",
-    chatEnabled: false, // MVP: no chat for Verified/Class
+    chatEnabled: false,
     classInfo: {
       schoolLabel: "Indiana University",
       courseCode: "F305",
@@ -214,7 +212,7 @@ function pillStyleDark(kind: GroupCategory) {
 }
 
 function modePillStyle(mode: GroupMode) {
-  const map: Record<GroupMode, React.CSSProperties> = {
+  const map: Record<GroupMode, CSSProperties> = {
     Class: {
       backgroundColor: "rgba(85,107,47,0.16)",
       borderColor: "rgba(85,107,47,0.44)",
@@ -245,7 +243,7 @@ function modePillStyle(mode: GroupMode) {
 }
 
 function visibilityPillStyle(v: GroupVisibility) {
-  const map: Record<GroupVisibility, React.CSSProperties> = {
+  const map: Record<GroupVisibility, CSSProperties> = {
     Public: {
       backgroundColor: "rgba(255,255,255,0.05)",
       borderColor: "rgba(255,255,255,0.12)",
@@ -277,14 +275,19 @@ type GroupModalTab =
   | "Assignments"
   | "Insights";
 
-const oliveCardStyle: React.CSSProperties = {
+const oliveCardStyle: CSSProperties = {
   borderColor: "rgba(85,107,47,0.60)",
   boxShadow: "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.42)",
 };
 
-const oliveSoftStyle: React.CSSProperties = {
+const oliveSoftStyle: CSSProperties = {
   borderColor: "rgba(85,107,47,0.42)",
   boxShadow: "0 0 0 1px rgba(85,107,47,0.28)",
+};
+
+const primaryPanelStyle: CSSProperties = {
+  borderColor: "rgba(85,107,47,0.65)",
+  boxShadow: "0 0 0 1px rgba(85,107,47,0.45), 0 26px 90px rgba(0,0,0,0.62)",
 };
 
 function uid() {
@@ -298,11 +301,10 @@ export default function GroupsPage() {
   const [yourQuery, setYourQuery] = useState("");
   const [yourCategory, setYourCategory] = useState<"All" | GroupCategory>("All");
 
-  // Find a group search
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<"All" | GroupCategory>("All");
-
-  // Intent chips
+  // Find group modal (this replaces the on-page discovery blocks)
+  const [showFind, setShowFind] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findCategory, setFindCategory] = useState<"All" | GroupCategory>("All");
   const [intent, setIntent] = useState<"all" | "class" | "study" | "consistent" | "project" | "people">("all");
 
   // Create modal
@@ -328,6 +330,9 @@ export default function GroupsPage() {
   const [groupModalTab, setGroupModalTab] = useState<GroupModalTab>("Overview");
   const [groupExpanded, setGroupExpanded] = useState(false);
 
+  // Assistant collapse inside modal (reduces competition)
+  const [assistantCollapsed, setAssistantCollapsed] = useState(true);
+
   // Chat UI shell (private groups only)
   const [chatDraft, setChatDraft] = useState("");
   const [chatMsgs, setChatMsgs] = useState<Array<{ id: string; who: string; text: string; ts: string }>>([
@@ -345,7 +350,7 @@ export default function GroupsPage() {
   }, [yourGroups, yourQuery, yourCategory]);
 
   const filteredPublic = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = findQuery.trim().toLowerCase();
 
     function matchIntent(g: Group) {
       if (intent === "all") return true;
@@ -359,10 +364,10 @@ export default function GroupsPage() {
 
     return PUBLIC_GROUPS.filter((g) => {
       const matchQ = !q || g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q);
-      const matchCat = category === "All" || g.category === category;
+      const matchCat = findCategory === "All" || g.category === findCategory;
       return matchQ && matchCat && matchIntent(g);
     });
-  }, [query, category, intent]);
+  }, [findQuery, findCategory, intent]);
 
   function resetCreateModal() {
     setCreateTab("Details");
@@ -384,6 +389,14 @@ export default function GroupsPage() {
 
   function closeCreate() {
     setShowCreate(false);
+  }
+
+  function openFind() {
+    setShowFind(true);
+  }
+
+  function closeFind() {
+    setShowFind(false);
   }
 
   function addPerson() {
@@ -458,7 +471,12 @@ export default function GroupsPage() {
           : newMode === "Accountability"
           ? "~5 min/check-in"
           : "~30–60 min",
-      structure: newMode === "Accountability" || newMode === "Light" ? "Loose" : newMode === "Class" ? "Structured" : "Moderate",
+      structure:
+        newMode === "Accountability" || newMode === "Light"
+          ? "Loose"
+          : newMode === "Class"
+          ? "Structured"
+          : "Moderate",
       scheduleRelevant: newMode === "Study" || newMode === "Accountability" || newMode === "Class",
       activityLabel: "Active",
 
@@ -493,10 +511,11 @@ export default function GroupsPage() {
   function openGroupModal(g: Group) {
     setOpenGroup(g);
     setGroupExpanded(false);
+    setAssistantCollapsed(true);
+    setChatDraft("");
 
-    // Default tab based on mode
-    if (g.mode === "Class") setGroupModalTab("Class");
-    else setGroupModalTab("Overview");
+    if (g.mode === "Class") setGroupModalTab("Assignments");
+    else setGroupModalTab(g.visibility === "Private" ? "Chat" : "Overview");
   }
 
   function closeGroupModal() {
@@ -509,10 +528,7 @@ export default function GroupsPage() {
     if (!openGroup?.chatEnabled) return;
     const txt = chatDraft.trim();
     if (!txt) return;
-    setChatMsgs((m) => [
-      ...m,
-      { id: uid(), who: "You", text: txt, ts: "Just now" },
-    ]);
+    setChatMsgs((m) => [...m, { id: uid(), who: "You", text: txt, ts: "Just now" }]);
     setChatDraft("");
   }
 
@@ -520,23 +536,23 @@ export default function GroupsPage() {
 
   const modalTabs: GroupModalTab[] = useMemo(() => {
     if (!openGroup) return ["Overview"];
-
     if (openGroup.mode === "Class") {
-      return ["Class", "Assignments", "Insights", "Files", "Schedule"];
+      return ["Assignments", "Insights", "Schedule", "Files", "Class"];
     }
-
-    // non-class
-    const base: GroupModalTab[] = ["Overview", "Expectations", "People", "Files", "Schedule"];
+    const base: GroupModalTab[] = ["Overview", "Expectations", "Schedule", "Files", "People"];
     if (canShowChat) base.unshift("Chat");
     return base;
   }, [openGroup, canShowChat]);
+
+  const classInfo = openGroup?.classInfo;
+  const classStats = classInfo?.stats;
 
   return (
     <main className="h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
-          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
+          className="absolute -top-40 left-1/2 h-[520px] w-[920px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
           style={{
             background: "radial-gradient(circle at 30% 30%, rgba(85,107,47,0.90), rgba(17,17,17,0) 60%)",
           }}
@@ -546,7 +562,8 @@ export default function GroupsPage() {
 
       {/* Content */}
       <div className="relative h-full overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-6 py-6 space-y-6">
+        {/* WIDER container fixes side “blank space” */}
+        <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
           {/* Top row */}
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -561,17 +578,29 @@ export default function GroupsPage() {
                 <div className="text-sm font-semibold tracking-wide">Groups</div>
               </div>
               <div className="text-xs text-neutral-400 mt-1">
-                Shared structure · light accountability · clean by design
+                Structure + expectations — not feeds. (Class hubs focus on pacing + assignments.)
               </div>
             </div>
 
+            {/* BUTTON PAIR: Create (primary) + Find (secondary) */}
             <div className="flex items-center gap-2">
               <button
                 onClick={openCreate}
+                className="rounded-xl px-3 py-2 text-xs font-semibold text-white transition"
+                style={{
+                  backgroundColor: OLIVE,
+                  boxShadow: "0 0 0 1px rgba(85,107,47,0.45), 0 18px 45px rgba(0,0,0,0.25)",
+                }}
+              >
+                Create group
+              </button>
+
+              <button
+                onClick={openFind}
                 className="rounded-xl px-3 py-2 text-xs font-semibold border bg-white/6 hover:bg-white/10 transition"
                 style={oliveSoftStyle}
               >
-                Create group
+                Find group
               </button>
 
               <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] text-neutral-200">
@@ -581,16 +610,16 @@ export default function GroupsPage() {
             </div>
           </div>
 
-          {/* Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8 space-y-6">
+          {/* Layout: more balanced columns + bigger gutter */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="lg:col-span-7 space-y-6">
               {/* Your groups */}
               <section className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
                 <div className="p-4">
                   <div className="mb-4">
                     <div className="text-sm font-semibold">Your groups</div>
                     <div className="text-xs text-neutral-400 mt-0.5">
-                      Private groups have chat (max 20). Verified class groups show stats + assignments.
+                      Private groups have chat (max 20). Verified class hubs show aggregated stats + assignments.
                     </div>
                   </div>
 
@@ -615,65 +644,78 @@ export default function GroupsPage() {
                   </div>
 
                   <div className="space-y-3">
-                    {filteredYourGroups.map((g) => (
-                      <button
-                        key={g.id}
-                        onClick={() => openGroupModal(g)}
-                        className="w-full text-left rounded-3xl border border-white/12 bg-neutral-900/35 hover:bg-white/6 transition px-4 py-4"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className="mt-1 h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{
-                              backgroundColor: g.scheduleRelevant ? OLIVE : "rgba(255,255,255,0.16)",
-                              boxShadow: g.scheduleRelevant ? "0 0 0 4px rgba(85,107,47,0.16)" : "none",
-                            }}
-                            title={g.scheduleRelevant ? "Touches your schedule" : "Passive group"}
-                          />
+                    {filteredYourGroups.map((g) => {
+                      const isClass = g.mode === "Class" && g.visibility === "Verified";
+                      return (
+                        <button
+                          key={g.id}
+                          onClick={() => openGroupModal(g)}
+                          className={cx(
+                            "w-full text-left rounded-3xl border border-white/12 bg-neutral-900/35 hover:bg-white/6 transition px-4 py-4",
+                            isClass && "bg-[rgba(255,255,255,0.06)]"
+                          )}
+                          style={isClass ? primaryPanelStyle : undefined}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="mt-1 h-2.5 w-2.5 rounded-full shrink-0"
+                              style={{
+                                backgroundColor: g.scheduleRelevant ? OLIVE : "rgba(255,255,255,0.16)",
+                                boxShadow: g.scheduleRelevant ? "0 0 0 4px rgba(85,107,47,0.16)" : "none",
+                              }}
+                              title={g.scheduleRelevant ? "Touches your schedule" : "Passive group"}
+                            />
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="min-w-0">
-                                <div className="text-sm font-semibold text-neutral-100 truncate">{g.name}</div>
-                                <div className="text-xs text-neutral-400 mt-1 truncate">{g.description}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-neutral-100 truncate">{g.name}</div>
+                                  <div className="text-xs text-neutral-400 mt-1 truncate">{g.description}</div>
 
-                                <div className="mt-2 text-[11px] text-neutral-400">
-                                  <span className="text-neutral-300 font-semibold">Expectations:</span>{" "}
-                                  {g.cadence} · {g.timeCommit} · {g.structure}
-                                </div>
-
-                                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-neutral-300">
-                                  <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(g.visibility)}>
-                                    {g.visibility}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                    {g.members} members
-                                  </span>
-                                  {g.visibility === "Private" && (
-                                    <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                      Chat • max {g.memberLimit ?? 20}
-                                    </span>
+                                  {isClass && (
+                                    <div className="mt-2 text-[11px] text-neutral-300">
+                                      See how students pace this class — before you fall behind.
+                                    </div>
                                   )}
-                                  <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                    {g.activityLabel}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(g.mode)}>
-                                    {g.mode}
-                                  </span>
-                                </div>
-                              </div>
 
-                              <span
-                                className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border shrink-0"
-                                style={pillStyleDark(g.category)}
-                              >
-                                {g.category}
-                              </span>
+                                  <div className="mt-2 text-[11px] text-neutral-400">
+                                    <span className="text-neutral-300 font-semibold">Expectations:</span>{" "}
+                                    {g.cadence} · {g.timeCommit} · {g.structure}
+                                  </div>
+
+                                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-neutral-300">
+                                    <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(g.visibility)}>
+                                      {g.visibility}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
+                                      {g.members} members
+                                    </span>
+                                    {g.visibility === "Private" && (
+                                      <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
+                                        Chat • max {g.memberLimit ?? 20}
+                                      </span>
+                                    )}
+                                    <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
+                                      {g.activityLabel}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(g.mode)}>
+                                      {g.mode}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border shrink-0"
+                                  style={pillStyleDark(g.category)}
+                                >
+                                  {g.category}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
 
                     {filteredYourGroups.length === 0 && (
                       <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
@@ -685,160 +727,28 @@ export default function GroupsPage() {
                 </div>
               </section>
 
-              {/* Intent-first discovery */}
-              <section className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
-                <div className="p-4">
-                  <div className="mb-3">
-                    <div className="text-sm font-semibold">What are you trying to do?</div>
-                    <div className="text-xs text-neutral-400 mt-0.5">Pick an intent to filter. Or just search.</div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: "all", label: "All" },
-                      { id: "class", label: "Join a class hub" },
-                      { id: "study", label: "Study for a class" },
-                      { id: "consistent", label: "Stay consistent" },
-                      { id: "project", label: "Work on a project" },
-                      { id: "people", label: "Meet people" },
-                    ].map((x) => (
-                      <button
-                        key={x.id}
-                        onClick={() => setIntent(x.id as any)}
-                        className={cx(
-                          "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                          intent === (x.id as any) ? "bg-white/12 border-white/14" : "bg-white/6 border-white/10 hover:bg-white/10"
-                        )}
-                        style={intent === (x.id as any) ? oliveSoftStyle : undefined}
-                      >
-                        {x.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 text-[11px] text-neutral-500">
-                    Groups are infrastructure — not feeds. You should understand expectations in 10 seconds.
-                  </div>
-                </div>
-              </section>
-
-              {/* Explore (public) */}
-              <section className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
-                <div className="p-4">
-                  <div className="mb-4">
-                    <div className="text-sm font-semibold">Explore groups</div>
-                    <div className="text-xs text-neutral-400 mt-0.5">
-                      Public groups don’t have chat (MVP). Clear expectations up front.
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 mb-3">
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Search groups…"
-                      className="flex-1 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    />
-
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value as any)}
-                      className="sm:w-44 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    >
-                      <option value="All">All</option>
-                      <option value="Study">Study</option>
-                      <option value="Work">Work</option>
-                      <option value="Fitness">Fitness</option>
-                      <option value="Life">Life</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-3">
-                    {filteredPublic.map((g) => (
-                      <button
-                        key={g.id}
-                        onClick={() => openGroupModal(g)}
-                        className="w-full text-left rounded-3xl border border-white/12 bg-neutral-900/35 px-4 py-4 hover:bg-white/6 transition"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className="mt-1 h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{
-                              backgroundColor: g.scheduleRelevant ? OLIVE : "rgba(255,255,255,0.16)",
-                              boxShadow: g.scheduleRelevant ? "0 0 0 4px rgba(85,107,47,0.16)" : "none",
-                            }}
-                          />
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="min-w-0">
-                                <div className="text-sm font-semibold text-neutral-100 truncate">{g.name}</div>
-                                <div className="text-xs text-neutral-400 mt-1 truncate">{g.description}</div>
-
-                                <div className="mt-2 text-[11px] text-neutral-400">
-                                  <span className="text-neutral-300 font-semibold">Expectations:</span>{" "}
-                                  {g.cadence} · {g.timeCommit} · {g.structure}
-                                </div>
-
-                                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-neutral-300">
-                                  <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(g.visibility)}>
-                                    {g.visibility}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                    {g.members} members
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                    {g.activityLabel}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(g.mode)}>
-                                    {g.mode}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col items-end gap-2 shrink-0">
-                                <span
-                                  className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
-                                  style={pillStyleDark(g.category)}
-                                >
-                                  {g.category}
-                                </span>
-
-                                <span className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 border-white/12 text-neutral-200">
-                                  View
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-
-                    {filteredPublic.length === 0 && (
-                      <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5 text-sm text-neutral-300">
-                        No groups found. Try a different search.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
+              {/* IMPORTANT CHANGE:
+                  - Removed the on-page “What are you trying to do?” + “Explore groups”
+                  - Discovery now lives entirely inside Find group modal
+                  This reduces clutter and fixes the “long left column” issue.
+              */}
             </div>
 
-            {/* Right panel */}
-            <aside className="lg:col-span-4 space-y-6">
+            {/* Right panel: sticky to balance visual weight */}
+            <aside className="lg:col-span-5 space-y-6 lg:sticky lg:top-6 self-start">
               <section className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold">Group assistant</div>
                       <div className="text-xs text-neutral-400 mt-0.5">
-                        Find groups, understand expectations, and keep it light.
+                        Find groups, understand expectations, keep it quiet.
                       </div>
                     </div>
                     <div className="text-[11px] text-neutral-500">UI shell</div>
                   </div>
 
-                  <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-900/35 p-3">
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 p-3">
                     <div className="text-[11px] text-neutral-500">
                       Example: “Is there a class hub for F305?” or “What does this group expect?”
                     </div>
@@ -848,7 +758,7 @@ export default function GroupsPage() {
                         value={assistantInput}
                         onChange={(e) => setAssistantInput(e.target.value)}
                         placeholder="Ask about groups…"
-                        className="flex-1 rounded-2xl border border-white/12 bg-white/6 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
+                        className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
                       />
                       <button
                         onClick={() => {
@@ -856,7 +766,7 @@ export default function GroupsPage() {
                           alert("UI shell — assistant response later");
                           setAssistantInput("");
                         }}
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition border-white/12"
+                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/8 hover:bg-white/12 transition border-white/10"
                         style={oliveSoftStyle}
                       >
                         Send
@@ -864,7 +774,7 @@ export default function GroupsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
                     <div className="text-xs font-semibold text-neutral-200">Design rule</div>
                     <div className="mt-1 text-sm text-neutral-300 leading-relaxed">
                       Groups are structure + expectations. No feed. No noise.
@@ -877,12 +787,12 @@ export default function GroupsPage() {
                 <div className="p-4">
                   <div className="text-sm font-semibold">Cheating risk (MVP)</div>
                   <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
-                    Public groups have no chat. Private groups can chat (max 20) for real collaboration.
-                    Verified class hubs emphasize stats + resources over messaging.
+                    Public groups have no chat. Private groups can chat (max 20) for real coordination.
+                    Verified class hubs emphasize pacing + assignments over messaging.
                   </div>
-                  <div className="mt-3 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
                     <div className="text-xs text-neutral-400">
-                      Later: add “study-only chat” safeguards + moderation tools, if needed.
+                      Later: add “study-safe” guardrails + moderation tools if needed.
                     </div>
                   </div>
                 </div>
@@ -892,15 +802,151 @@ export default function GroupsPage() {
         </div>
       </div>
 
+      {/* Find Group Modal (now the only discovery surface) */}
+      {showFind && (
+        <ModalDark onClose={closeFind} maxWidthClass="max-w-4xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold">Find a group</div>
+              <div className="text-xs text-neutral-400 mt-1">
+                Public groups don’t have chat (MVP). Verified class hubs are gated.
+              </div>
+            </div>
+
+            <button
+              onClick={closeFind}
+              className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Intent chips (moved here; removed from main page) */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              { id: "all", label: "All" },
+              { id: "class", label: "Join a class hub" },
+              { id: "study", label: "Study for a class" },
+              { id: "consistent", label: "Stay consistent" },
+              { id: "project", label: "Work on a project" },
+              { id: "people", label: "Meet people" },
+            ].map((x) => (
+              <button
+                key={x.id}
+                onClick={() => setIntent(x.id as any)}
+                className={cx(
+                  "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
+                  intent === (x.id as any) ? "bg-white/12 border-white/14" : "bg-white/6 border-white/10 hover:bg-white/10"
+                )}
+                style={intent === (x.id as any) ? oliveSoftStyle : undefined}
+              >
+                {x.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search + filters */}
+          <div className="mt-4 flex flex-col sm:flex-row gap-3">
+            <input
+              value={findQuery}
+              onChange={(e) => setFindQuery(e.target.value)}
+              placeholder="Search groups…"
+              className="flex-1 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
+            />
+            <select
+              value={findCategory}
+              onChange={(e) => setFindCategory(e.target.value as any)}
+              className="sm:w-44 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
+            >
+              <option value="All">All</option>
+              <option value="Study">Study</option>
+              <option value="Work">Work</option>
+              <option value="Fitness">Fitness</option>
+              <option value="Life">Life</option>
+            </select>
+          </div>
+
+          {/* Results */}
+          <div className="mt-4 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            {filteredPublic.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => {
+                  closeFind();
+                  openGroupModal(g);
+                }}
+                className="w-full text-left rounded-3xl border border-white/12 bg-neutral-900/35 px-4 py-4 hover:bg-white/6 transition"
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="mt-1 h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: g.scheduleRelevant ? OLIVE : "rgba(255,255,255,0.16)",
+                      boxShadow: g.scheduleRelevant ? "0 0 0 4px rgba(85,107,47,0.16)" : "none",
+                    }}
+                  />
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-neutral-100 truncate">{g.name}</div>
+                        <div className="text-xs text-neutral-400 mt-1 truncate">{g.description}</div>
+
+                        <div className="mt-2 text-[11px] text-neutral-400">
+                          <span className="text-neutral-300 font-semibold">Expectations:</span>{" "}
+                          {g.cadence} · {g.timeCommit} · {g.structure}
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-neutral-300">
+                          <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(g.visibility)}>
+                            {g.visibility}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
+                            {g.members} members
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
+                            {g.activityLabel}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(g.mode)}>
+                            {g.mode}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-2 shrink-0">
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
+                          style={pillStyleDark(g.category)}
+                        >
+                          {g.category}
+                        </span>
+
+                        <span className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 border-white/12 text-neutral-200">
+                          View
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+
+            {filteredPublic.length === 0 && (
+              <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5 text-sm text-neutral-300">
+                No groups found. Try a different search.
+              </div>
+            )}
+          </div>
+        </ModalDark>
+      )}
+
       {/* Create Group Modal */}
       {showCreate && (
         <ModalDark onClose={closeCreate}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-sm font-semibold">Create group</div>
-              <div className="text-xs text-neutral-400 mt-1">
-                Private = chat (max 20). Class mode forces Verified.
-              </div>
+              <div className="text-xs text-neutral-400 mt-1">Private = chat (max 20). Class mode forces Verified.</div>
             </div>
 
             <button
@@ -998,7 +1044,7 @@ export default function GroupsPage() {
 
                   {newMode === "Class" && (
                     <div className="mt-2 text-[11px] text-neutral-500">
-                      Class groups aren’t public/private — they’re verified communities (e.g., school email gate).
+                      Class hubs aren’t public/private — they’re verified communities (e.g., school email gate).
                     </div>
                   )}
                 </FieldDark>
@@ -1007,9 +1053,7 @@ export default function GroupsPage() {
 
             {createTab === "People" && (
               <div>
-                <div className="text-sm text-neutral-200">
-                  Add people (emails or names). Private groups are max 20.
-                </div>
+                <div className="text-sm text-neutral-200">Add people (emails or names). Private groups are max 20.</div>
 
                 <div className="mt-3 flex gap-2">
                   <input
@@ -1128,9 +1172,7 @@ export default function GroupsPage() {
                 "relative bg-neutral-950 border border-white/15 shadow-2xl transition-all duration-200 ease-out overflow-hidden flex flex-col",
                 groupExpanded ? "w-full h-full rounded-none" : "w-[92vw] max-w-[1200px] h-[85vh] rounded-3xl"
               )}
-              style={{
-                boxShadow: "0 0 0 1px rgba(85,107,47,0.30), 0 28px 90px rgba(0,0,0,0.70)",
-              }}
+              style={{ boxShadow: "0 0 0 1px rgba(85,107,47,0.30), 0 28px 90px rgba(0,0,0,0.70)" }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal header */}
@@ -1162,16 +1204,31 @@ export default function GroupsPage() {
                 <div className="h-full grid grid-cols-1 lg:grid-cols-12">
                   {/* Left */}
                   <div className="lg:col-span-8 p-5 overflow-y-auto">
-                    {/* Summary */}
-                    <div className="rounded-3xl border border-white/12 bg-white/6 p-4">
-                      <div className="text-sm text-neutral-200">{openGroup.description}</div>
+                    {/* Primary summary */}
+                    <div className="rounded-3xl border bg-white/6 p-4" style={primaryPanelStyle}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-white truncate">{openGroup.description}</div>
+                          <div className="mt-1 text-xs text-neutral-400">
+                            {openGroup.mode === "Class"
+                              ? "See pacing + assignments — without member lists."
+                              : "Clear expectations before you commit."}
+                          </div>
+                        </div>
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border shrink-0"
+                          style={pillStyleDark(openGroup.category)}
+                        >
+                          {openGroup.category}
+                        </span>
+                      </div>
 
                       <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-neutral-300">
                         <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(openGroup.visibility)}>
                           {openGroup.visibility}
                         </span>
                         <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                          {openGroup.members} members
+                          {openGroup.members} members{openGroup.mode === "Class" ? " (not shown individually)" : ""}
                         </span>
                         {openGroup.visibility === "Private" && (
                           <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
@@ -1184,10 +1241,16 @@ export default function GroupsPage() {
                         <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(openGroup.mode)}>
                           {openGroup.mode}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full border" style={pillStyleDark(openGroup.category)}>
-                          {openGroup.category}
-                        </span>
                       </div>
+
+                      {openGroup.mode === "Class" && classStats && (
+                        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          <MiniStat label="Avg / week" value={classStats.avgTimePerWeek} />
+                          <MiniStat label="Difficulty" value={classStats.difficulty} />
+                          <MiniStat label="Exam 1 avg" value={classStats.exam1Avg} />
+                          <MiniStat label="Exam 2 avg" value={classStats.exam2Avg} />
+                        </div>
+                      )}
                     </div>
 
                     {/* Tabs */}
@@ -1209,79 +1272,27 @@ export default function GroupsPage() {
 
                     {/* Content */}
                     <div className="mt-4 space-y-4">
-                      {/* CLASS: Class tab */}
-                      {openGroup.mode === "Class" && groupModalTab === "Class" && (
-                        <>
-                          <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                            <div className="text-sm font-semibold text-white">Course info</div>
-
-                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <InfoRow label="School" value={openGroup.classInfo?.schoolLabel ?? "—"} />
-                              <InfoRow
-                                label="Course"
-                                value={`${openGroup.classInfo?.courseCode ?? "—"} • ${openGroup.classInfo?.courseTitle ?? ""}`}
-                              />
-                              <InfoRow label="Instructor" value={openGroup.classInfo?.instructor ?? "—"} />
-                              <InfoRow label="Term" value={openGroup.classInfo?.term ?? "—"} />
-                              <InfoRow label="Verification" value={openGroup.classInfo?.verifiedRuleLabel ?? "—"} />
-                              <InfoRow label="Members" value={`${openGroup.members} (not shown individually)`} />
-                            </div>
-
-                            <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
-                              <div className="text-xs text-neutral-400">
-                                Class hubs don’t expose member lists. They focus on pacing + assignments + resources.
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                            <div className="text-sm font-semibold text-white">Stats (community)</div>
-
-                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <StatCard title="Avg time / week" value={openGroup.classInfo?.stats.avgTimePerWeek ?? "—"} />
-                              <StatCard title="Difficulty" value={openGroup.classInfo?.stats.difficulty ?? "—"} />
-                              <StatCard title="Exam 1 prep (avg)" value={openGroup.classInfo?.stats.exam1Avg ?? "—"} />
-                              <StatCard title="Exam 2 prep (avg)" value={openGroup.classInfo?.stats.exam2Avg ?? "—"} />
-                            </div>
-
-                            <div className="mt-4">
-                              <div className="text-xs font-semibold text-neutral-300">Most difficult concepts</div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {(openGroup.classInfo?.stats.mostDifficultConcepts ?? []).length === 0 ? (
-                                  <span className="text-sm text-neutral-400">No data yet.</span>
-                                ) : (
-                                  (openGroup.classInfo?.stats.mostDifficultConcepts ?? []).map((x) => (
-                                    <span
-                                      key={x}
-                                      className="rounded-full border border-white/12 bg-white/6 px-3 py-1.5 text-[11px] text-neutral-200"
-                                      style={oliveSoftStyle}
-                                    >
-                                      {x}
-                                    </span>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      {/* CLASS: Assignments tab */}
+                      {/* CLASS: Assignments */}
                       {openGroup.mode === "Class" && groupModalTab === "Assignments" && (
                         <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Upcoming assignments</div>
-                          <div className="mt-1 text-xs text-neutral-400">
-                            UI shell — later this can sync from syllabus, LMS, or user submissions.
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-white">Upcoming assignments</div>
+                              <div className="mt-1 text-xs text-neutral-400">
+                                UI shell — later sync from syllabus/LMS or community submissions.
+                              </div>
+                            </div>
+                            <span className="text-[11px] text-neutral-500">Focus</span>
                           </div>
 
                           <div className="mt-4 space-y-2">
-                            {(openGroup.classInfo?.upcomingAssignments ?? []).length === 0 ? (
+                            {(classInfo?.upcomingAssignments ?? []).length === 0 ? (
                               <div className="text-sm text-neutral-400">No assignments added yet.</div>
                             ) : (
-                              (openGroup.classInfo?.upcomingAssignments ?? []).map((a) => (
+                              (classInfo?.upcomingAssignments ?? []).map((a) => (
                                 <div
                                   key={a.title + a.due}
-                                  className="rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3"
+                                  className="rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3"
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
@@ -1297,29 +1308,106 @@ export default function GroupsPage() {
                         </div>
                       )}
 
-                      {/* CLASS: Insights tab */}
+                      {/* CLASS: Insights */}
                       {openGroup.mode === "Class" && groupModalTab === "Insights" && (
                         <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
                           <div className="text-sm font-semibold text-white">Insights</div>
                           <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
-                            UI shell — examples of what this can become:
-                            <ul className="mt-2 space-y-1 text-sm text-neutral-300">
-                              <li>• “Most people ramp study time 6 days before Exam 1”</li>
-                              <li>• “Top confusion topics this week: WACC vs APV”</li>
-                              <li>• “Recommended pacing: 3× 60-min blocks” (opt-in schedule)</li>
-                              <li>• “Perceived difficulty trend”</li>
-                            </ul>
+                            UI shell — this becomes *collective pacing intelligence*:
                           </div>
 
-                          <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
+                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <InsightCard title="Study ramp" body="Most people ramp study time ~6 days before Exam 1." meta="Example" />
+                            <InsightCard
+                              title="Confusion cluster"
+                              body="Top confusion topics this week: WACC sensitivities, real vs nominal."
+                              meta="Example"
+                            />
+                            <InsightCard
+                              title="Recommended pacing"
+                              body="3 × 60-min blocks beats 1 big cram (opt-in schedule suggestion)."
+                              meta="Example"
+                            />
+                            <InsightCard
+                              title="Difficulty pulse"
+                              body="Perceived difficulty trend can change week-to-week (aggregated)."
+                              meta="Example"
+                            />
+                          </div>
+
+                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
+                            <div className="text-xs text-neutral-400">Privacy by design: no member lists, only aggregated stats.</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CLASS: Schedule */}
+                      {groupModalTab === "Schedule" && openGroup.mode === "Class" && (
+                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
+                          <div className="text-sm font-semibold text-white">Schedule</div>
+                          <div className="mt-2 text-sm text-neutral-300">UI shell — opt-in suggestions only. Nothing forced.</div>
+
+                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
                             <div className="text-xs text-neutral-400">
-                              Members are not shown. Stats are aggregated + privacy-safe by design.
+                              Example: “Suggest a 60-min block Sunday afternoon” based on class pacing.
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* NON-CLASS: Chat tab */}
+                      {/* Files */}
+                      {groupModalTab === "Files" && (
+                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
+                          <div className="text-sm font-semibold text-white">Files</div>
+                          <div className="mt-2 text-sm text-neutral-300">
+                            UI shell — connects to your Files tab and adds “group context.”
+                          </div>
+
+                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
+                            <div className="text-xs text-neutral-400">No files yet.</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CLASS: metadata */}
+                      {openGroup.mode === "Class" && groupModalTab === "Class" && (
+                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
+                          <div className="text-sm font-semibold text-white">Course info</div>
+
+                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <InfoRowSoft label="School" value={classInfo?.schoolLabel ?? "—"} />
+                            <InfoRowSoft
+                              label="Course"
+                              value={`${classInfo?.courseCode ?? "—"} • ${classInfo?.courseTitle ?? ""}`}
+                            />
+                            <InfoRowSoft label="Instructor" value={classInfo?.instructor ?? "—"} />
+                            <InfoRowSoft label="Term" value={classInfo?.term ?? "—"} />
+                            <InfoRowSoft label="Verification" value={classInfo?.verifiedRuleLabel ?? "—"} />
+                            <InfoRowSoft label="Members" value={`${openGroup.members} (not shown individually)`} />
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="text-xs font-semibold text-neutral-300">Most difficult concepts</div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {(classStats?.mostDifficultConcepts ?? []).length === 0 ? (
+                                <span className="text-sm text-neutral-400">No data yet.</span>
+                              ) : (
+                                (classStats?.mostDifficultConcepts ?? []).map((x) => (
+                                  <span
+                                    key={x}
+                                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-neutral-200"
+                                    style={oliveSoftStyle}
+                                  >
+                                    {x}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* NON-CLASS: Chat */}
                       {canShowChat && groupModalTab === "Chat" && (
                         <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
                           <div className="flex items-start justify-between gap-3">
@@ -1332,12 +1420,12 @@ export default function GroupsPage() {
                             <div className="text-[11px] text-neutral-500">MVP</div>
                           </div>
 
-                          <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-950/40 p-3 h-[320px] overflow-y-auto">
+                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 p-3 h-[320px] overflow-y-auto">
                             <div className="space-y-3">
                               {chatMsgs.map((m) => (
                                 <div key={m.id} className="flex items-start gap-3">
                                   <div
-                                    className="h-8 w-8 rounded-xl border border-white/12 bg-white/6 flex items-center justify-center text-[10px] font-semibold"
+                                    className="h-8 w-8 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-[10px] font-semibold"
                                     style={m.who === "You" ? oliveSoftStyle : undefined}
                                   >
                                     {m.who === "You" ? "YOU" : "MEM"}
@@ -1359,34 +1447,28 @@ export default function GroupsPage() {
                               value={chatDraft}
                               onChange={(e) => setChatDraft(e.target.value)}
                               placeholder="Message…"
-                              className="flex-1 rounded-2xl border border-white/12 bg-white/6 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
+                              className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") sendChat();
                               }}
                             />
                             <button
                               onClick={sendChat}
-                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition border-white/12"
+                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/8 hover:bg-white/12 transition border-white/10"
                               style={oliveSoftStyle}
                             >
                               Send
                             </button>
                           </div>
-
-                          <div className="mt-3 rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
-                            <div className="text-xs text-neutral-400">
-                              Later: add moderation, reporting, and “study-safe” guardrails.
-                            </div>
-                          </div>
                         </div>
                       )}
 
-                      {/* Shared: Overview */}
+                      {/* NON-CLASS: Overview */}
                       {groupModalTab === "Overview" && openGroup.mode !== "Class" && (
                         <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
                           <div className="text-sm font-semibold text-white">Overview</div>
                           <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
-                            UI shell — this becomes the “one-screen clarity” view:
+                            UI shell — this becomes “one-screen clarity”:
                             <ul className="mt-2 space-y-1">
                               <li>• What it is</li>
                               <li>• What it expects</li>
@@ -1397,31 +1479,26 @@ export default function GroupsPage() {
                         </div>
                       )}
 
-                      {/* Shared: Expectations */}
+                      {/* NON-CLASS: Expectations */}
                       {groupModalTab === "Expectations" && openGroup.mode !== "Class" && (
                         <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
                           <div className="text-sm font-semibold text-white">Expectations</div>
                           <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <StatCard title="Cadence" value={openGroup.cadence} />
-                            <StatCard title="Time" value={openGroup.timeCommit} />
-                            <StatCard title="Structure" value={openGroup.structure} />
-                          </div>
-                          <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
-                            <div className="text-xs text-neutral-400">
-                              Goal: you should know the commitment before you join (no surprises).
-                            </div>
+                            <StatCardSoft title="Cadence" value={openGroup.cadence} />
+                            <StatCardSoft title="Time" value={openGroup.timeCommit} />
+                            <StatCardSoft title="Structure" value={openGroup.structure} />
                           </div>
                         </div>
                       )}
 
-                      {/* Shared: People */}
+                      {/* NON-CLASS: People */}
                       {groupModalTab === "People" && openGroup.mode !== "Class" && (
                         <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
                           <div className="text-sm font-semibold text-white">People</div>
                           <div className="mt-2 text-sm text-neutral-300">
                             UI shell — later show member list for private groups (or limited roles).
                           </div>
-                          <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
+                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
                             <div className="text-xs text-neutral-400">
                               Current: {openGroup.members} members. (List hidden in MVP.)
                             </div>
@@ -1429,31 +1506,11 @@ export default function GroupsPage() {
                         </div>
                       )}
 
-                      {/* Shared: Files */}
-                      {groupModalTab === "Files" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Files</div>
-                          <div className="mt-2 text-sm text-neutral-300">
-                            UI shell — later this connects to your Files tab and adds “group context.”
-                          </div>
-                          <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
-                            <div className="text-xs text-neutral-400">No files yet.</div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Shared: Schedule */}
-                      {groupModalTab === "Schedule" && (
+                      {/* NON-CLASS: Schedule */}
+                      {groupModalTab === "Schedule" && openGroup.mode !== "Class" && (
                         <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
                           <div className="text-sm font-semibold text-white">Schedule</div>
-                          <div className="mt-2 text-sm text-neutral-300">
-                            UI shell — later this becomes opt-in schedule suggestions (never forced).
-                          </div>
-                          <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
-                            <div className="text-xs text-neutral-400">
-                              Example: “Suggest a 60-minute block on Sunday afternoons.”
-                            </div>
-                          </div>
+                          <div className="mt-2 text-sm text-neutral-300">UI shell — later becomes opt-in schedule suggestions.</div>
                         </div>
                       )}
                     </div>
@@ -1461,53 +1518,57 @@ export default function GroupsPage() {
                     <div className="h-6" />
                   </div>
 
-                  {/* Right */}
+                  {/* Right (assistant reduced + collapsible) */}
                   <div className="lg:col-span-4 p-5 border-l border-white/10 bg-neutral-950/40">
                     <div className="rounded-3xl border border-white/12 bg-white/6 p-4">
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="text-sm font-semibold">Assistant</div>
-                          <div className="text-xs text-neutral-400 mt-1">
-                            Ask about expectations, pacing, or schedule fit.
+                          <div className="text-xs text-neutral-400 mt-1">Ask about expectations, pacing, or schedule fit.</div>
+                        </div>
+
+                        <button
+                          onClick={() => setAssistantCollapsed((v) => !v)}
+                          className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
+                        >
+                          {assistantCollapsed ? "Open" : "Hide"}
+                        </button>
+                      </div>
+
+                      {!assistantCollapsed && (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 p-3">
+                          <div className="text-[11px] text-neutral-500">
+                            Example: “How much do people study for Exam 1?” or “What’s the hardest topic?”
+                          </div>
+                          <div className="mt-3 flex gap-2">
+                            <input
+                              value={assistantInput}
+                              onChange={(e) => setAssistantInput(e.target.value)}
+                              placeholder="Ask…"
+                              className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
+                            />
+                            <button
+                              onClick={() => {
+                                if (!assistantInput.trim()) return;
+                                alert("UI shell — assistant response later");
+                                setAssistantInput("");
+                              }}
+                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/8 hover:bg-white/12 transition border-white/10"
+                              style={oliveSoftStyle}
+                            >
+                              Send
+                            </button>
                           </div>
                         </div>
-                        <div className="text-[11px] text-neutral-500">UI shell</div>
-                      </div>
+                      )}
 
-                      <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-900/35 p-3">
-                        <div className="text-[11px] text-neutral-500">
-                          Example: “How much do people study for Exam 1?” or “What’s the hardest topic?”
-                        </div>
-                        <div className="mt-3 flex gap-2">
-                          <input
-                            value={assistantInput}
-                            onChange={(e) => setAssistantInput(e.target.value)}
-                            placeholder="Ask…"
-                            className="flex-1 rounded-2xl border border-white/12 bg-white/6 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
-                          />
-                          <button
-                            onClick={() => {
-                              if (!assistantInput.trim()) return;
-                              alert("UI shell — assistant response later");
-                              setAssistantInput("");
-                            }}
-                            className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition border-white/12"
-                            style={oliveSoftStyle}
-                          >
-                            Send
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
-                        <div className="text-xs text-neutral-400">
-                          Design rule: no feeds, no streak pressure, no noise.
-                        </div>
+                      <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
+                        <div className="text-xs text-neutral-400">Design rule: no feeds, no streak pressure, no noise.</div>
                       </div>
                     </div>
 
                     <div className="mt-4 rounded-3xl border border-white/12 bg-white/6 p-4">
-                      <div className="text-sm font-semibold">Expectations (preview)</div>
+                      <div className="text-sm font-semibold">Expectations</div>
                       <div className="mt-2 text-sm text-neutral-300">
                         {openGroup.cadence}
                         <div className="text-xs text-neutral-400 mt-1">{openGroup.timeCommit}</div>
@@ -1515,27 +1576,13 @@ export default function GroupsPage() {
                       </div>
                     </div>
 
-                    {openGroup.mode === "Class" && (
-                      <div className="mt-4 rounded-3xl border border-white/12 bg-white/6 p-4">
-                        <div className="text-sm font-semibold">Class snapshot</div>
-                        <div className="mt-2 text-sm text-neutral-300">
-                          Avg / week: <span className="font-semibold text-neutral-100">{openGroup.classInfo?.stats.avgTimePerWeek ?? "—"}</span>
-                          <div className="text-xs text-neutral-400 mt-1">
-                            Difficulty: {openGroup.classInfo?.stats.difficulty ?? "—"}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
                     {openGroup.visibility === "Private" && (
                       <div className="mt-4 rounded-3xl border border-white/12 bg-white/6 p-4">
                         <div className="text-sm font-semibold">Private group rules</div>
-                        <div className="mt-2 text-sm text-neutral-300">
-                          Chat enabled • Max {openGroup.memberLimit ?? 20} people
-                        </div>
-                        <div className="mt-3 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
+                        <div className="mt-2 text-sm text-neutral-300">Chat enabled • Max {openGroup.memberLimit ?? 20}</div>
+                        <div className="mt-3 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
                           <div className="text-xs text-neutral-400">
-                            Use for real coordination (projects, scheduling). Public groups don’t have chat.
+                            Use for coordination (projects, scheduling). Public groups don’t have chat.
                           </div>
                         </div>
                       </div>
@@ -1551,25 +1598,48 @@ export default function GroupsPage() {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+/* ---------- small UI primitives ---------- */
+
+function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
+    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-2">
+      <div className="text-[10px] text-neutral-500">{label}</div>
+      <div className="mt-0.5 text-sm font-semibold text-neutral-100">{value}</div>
+    </div>
+  );
+}
+
+function InfoRowSoft({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-3">
       <div className="text-[11px] text-neutral-500">{label}</div>
       <div className="mt-1 text-sm font-semibold text-neutral-100">{value}</div>
     </div>
   );
 }
 
-function StatCard({ title, value }: { title: string; value: string }) {
+function StatCardSoft({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/12 bg-neutral-950/40 px-3 py-3">
+    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-3">
       <div className="text-[11px] text-neutral-500">{title}</div>
       <div className="mt-1 text-sm font-semibold text-neutral-100">{value}</div>
     </div>
   );
 }
 
-function FieldDark({ label, children }: { label: string; children: React.ReactNode }) {
+function InsightCard({ title, body, meta }: { title: string; body: string; meta: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-neutral-100">{title}</div>
+        <div className="text-[11px] text-neutral-500">{meta}</div>
+      </div>
+      <div className="mt-2 text-sm text-neutral-300 leading-relaxed">{body}</div>
+    </div>
+  );
+}
+
+function FieldDark({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
       <div className="text-xs font-medium text-neutral-400 mb-1">{label}</div>
@@ -1578,7 +1648,15 @@ function FieldDark({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function ModalDark({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+function ModalDark({
+  children,
+  onClose,
+  maxWidthClass = "max-w-lg",
+}: {
+  children: ReactNode;
+  onClose: () => void;
+  maxWidthClass?: string;
+}) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
@@ -1586,7 +1664,7 @@ function ModalDark({ children, onClose }: { children: React.ReactNode; onClose: 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-3xl border border-white/10 bg-neutral-950/85 backdrop-blur p-6"
+        className={cx("w-full rounded-3xl border border-white/10 bg-neutral-950/85 backdrop-blur p-6", maxWidthClass)}
         style={{
           boxShadow: "0 0 0 1px rgba(85,107,47,0.25), 0 30px 90px rgba(0,0,0,0.75)",
         }}

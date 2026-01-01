@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const OLIVE = "#556B2F";
 
@@ -52,17 +52,17 @@ function tierLabel(t: FamiliarityTier) {
 }
 
 function tierTitle(t: FamiliarityTier) {
-  if (t === "learning") return "Jynx is learning your patterns";
+  if (t === "learning") return "Jynx is learning your rhythm";
   if (t === "calibrating") return "Jynx is calibrating to you";
   return "Patterns look clearer";
 }
 
 function tierSubcopy(t: FamiliarityTier) {
   if (t === "learning") {
-    return "Early on, Jynx stays conservative. Clarity emerges as you use your schedule honestly.";
+    return "Early on, Jynx stays conservative. It only shows patterns when they’re likely to be true.";
   }
   if (t === "calibrating") {
-    return "Jynx has enough signal to personalize timing and pacing — still refining what matters most.";
+    return "There’s enough signal to personalize timing and pacing — still refining what matters most.";
   }
   return "With stable patterns, check-ins fade and recommendations get more specific.";
 }
@@ -110,6 +110,76 @@ function Card({
 
         <div className="mt-4">{children}</div>
       </div>
+    </div>
+  );
+}
+
+/** Simple popover (click to open, click outside / ESC to close) */
+function InfoPopover({
+  label = "Info",
+  title,
+  body,
+}: {
+  label?: string;
+  title: string;
+  body: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (!open) return;
+      const t = e.target as Node;
+      if (panelRef.current?.contains(t)) return;
+      if (btnRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (!open) return;
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative inline-flex">
+      <button
+        ref={btnRef}
+        type="button"
+        aria-label={label}
+        onClick={() => setOpen((v) => !v)}
+        className={cx(
+          "h-7 w-7 rounded-full border border-white/12 bg-white/6 hover:bg-white/10 transition",
+          "flex items-center justify-center text-xs font-semibold text-neutral-200"
+        )}
+        style={{ boxShadow: "0 0 0 1px rgba(85,107,47,0.18)" }}
+      >
+        ?
+      </button>
+
+      {open && (
+        <div
+          ref={panelRef}
+          className="absolute z-20 top-9 right-0 w-[320px] rounded-2xl border border-white/12 bg-neutral-950/90 backdrop-blur p-3"
+          style={{
+            boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+            borderColor: "rgba(85,107,47,0.35)",
+          }}
+        >
+          <div className="text-xs font-semibold text-neutral-100">{title}</div>
+          <div className="mt-2 text-xs text-neutral-300 leading-relaxed">{body}</div>
+          <div className="mt-2 text-[11px] text-neutral-500">
+            Tip: you can ignore this — it won’t change anything unless you want it to.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -190,11 +260,11 @@ const MILESTONES: Milestone[] = [
   {
     id: "m4",
     kind: "feature",
-    title: "Rhythm identity + Groups suggestions",
-    hint: "A “people like you” moment.",
+    title: "Rhythm identity (optional)",
+    hint: "A simple label for your rhythm — only when it’s responsible.",
     descriptionUnlocked:
-      "Jynx can suggest community groups based on your rhythm (optional). Functional groups are always available.",
-    appearsWhen: "Emerges with enough signal to label your rhythm responsibly.",
+      "Jynx can describe your rhythm in a simple way (optional). It’s meant to reduce friction, not label you.",
+    appearsWhen: "Emerges with enough signal to describe patterns responsibly.",
     gate: { minutes: 350, tasks: 15 },
   },
   {
@@ -203,19 +273,9 @@ const MILESTONES: Milestone[] = [
     title: "Power hour",
     hint: "A concrete window when completion is highest.",
     descriptionUnlocked:
-      "Jynx has enough signal to estimate your most reliable hour for hard tasks.",
+      "Jynx has enough signal to estimate your most reliable hour for harder tasks.",
     appearsWhen: "Appears once completion patterns become consistent.",
     gate: { minutes: 550, tasks: 25 },
-  },
-  {
-    id: "m6",
-    kind: "badge",
-    title: "Consistency curve",
-    hint: "A badge that reflects showing up, not perfection.",
-    descriptionUnlocked:
-      "You tend to re-engage even when plans change. That’s how habits start.",
-    appearsWhen: "Emerges after multiple weeks of real usage.",
-    gate: { minutes: 1000, tasks: 60 },
   },
 ];
 
@@ -231,15 +291,11 @@ function isUnlocked(m: Milestone, stats: { minutes: number; tasks: number }) {
   return minOk && taskOk;
 }
 
-function nextLocked(milestones: Milestone[], stats: { minutes: number; tasks: number }) {
-  return milestones.find((m) => !isUnlocked(m, stats)) ?? null;
-}
-
 export default function MyTimePage() {
   // mock stats (wire later)
-  const [intentionalMinutes, setIntentionalMinutes] = useState(620);
-  const [tasksCompleted, setTasksCompleted] = useState(42);
-  const [daysUsed, setDaysUsed] = useState(6);
+  const [intentionalMinutes] = useState(620);
+  const [tasksCompleted] = useState(42);
+  const [daysUsed] = useState(6);
 
   // UI-only mock signals (wire later)
   const observedSignals = useMemo<string[]>(
@@ -314,11 +370,8 @@ export default function MyTimePage() {
     [intentionalMinutes, tasksCompleted]
   );
 
-  const next = useMemo(() => nextLocked(MILESTONES, stats), [stats]);
-  const unlockedCount = useMemo(
-    () => MILESTONES.filter((m) => isUnlocked(m, stats)).length,
-    [stats]
-  );
+  // Only show what’s “now reliable”
+  const reliable = useMemo(() => MILESTONES.filter((m) => isUnlocked(m, stats)), [stats]);
 
   return (
     <main className="h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
@@ -334,10 +387,9 @@ export default function MyTimePage() {
         <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-white/20" />
       </div>
 
-      {/* ✅ No left sidebar. ✅ No heavy header bar. Give content room to breathe. */}
       <div className="relative h-full overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-6">
-          {/* Lightweight top row (not a header bar) */}
+          {/* Lightweight top row */}
           <div className="flex items-start justify-between gap-4 mb-5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -351,7 +403,7 @@ export default function MyTimePage() {
                 <div className="text-sm font-semibold tracking-wide truncate">My Time</div>
               </div>
               <div className="text-xs text-neutral-400 mt-1">
-                Familiarity • clarity • reflections (no scoring)
+                A quiet mirror — what’s reliable, and what’s still forming.
               </div>
             </div>
 
@@ -361,7 +413,7 @@ export default function MyTimePage() {
                 style={{ borderColor: "rgba(85,107,47,0.28)" }}
               >
                 <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: OLIVE }} />
-                UI shell
+                {tierLabel(tier)}
               </div>
             </div>
           </div>
@@ -372,9 +424,6 @@ export default function MyTimePage() {
               <div className="flex flex-col md:flex-row md:items-end gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/12 text-neutral-200">
-                      Lifetime
-                    </span>
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-full border border-white/12 bg-white/10 text-neutral-200"
                       style={{ borderColor: "rgba(85,107,47,0.35)" }}
@@ -383,7 +432,14 @@ export default function MyTimePage() {
                     </span>
                   </div>
 
-                  <div className="mt-3 text-xs text-neutral-400">Intentional Minutes</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="text-xs text-neutral-400">Intentional Minutes</div>
+                    <InfoPopover
+                      title="What are Intentional Minutes?"
+                      body="Intentional Minutes are time spent completing planned work from your schedule — not time inside the app. It’s not a goal or a score. Just a quiet record of follow-through."
+                    />
+                  </div>
+
                   <div className="mt-1 flex items-baseline gap-3">
                     <div className="text-4xl md:text-5xl font-semibold tracking-tight">
                       {formatNumber(intentionalMinutes)}
@@ -393,6 +449,10 @@ export default function MyTimePage() {
 
                   <div className="mt-3 text-sm text-neutral-200 leading-relaxed">
                     {tierTitle(tier)} — {tierSubcopy(tier)}
+                  </div>
+
+                  <div className="mt-3 text-[11px] text-neutral-500">
+                    Nothing here is a rating of you. It’s only confidence in patterns.
                   </div>
                 </div>
 
@@ -413,9 +473,8 @@ export default function MyTimePage() {
                         {formatNumber(daysUsed)}
                       </div>
                     </div>
-
                     <div className="mt-3 text-[11px] text-neutral-500">
-                      This isn’t a rating of you. It’s Jynx being honest about confidence in patterns.
+                      Used for context — not comparison.
                     </div>
                   </div>
                 </div>
@@ -430,38 +489,21 @@ export default function MyTimePage() {
                 >
                   {showDetail ? "Hide detail" : "Show detail"}
                 </button>
-
-                {next ? (
-                  <div className="ml-auto text-xs text-neutral-400">
-                    Next emerges:{" "}
-                    <span className="text-neutral-200 font-semibold">{next.hint}</span>
-                  </div>
-                ) : (
-                  <div className="ml-auto text-xs text-neutral-400">
-                    Everything in this MVP track has emerged.
-                  </div>
-                )}
               </div>
 
               {showDetail && (
                 <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-900/40 p-4">
                   <div className="flex flex-wrap gap-2 text-[11px] text-neutral-300">
                     <span className="px-2 py-0.5 rounded-full bg-white/12">
-                      Unlocked in track:{" "}
-                      <span className="font-semibold">{unlockedCount}</span> / {MILESTONES.length}
+                      Signals available: <span className="font-semibold">{observedSignals.length}</span>
                     </span>
                     <span className="px-2 py-0.5 rounded-full bg-white/12">
-                      Signals available:{" "}
-                      <span className="font-semibold">{observedSignals.length}</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-white/12">
-                      Check-ins answered:{" "}
-                      <span className="font-semibold">{answers.length}</span>
+                      Check-ins answered: <span className="font-semibold">{answers.length}</span>
                     </span>
                   </div>
 
                   <div className="mt-3 text-xs text-neutral-400">
-                    “Emerges” means: Jynx has enough pattern clarity to be useful without guessing.
+                    “Reliable” means: Jynx believes this pattern is stable enough to be useful without guessing.
                   </div>
                 </div>
               )}
@@ -474,56 +516,45 @@ export default function MyTimePage() {
             {/* LEFT */}
             <div className="lg:col-span-7 space-y-4">
               <Card
-                title="Clarity map"
-                subtitle="A calm sequence of insights, badges, and features that emerge as patterns stabilize."
+                title="What’s now reliable"
+                subtitle="A small set of patterns Jynx is confident enough to show."
                 right={
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/12 text-neutral-200">
-                    MVP track
+                    Confidence-based
                   </span>
                 }
                 olive
               >
-                <div className="space-y-3">
-                  {MILESTONES.map((m, idx) => {
-                    const unlocked = isUnlocked(m, stats);
-                    const pill = kindPill(m.kind);
-
-                    return (
-                      <div key={m.id} className="relative">
-                        {idx !== MILESTONES.length - 1 && (
-                          <div
-                            className="absolute left-[18px] top-[38px] bottom-[-12px] w-[2px]"
-                            style={{ background: "rgba(255,255,255,0.10)" }}
-                          />
-                        )}
-
+                {reliable.length === 0 ? (
+                  <div
+                    className={cx(panelInner, "px-3 py-4")}
+                    style={{ borderColor: "rgba(255,255,255,0.12)" }}
+                  >
+                    <div className="text-sm text-neutral-200">Nothing reliable to show yet.</div>
+                    <div className="mt-1 text-xs text-neutral-400 leading-relaxed">
+                      As you complete planned tasks, patterns become clearer — and this section quietly fills in.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {reliable.map((m) => {
+                      const pill = kindPill(m.kind);
+                      return (
                         <div
-                          className={cx(
-                            "rounded-2xl border px-3 py-3 flex gap-3",
-                            unlocked ? "bg-neutral-900/40" : "bg-white/6"
-                          )}
-                          style={{
-                            borderColor: unlocked
-                              ? "rgba(255,255,255,0.12)"
-                              : "rgba(255,255,255,0.10)",
-                          }}
+                          key={m.id}
+                          className={cx("rounded-2xl border px-3 py-3 flex gap-3 bg-neutral-900/40")}
+                          style={{ borderColor: "rgba(255,255,255,0.12)" }}
                         >
                           <div className="shrink-0">
                             <div
                               className="h-9 w-9 rounded-2xl border flex items-center justify-center text-xs font-semibold"
                               style={{
-                                borderColor: unlocked
-                                  ? "rgba(85,107,47,0.45)"
-                                  : "rgba(255,255,255,0.12)",
-                                background: unlocked
-                                  ? "rgba(85,107,47,0.16)"
-                                  : "rgba(255,255,255,0.06)",
-                                color: unlocked
-                                  ? "rgba(255,255,255,0.92)"
-                                  : "rgba(255,255,255,0.70)",
+                                borderColor: "rgba(85,107,47,0.45)",
+                                background: "rgba(85,107,47,0.16)",
+                                color: "rgba(255,255,255,0.92)",
                               }}
                             >
-                              {unlocked ? "✓" : "•"}
+                              ✓
                             </div>
                           </div>
 
@@ -531,10 +562,10 @@ export default function MyTimePage() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <div className="text-sm font-semibold text-neutral-100 truncate">
-                                  {unlocked ? m.title : "Hidden (emerges later)"}
+                                  {m.title}
                                 </div>
                                 <div className="mt-0.5 text-xs text-neutral-400">
-                                  {unlocked ? m.descriptionUnlocked : m.appearsWhen}
+                                  {m.descriptionUnlocked}
                                 </div>
                               </div>
 
@@ -544,9 +575,7 @@ export default function MyTimePage() {
                                   background: pill.bg,
                                   color: "rgba(255,255,255,0.80)",
                                   fontWeight: 700,
-                                  borderColor: unlocked
-                                    ? "rgba(85,107,47,0.35)"
-                                    : "rgba(255,255,255,0.12)",
+                                  borderColor: "rgba(85,107,47,0.35)",
                                 }}
                               >
                                 {pill.label}
@@ -554,95 +583,19 @@ export default function MyTimePage() {
                             </div>
 
                             <div className="mt-2 text-[11px] text-neutral-500">
-                              Hint: <span className="text-neutral-400">{m.hint}</span>
+                              Note: <span className="text-neutral-400">{m.hint}</span>
                             </div>
-
-                            {!unlocked && m.gate && (
-                              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-neutral-400">
-                                {m.gate.minutes != null && (
-                                  <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/12">
-                                    Needs ~{m.gate.minutes} minutes
-                                  </span>
-                                )}
-                                {m.gate.tasks != null && (
-                                  <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/12">
-                                    Needs ~{m.gate.tasks} tasks
-                                  </span>
-                                )}
-                              </div>
-                            )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
-                  <div className="text-sm font-semibold text-neutral-100">Important</div>
-                  <div className="mt-1 text-sm text-neutral-200 leading-relaxed">
-                    This isn’t “levels.” It’s a library of reflections that only appear when they’re likely to be true.
+                  <div className="text-xs text-neutral-400">
+                    If anything here feels wrong, you can dismiss it later — Jynx will adapt.
                   </div>
-                </div>
-              </Card>
-
-              <Card
-                title="Insights (latest)"
-                subtitle="Short, useful reflections — with optional confirmation."
-                olive
-              >
-                <div className="space-y-3">
-                  {[
-                    {
-                      title: "Short tasks tend to run longer",
-                      body:
-                        "Tasks under ~30 minutes often run longer than expected. Want Jynx to pad similar tasks automatically?",
-                      status: "Active",
-                    },
-                    {
-                      title: "Weekly energy patterns",
-                      body: "Emerges once routines stabilize across multiple weeks.",
-                      status: "Emerging",
-                    },
-                  ].map((i) => (
-                    <div
-                      key={i.title}
-                      className={cx(panelInner, "px-3 py-3")}
-                      style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-neutral-100">{i.title}</div>
-                          <div className="mt-1 text-xs text-neutral-400 leading-relaxed">{i.body}</div>
-                        </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/12 text-neutral-200">
-                          {i.status}
-                        </span>
-                      </div>
-
-                      {i.status === "Active" && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            className={cx(buttonBase, "bg-white/10 hover:bg-white/14 border-white/12")}
-                            style={oliveSoftStyle}
-                          >
-                            Yes, pad similar tasks
-                          </button>
-                          <button className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12")}>
-                            Not now
-                          </button>
-                          <button
-                            className={cx(
-                              buttonBase,
-                              "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
-                            )}
-                          >
-                            Not true for me
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
                 </div>
               </Card>
             </div>
@@ -719,56 +672,66 @@ export default function MyTimePage() {
                 )}
               </Card>
 
-              <div className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
-                <div className="p-4">
-                  <div className="text-sm font-semibold tracking-wide">Non-judgmental by design</div>
-                  <div className="mt-2 text-sm text-neutral-200 leading-relaxed">
-                    Dopamine comes from <span className="font-semibold">feeling understood</span>, reduced mental load,
-                    and clarity — not bars, levels, or competition.
-                  </div>
+              {/* MOVED: Insights (latest) to right column */}
+              <Card
+                title="Insights (latest)"
+                subtitle="Short reflections — with optional confirmation."
+                olive
+              >
+                <div className="space-y-3">
+                  {[
+                    {
+                      title: "Short tasks tend to run longer",
+                      body:
+                        "Tasks under ~30 minutes often run longer than expected. Want Jynx to pad similar tasks automatically?",
+                      status: "Active",
+                    },
+                    {
+                      title: "Weekly energy patterns",
+                      body: "Emerges once routines stabilize across multiple weeks.",
+                      status: "Emerging",
+                    },
+                  ].map((i) => (
+                    <div
+                      key={i.title}
+                      className={cx(panelInner, "px-3 py-3")}
+                      style={{ borderColor: "rgba(255,255,255,0.12)" }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-neutral-100">{i.title}</div>
+                          <div className="mt-1 text-xs text-neutral-400 leading-relaxed">{i.body}</div>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/12 text-neutral-200">
+                          {i.status}
+                        </span>
+                      </div>
 
-                  <div className="mt-3 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
-                    <div className="text-xs text-neutral-400">
-                      If any of this ever feels “rank-y,” we remove it. Calm usefulness is the brand.
+                      {i.status === "Active" && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button
+                            className={cx(buttonBase, "bg-white/10 hover:bg-white/14 border-white/12")}
+                            style={oliveSoftStyle}
+                          >
+                            Yes, pad similar tasks
+                          </button>
+                          <button className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12")}>
+                            Not now
+                          </button>
+                          <button
+                            className={cx(
+                              buttonBase,
+                              "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
+                            )}
+                          >
+                            Not true for me
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  ))}
                 </div>
-              </div>
-
-              {/* Dev controls — remove later */}
-              <div className="rounded-3xl border bg-white/6 backdrop-blur border-white/12">
-                <div className="p-4">
-                  <div className="text-xs font-semibold text-neutral-300">Dev (remove)</div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button
-                      className={cx(buttonBase, "bg-white/10 hover:bg-white/14 border-white/12")}
-                      style={oliveSoftStyle}
-                      onClick={() => setIntentionalMinutes((m) => m + 30)}
-                    >
-                      +30 min
-                    </button>
-                    <button
-                      className={cx(buttonBase, "bg-white/10 hover:bg-white/14 border-white/12")}
-                      style={oliveSoftStyle}
-                      onClick={() => setTasksCompleted((t) => t + 3)}
-                    >
-                      +3 tasks
-                    </button>
-                    <button
-                      className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12")}
-                      onClick={() => setDaysUsed((d) => d + 1)}
-                    >
-                      +1 day
-                    </button>
-                    <button
-                      className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12")}
-                      onClick={() => setAnswers([])}
-                    >
-                      Reset Qs
-                    </button>
-                  </div>
-                </div>
-              </div>
+              </Card>
             </div>
           </div>
 
