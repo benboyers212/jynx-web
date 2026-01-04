@@ -1,0 +1,112 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                  String   @id @default(cuid())
+  clerkUserId         String   @unique
+  email               String?
+  name                String?
+  onboardingCompleted Boolean  @default(false)
+
+  // Relations
+  medications        Medication[]
+  scheduleBlocks     ScheduleBlock[]
+  conversations      Conversation[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Medication {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name       String
+  dosage     String?
+  recurrence String   // "Daily", "Weekdays", "Custom"
+  times      String?  // "8:00 AM, 10:00 PM"
+  pharmacy   String?
+  qty        Int?
+  refills    Int?
+  notes      String?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ScheduleBlock {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title     String
+  category  String   // "class", "work", "health", "study", etc.
+  startAt   DateTime
+  endAt     DateTime
+  location  String?
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([startAt])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title     String?
+  messages  Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role           String   // "user" | "assistant"
+  content        String
+
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model Reminder {
+  id         String   @id @default(cuid())
+  userId     String
+
+  title      String
+  notes      String?
+  enabled    Boolean  @default(true)
+
+  schedule   String   // "once" | "daily" | "weekdays" | "custom"
+  timeOfDay  String?  // "08:00"
+  date       String?  // "YYYY-MM-DD"
+  location   String?
+  daysOfWeek String?  // JSON string like "[1,2,3]"
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
+
