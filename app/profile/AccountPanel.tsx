@@ -16,6 +16,16 @@ type MeResponse = {
   };
 };
 
+async function safeJson(res: Response) {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
+
 export default function AccountPanel() {
   const [data, setData] = useState<MeResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -29,14 +39,18 @@ export default function AccountPanel() {
         setLoading(true);
         setErr(null);
 
-        const res = await fetch("/api/me", { method: "GET" });
+        const res = await fetch("/api/me", { cache: "no-store" });
+        const body = await safeJson(res);
+
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `Request failed (${res.status})`);
+          const msg =
+            (body && (body.error || body.message)) ||
+            (body && body.raw) ||
+            `Request failed (${res.status})`;
+          throw new Error(msg);
         }
 
-        const json = (await res.json()) as MeResponse;
-        if (alive) setData(json);
+        if (alive) setData(body as MeResponse);
       } catch (e: any) {
         if (alive) setErr(e?.message ?? "Something went wrong");
       } finally {
