@@ -59,7 +59,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const blurPx = lerp(16, 10, headerT);
 
   return (
-    <ClerkProvider signInUrl="/login">
+   <ClerkProvider
+  publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+  signInUrl="/login"
+>
       <html lang="en" className={dmSans.variable}>
         <body className="font-sans bg-neutral-950 text-neutral-100">
           {/* Top nav (layout shell) */}
