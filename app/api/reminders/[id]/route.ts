@@ -1,51 +1,88 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import type { NextRequest } from "next/server";
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
+async function getDbUserIdOrCreate() {
   const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
+  if (!userId) return null;
 
-  const id = params.id;
+  const existing = await prisma.user.findUnique({
+    where: { clerkUserId: userId },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
 
-  const existing = await prisma.reminder.findFirst({ where: { id, userId } });
-  if (!existing) {
-    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
-  }
-
-  await prisma.reminder.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
-}
-
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
-
-  const id = params.id;
-  const body = await req.json();
-
-  const existing = await prisma.reminder.findFirst({ where: { id, userId } });
-  if (!existing) {
-    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
-  }
-
-  const updated = await prisma.reminder.update({
-    where: { id },
-    data: {
-      title: body?.title !== undefined ? String(body.title).trim() : undefined,
-      notes: body?.notes !== undefined ? (body.notes ? String(body.notes) : null) : undefined,
-      enabled: body?.enabled !== undefined ? Boolean(body.enabled) : undefined,
-      schedule: body?.schedule !== undefined ? String(body.schedule) : undefined,
-      timeOfDay:
-        body?.timeOfDay !== undefined ? (body.timeOfDay ? String(body.timeOfDay) : null) : undefined,
-      daysOfWeek:
-        body?.daysOfWeek !== undefined ? (body.daysOfWeek ? JSON.stringify(body.daysOfWeek) : null) : undefined,
-    },
+  const created = await prisma.user.create({
+    data: { clerkUserId: userId },
+    select: { id: true },
   });
 
-  return NextResponse.json({ ok: true, reminder: updated });
+  return created.id;
+}
+
+type Ctx = { params: Promise<{ id: string }> };
+
+export async function GET(_req: NextRequest, ctx: Ctx) {
+  const dbUserId = await getDbUserIdOrCreate();
+  if (!dbUserId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+
+  const reminder = await prisma.reminder.findFirst({
+    where: { id, userId: dbUserId },
+  });
+
+  if (!reminder) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+
+  return NextResponse.json({ ok: true, reminder });
+}
+
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const dbUserId = await getDbUserIdOrCreate();
+  if (!dbUserId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+
+  const existing = await prisma.reminder.findFirst({
+    where: { id, userId: dbUserId },
+    select: { id: true },
+  });
+  if (!existing) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+
+  const body = await req.json().catch(() => ({}));
+
+  const data: any = {};
+  if (body.title !== undefined) data.title = String(body.title);
+  if (body.notes !== undefined) data.notes = body.notes === null ? null : String(body.notes);
+  if (body.enabled !== undefined) data.enabled = Boolean(body.enabled);
+  if (body.schedule !== undefined) data.schedule = String(body.schedule);
+  if (body.timeOfDay !== undefined) data.timeOfDay = body.timeOfDay === null ? null : String(body.timeOfDay);
+  if (body.date !== undefined) data.date = body.date === null ? null : String(body.date);
+  if (body.location !== undefined) data.location = body.location === null ? null : String(body.location);
+  if (body.daysOfWeek !== undefined) data.daysOfWeek = body.daysOfWeek === null ? null : String(body.daysOfWeek);
+
+  const reminder = await prisma.reminder.update({
+    where: { id },
+    data,
+  });
+
+  return NextResponse.json({ ok: true, reminder });
+}
+
+export async function DELETE(_req: NextRequest, ctx: Ctx) {
+  const dbUserId = await getDbUserIdOrCreate();
+  if (!dbUserId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await ctx.params;
+
+  const existing = await prisma.reminder.findFirst({
+    where: { id, userId: dbUserId },
+    select: { id: true },
+  });
+  if (!existing) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+
+  await prisma.reminder.delete({ where: { id } });
+
+  return NextResponse.json({ ok: true });
 }
