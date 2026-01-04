@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ensureUserRecord } from "@/lib/ensureUser";
