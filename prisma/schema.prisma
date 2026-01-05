@@ -13,6 +13,7 @@ model User {
   email               String?
   name                String?
   onboardingCompleted Boolean  @default(false)
+    onboardingResponse OnboardingResponse?
 
   // Relations
   medications        Medication[]
@@ -110,3 +111,14 @@ model Reminder {
   @@index([userId])
 }
 
+model OnboardingResponse {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // flexible payload so we can iterate on the survey without migrations
+  answers   Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
