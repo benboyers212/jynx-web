@@ -11,8 +11,14 @@ const isApiRoute = createRouteMatcher(["/api(.*)"]);
 const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // 1) Public pages are always allowed
-  if (isPublicRoute(req)) return NextResponse.next();
+  // 1) Public pages are allowed for logged-out users.
+  // If signed in and path is "/", we still gate onboarding.
+  if (isPublicRoute(req)) {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.next();
+    if (req.nextUrl.pathname !== "/") return NextResponse.next();
+    // else: signed-in on "/" -> continue to onboarding gate
+  }
 
   const { userId } = await auth();
 
@@ -27,10 +33,10 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 3) Signed in: allow API routes (IMPORTANT so middleware can call /api/me safely)
+  // 3) Signed in: allow API routes
   if (isApiRoute(req)) return NextResponse.next();
 
-  // 4) Signed in: allow onboarding pages (no redirect loop)
+  // 4) Signed in: allow onboarding pages
   if (isOnboardingRoute(req)) return NextResponse.next();
 
   // 5) Signed in: check onboardingCompleted via /api/me
@@ -38,9 +44,7 @@ export default clerkMiddleware(async (auth, req) => {
     const meUrl = new URL("/api/me", req.url);
     const res = await fetch(meUrl, {
       method: "GET",
-      headers: {
-        cookie: req.headers.get("cookie") ?? "",
-      },
+      headers: { cookie: req.headers.get("cookie") ?? "" },
     });
 
     if (!res.ok) return NextResponse.next();
@@ -54,7 +58,6 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(url);
     }
   } catch {
-    // If anything fails, don't brick the app — just allow.
     return NextResponse.next();
   }
 
