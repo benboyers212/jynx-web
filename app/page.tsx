@@ -4,8 +4,17 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { SlidersHorizontal } from "lucide-react";
 
+/**
+ * Brand green pulled to match your logo vibe (darker teal-green).
+ * If you want it slightly lighter/darker, tell me and I’ll adjust the hex.
+ */
+const JYNX_GREEN = "#1F8A5B"; // <-- new green
 
-const OLIVE = "#556B2F";
+// Used for RGBA styles
+const BRAND_RGB = { r: 31, g: 138, b: 91 };
+function rgbaBrand(a: number) {
+  return `rgba(${BRAND_RGB.r},${BRAND_RGB.g},${BRAND_RGB.b},${a})`;
+}
 
 type EventType = "class" | "work" | "health" | "prep" | "study" | "life" | "free";
 
@@ -74,14 +83,11 @@ function getTagStyleLight(tag: string) {
     backgroundColor: "rgba(0,0,0,0.03)",
   };
 
-  const map: Record<
-    string,
-    { backgroundColor: string; color: string; borderColor: string }
-  > = {
+  const map: Record<string, { backgroundColor: string; color: string; borderColor: string }> = {
     Class: {
-      backgroundColor: "rgba(85,107,47,0.10)",
+      backgroundColor: rgbaBrand(0.10),
       color: "rgba(25,25,25,0.90)",
-      borderColor: "rgba(85,107,47,0.22)",
+      borderColor: rgbaBrand(0.22),
     },
     Work: {
       backgroundColor: "rgba(0,0,0,0.03)",
@@ -89,14 +95,14 @@ function getTagStyleLight(tag: string) {
       borderColor: "rgba(0,0,0,0.10)",
     },
     Health: {
-      backgroundColor: "rgba(85,107,47,0.12)",
+      backgroundColor: rgbaBrand(0.12),
       color: "rgba(25,25,25,0.90)",
-      borderColor: "rgba(85,107,47,0.24)",
+      borderColor: rgbaBrand(0.24),
     },
     Prep: {
-      backgroundColor: "rgba(85,107,47,0.08)",
+      backgroundColor: rgbaBrand(0.08),
       color: "rgba(25,25,25,0.86)",
-      borderColor: "rgba(85,107,47,0.18)",
+      borderColor: rgbaBrand(0.18),
     },
     Study: {
       backgroundColor: "rgba(0,0,0,0.03)",
@@ -104,9 +110,9 @@ function getTagStyleLight(tag: string) {
       borderColor: "rgba(0,0,0,0.10)",
     },
     Life: {
-      backgroundColor: "rgba(85,107,47,0.08)",
+      backgroundColor: rgbaBrand(0.08),
       color: "rgba(25,25,25,0.86)",
-      borderColor: "rgba(85,107,47,0.18)",
+      borderColor: rgbaBrand(0.18),
     },
     Flexible: {
       backgroundColor: "rgba(0,0,0,0.025)",
@@ -128,10 +134,10 @@ function getImportanceLabel(i?: 1 | 2 | 3 | 4 | 5) {
 function getImportancePillStyleLight(level: "High" | "Medium" | "Low") {
   if (level === "High") {
     return {
-      backgroundColor: "rgba(85,107,47,0.12)",
-      borderColor: "rgba(85,107,47,0.26)",
+      backgroundColor: rgbaBrand(0.12),
+      borderColor: rgbaBrand(0.26),
       color: "rgba(25,25,25,0.90)",
-      boxShadow: "0 0 0 1px rgba(85,107,47,0.08)",
+      boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
     } as CSSProperties;
   }
   if (level === "Low") {
@@ -320,33 +326,91 @@ export default function Home() {
   ]);
 
   // ---------------------------
-  // NEW: Day navigation + views
+  // Day selection (every day clickable)
   // ---------------------------
-  const dayMeta = useMemo(
-    () => [
-      { key: "today", label: "Today", sub: "Thu, Sep 12" },
-      { key: "tomorrow", label: "Tomorrow", sub: "Fri, Sep 13" },
-    ],
-    []
-  );
+  const seed = useMemo(() => new Date(2026, 0, 1), []); // Jan 2026 like your screenshot
+  const [miniMonthOffset, setMiniMonthOffset] = useState(0);
 
-  const [dayIndex, setDayIndex] = useState(0);
+  const displayMonthDate = useMemo(() => {
+    const d = new Date(seed);
+    d.setMonth(d.getMonth() + miniMonthOffset);
+    d.setDate(1);
+    return d;
+  }, [seed, miniMonthOffset]);
 
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 0, 12)); // default demo day
+
+  function sameYMD(a: Date, b: Date) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
+  function setSelectedDayInDisplayedMonth(dayNum: number) {
+    const d = new Date(displayMonthDate);
+    d.setDate(dayNum);
+    setSelectedDate(d);
+  }
+
+  function shiftSelectedDay(delta: number) {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(d);
+
+    // keep calendar month in sync with selected date
+    const monthDiff = (d.getFullYear() - seed.getFullYear()) * 12 + (d.getMonth() - seed.getMonth());
+    setMiniMonthOffset(monthDiff);
+  }
+
+  // Used for header
+  const selectedLabel = useMemo(() => {
+    const label = selectedDate.toLocaleString(undefined, { weekday: "short" });
+    const month = selectedDate.toLocaleString(undefined, { month: "short" });
+    return {
+      top: selectedDate.toLocaleString(undefined, { day: "2-digit" }) ? "Day" : "Day",
+      line1: selectedDate.toLocaleString(undefined, { weekday: "long" }),
+      line2: `${label}, ${month} ${selectedDate.getDate()}`,
+    };
+  }, [selectedDate]);
+
+  // Which events for this day?
+  const activeEvents = useMemo(() => {
+    // Only demo data for Jan 12 + Jan 13 (blank for all other days)
+    const y = selectedDate.getFullYear();
+    const m = selectedDate.getMonth();
+    const d = selectedDate.getDate();
+
+    if (y === 2026 && m === 0 && d === 12) return todayEvents;
+    if (y === 2026 && m === 0 && d === 13) return tomorrowEvents;
+    return [] as EventRecord[];
+  }, [selectedDate, todayEvents, tomorrowEvents]);
+
+  // For toggleComplete, we only affect those two demo days
+  function toggleComplete(id: string) {
+    const y = selectedDate.getFullYear();
+    const m = selectedDate.getMonth();
+    const d = selectedDate.getDate();
+    if (y === 2026 && m === 0 && d === 12) {
+      setTodayEvents((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
+      return;
+    }
+    if (y === 2026 && m === 0 && d === 13) {
+      setTomorrowEvents((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
+      return;
+    }
+  }
+
+  // ---------------------------
+  // Views
+  // ---------------------------
   const [viewSpan, setViewSpan] = useState<ViewSpan>("Day");
   const [viewFormat, setViewFormat] = useState<ViewFormat>("Schedule");
 
   // Left sidebar (collapsible)
   const [leftOpen, setLeftOpen] = useState(true);
 
-  // mini month picker (UI shell)
-  const [miniMonthOffset, setMiniMonthOffset] = useState(0);
-
   // Drawer state
   const [selected, setSelected] = useState<EventRecord | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<"Overview" | "Files" | "Assignments" | "Notes">(
-    "Overview"
-  );
+  const [drawerTab, setDrawerTab] = useState<"Overview" | "Files" | "Assignments" | "Notes">("Overview");
 
   // Quick chat (assistant input)
   const [quickChat, setQuickChat] = useState("");
@@ -358,14 +422,13 @@ export default function Home() {
 
   // Adjust modal (schedule controls)
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [freeTimePct, setFreeTimePct] = useState(22);
   const [protectFocus, setProtectFocus] = useState(true);
   const [autoRebalance, setAutoRebalance] = useState(true);
 
   const adjustW = "min(96vw, 1160px)";
   const adjustH = "min(86vh, 760px)";
 
-  // Add-event form (inside Adjust)
+  // Add-event form (inside Adjust) — UI shell only
   const [addForm, setAddForm] = useState<{
     time: string;
     endTime: string;
@@ -392,8 +455,7 @@ export default function Home() {
       Auto: "Auto: Jynx chooses the focus based on what’s scheduled next.",
       Morning: "Protect your early block. Keep distractions low and stay on rails.",
       Afternoon: "Use the mid-day gap well. Keep transitions clean and don’t drift.",
-      Evening:
-        "Close loops. Light prep, reset, and set up tomorrow so your morning starts clean.",
+      Evening: "Close loops. Light prep, reset, and set up tomorrow so your morning starts clean.",
     };
     return map[focusMode];
   }, [focusMode]);
@@ -434,26 +496,40 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerOpen, adjustOpen]);
 
-  function toggleComplete(which: "today" | "tomorrow", id: string) {
-    const setter = which === "today" ? setTodayEvents : setTomorrowEvents;
-    setter((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
-  }
-
   function setImportance(id: string, importance: 1 | 2 | 3 | 4 | 5) {
-    setTodayEvents((prev) => prev.map((e) => (e.id === id ? { ...e, importance } : e)));
+    // Only demo days have data
+    const y = selectedDate.getFullYear();
+    const m = selectedDate.getMonth();
+    const d = selectedDate.getDate();
+
+    if (y === 2026 && m === 0 && d === 12) {
+      setTodayEvents((prev) => prev.map((e) => (e.id === id ? { ...e, importance } : e)));
+    }
+    if (y === 2026 && m === 0 && d === 13) {
+      setTomorrowEvents((prev) => prev.map((e) => (e.id === id ? { ...e, importance } : e)));
+    }
     if (selected?.id === id) setSelected((s) => (s ? { ...s, importance } : s));
   }
 
   function removeEvent(id: string) {
-    const which = dayIndex === 0 ? "today" : "tomorrow";
-    if (which === "today") setTodayEvents((prev) => prev.filter((e) => e.id !== id));
-    else setTomorrowEvents((prev) => prev.filter((e) => e.id !== id));
+    const y = selectedDate.getFullYear();
+    const m = selectedDate.getMonth();
+    const d = selectedDate.getDate();
 
+    if (y === 2026 && m === 0 && d === 12) setTodayEvents((prev) => prev.filter((e) => e.id !== id));
+    if (y === 2026 && m === 0 && d === 13) setTomorrowEvents((prev) => prev.filter((e) => e.id !== id));
     if (selected?.id === id) closeDrawer();
   }
 
   function addEvent() {
     if (!addForm.title.trim()) return;
+
+    // UI shell: only add to demo days
+    const y = selectedDate.getFullYear();
+    const m = selectedDate.getMonth();
+    const d = selectedDate.getDate();
+    if (!(y === 2026 && m === 0 && (d === 12 || d === 13))) return;
+
     const newEv: EventRecord = {
       id: uid(),
       type: addForm.type,
@@ -466,12 +542,10 @@ export default function Home() {
       importance: addForm.importance,
     };
 
-    if (dayIndex === 0) {
+    if (d === 12) {
       setTodayEvents((prev) => [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time)));
     } else {
-      setTomorrowEvents((prev) =>
-        [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time))
-      );
+      setTomorrowEvents((prev) => [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time)));
     }
     setAddForm((p) => ({ ...p, title: "", meta: "" }));
   }
@@ -483,64 +557,59 @@ export default function Home() {
     alert(`UI shell — would send to assistant:\n\n"${text}"`);
   }
 
-  // Which day's events are we showing?
-  const activeKey = dayIndex === 0 ? "today" : "tomorrow";
-  const activeEvents = dayIndex === 0 ? todayEvents : tomorrowEvents;
-
   // NO FREE TIME BLOCKS: just sorted events
   const activeBlocks = useMemo(() => buildBlocksWithFreeTime(activeEvents), [activeEvents]);
 
-  const weekColumns = useMemo(() => {
-    const d0 = buildBlocksWithFreeTime(todayEvents);
-    const d1 = buildBlocksWithFreeTime(tomorrowEvents);
-    return [
-      { meta: dayMeta[0], blocks: d0 },
-      { meta: dayMeta[1], blocks: d1 },
-    ];
-  }, [todayEvents, tomorrowEvents, dayMeta]);
-
-  // Mini month calendar (UI shell)
+  // Mini month calendar (every day clickable)
   const miniCal = useMemo(() => {
-    const base = new Date();
-    base.setDate(1);
-    base.setMonth(base.getMonth() + miniMonthOffset);
-
-    const year = base.getFullYear();
-    const month = base.getMonth();
+    const year = displayMonthDate.getFullYear();
+    const month = displayMonthDate.getMonth();
 
     const firstDay = new Date(year, month, 1);
     const startDow = firstDay.getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    const cells: Array<{ day: number | null; isActive?: boolean; isDemo?: boolean }> = [];
+    const cells: Array<{ day: number | null; isActive?: boolean }> = [];
     for (let i = 0; i < 42; i++) cells.push({ day: null });
 
     let cursor = 1;
     for (let i = startDow; i < startDow + daysInMonth; i++) {
       const dayNum = cursor++;
-      const isDemo = dayNum === 12 || dayNum === 13;
-      const isActive = (dayIndex === 0 && dayNum === 12) || (dayIndex === 1 && dayNum === 13);
-      cells[i] = { day: dayNum, isActive, isDemo };
+      const cellDate = new Date(year, month, dayNum);
+      const isActive = sameYMD(cellDate, selectedDate);
+      cells[i] = { day: dayNum, isActive };
     }
 
-    const monthLabel = base.toLocaleString(undefined, { month: "long", year: "numeric" });
+    const monthLabel = displayMonthDate.toLocaleString(undefined, { month: "long", year: "numeric" });
 
     return { monthLabel, cells };
-  }, [miniMonthOffset, dayIndex]);
+  }, [displayMonthDate, selectedDate]);
 
-  function jumpToDemoDay(dayNum: number) {
-    if (dayNum === 12) setDayIndex(0);
-    if (dayNum === 13) setDayIndex(1);
+  // Week dates (7 days) for week view UI
+  const weekDates = useMemo(() => {
+    const start = new Date(selectedDate);
+    start.setHours(0, 0, 0, 0);
+    // Sunday-start week (clean + matches your mini calendar rows)
+    start.setDate(start.getDate() - start.getDay());
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [selectedDate]);
+
+  function eventsForDate(d: Date) {
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const day = d.getDate();
+    if (y === 2026 && m === 0 && day === 12) return todayEvents;
+    if (y === 2026 && m === 0 && day === 13) return tomorrowEvents;
+    return [] as EventRecord[];
   }
 
-  function prevDay() {
-    setDayIndex((v) => Math.max(0, v - 1));
-  }
-  function nextDay() {
-    setDayIndex((v) => Math.min(dayMeta.length - 1, v + 1));
-  }
-  function goToday() {
-    setDayIndex(0);
+  function openDayFromWeek(d: Date) {
+    setSelectedDate(d);
+    setViewSpan("Day");
   }
 
   return (
@@ -550,8 +619,7 @@ export default function Home() {
         <div
           className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
           style={{
-            background:
-              "radial-gradient(circle at 30% 30%, rgba(85,107,47,0.22), rgba(255,255,255,0) 60%)",
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, rgba(255,255,255,0) 60%)`,
           }}
         />
         <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-20 bg-black/10" />
@@ -570,14 +638,15 @@ export default function Home() {
             {/* sidebar header */}
             <div className="px-3 py-3 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
               <div className="flex items-center gap-2">
+                {/* CHANGED: Control Center icon button (not arrow) */}
                 <button
                   onClick={() => setLeftOpen((v) => !v)}
                   className="h-10 w-10 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
                   style={surfaceSoftStyle}
-                  aria-label="Toggle sidebar"
-                  title="Toggle"
+                  aria-label="Toggle Control Center"
+                  title="Control Center"
                 >
-                  <SlidersHorizontal className="h-4 w-4 text-neutral-700" />
+                  <SlidersHorizontal size={18} />
                 </button>
 
                 {leftOpen && (
@@ -589,7 +658,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* ONLY render content when open (collapsed = arrow only) */}
+            {/* ONLY render content when open (collapsed = icon only) */}
             {leftOpen ? (
               <>
                 <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
@@ -598,9 +667,7 @@ export default function Home() {
                     <div className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">Focus</div>
-                        <div className="text-[11px] text-neutral-500">
-                          {focusMode === "Auto" ? "auto" : "manual"}
-                        </div>
+                        <div className="text-[11px] text-neutral-500">{focusMode === "Auto" ? "auto" : "manual"}</div>
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -615,8 +682,8 @@ export default function Home() {
                                 active ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
                               )}
                               style={{
-                                borderColor: active ? "rgba(85,107,47,0.22)" : "rgba(0,0,0,0.08)",
-                                boxShadow: active ? "0 0 0 1px rgba(85,107,47,0.08)" : undefined,
+                                borderColor: active ? rgbaBrand(0.22) : "rgba(0,0,0,0.08)",
+                                boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
                               }}
                             >
                               {k}
@@ -681,27 +748,27 @@ export default function Home() {
 
                       <div className="grid grid-cols-7 gap-1">
                         {miniCal.cells.map((c, idx) => {
-                          const clickable = !!c.day && !!c.isDemo;
                           const active = !!c.isActive;
+                          const isEmpty = !c.day;
 
                           return (
                             <button
                               key={idx}
-                              onClick={() => (clickable && c.day ? jumpToDemoDay(c.day) : null)}
+                              onClick={() => (c.day ? setSelectedDayInDisplayedMonth(c.day) : null)}
                               className={cx(
                                 "h-9 rounded-xl text-[12px] border transition",
-                                clickable ? "hover:bg-black/[0.03]" : "opacity-50 cursor-default",
+                                isEmpty ? "opacity-0 cursor-default" : "hover:bg-black/[0.03]",
                                 active ? "font-semibold" : "font-medium"
                               )}
                               style={{
-                                borderColor: active ? "rgba(85,107,47,0.30)" : "rgba(0,0,0,0.06)",
-                                background: active ? "rgba(85,107,47,0.10)" : "white",
-                                color: clickable ? "rgba(0,0,0,0.84)" : "rgba(0,0,0,0.38)",
-                                boxShadow: active ? "0 0 0 1px rgba(85,107,47,0.10)" : undefined,
+                                borderColor: active ? rgbaBrand(0.30) : "rgba(0,0,0,0.06)",
+                                background: active ? rgbaBrand(0.10) : "white",
+                                color: isEmpty ? "transparent" : "rgba(0,0,0,0.84)",
+                                boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.10)}` : undefined,
                               }}
-                              disabled={!clickable}
+                              disabled={isEmpty}
                               aria-label={c.day ? `Day ${c.day}` : "Empty"}
-                              title={clickable ? "Jump to this day (demo)" : ""}
+                              title={c.day ? "Open this day" : ""}
                             >
                               {c.day ?? ""}
                             </button>
@@ -710,7 +777,7 @@ export default function Home() {
                       </div>
 
                       <div className="mt-3 text-[11px] text-neutral-500">
-                        Demo days are highlighted (12–13).
+                        Any day is selectable. Only 12–13 have demo events (others are blank for now).
                       </div>
                     </div>
                   </div>
@@ -744,9 +811,7 @@ export default function Home() {
                               <div className="text-sm font-semibold truncate">{r.title}</div>
                               <span className="text-[11px] text-neutral-500 shrink-0">{r.due}</span>
                             </div>
-                            <div className="mt-1 text-[11px] text-neutral-500">
-                              {r.severity ?? "Medium"}
-                            </div>
+                            <div className="mt-1 text-[11px] text-neutral-500">{r.severity ?? "Medium"}</div>
                           </button>
                         ))}
 
@@ -769,9 +834,7 @@ export default function Home() {
                         <div className="text-[11px] text-neutral-500">quick</div>
                       </div>
 
-                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
-                        Conflicts, swaps, or rebalancing your day.
-                      </div>
+                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">Conflicts, swaps, or rebalancing your day.</div>
 
                       <div className="mt-3 rounded-2xl border px-3 py-3 bg-white" style={surfaceSoftStyle}>
                         <textarea
@@ -790,17 +853,13 @@ export default function Home() {
                           }}
                         />
                         <div className="mt-2 flex items-center gap-2">
-                          <span className="text-[11px] text-neutral-500">
-                            Enter to send • Shift+Enter for new line
-                          </span>
+                          <span className="text-[11px] text-neutral-500">Enter to send • Shift+Enter for new line</span>
                           <button
                             onClick={sendQuickChat}
                             disabled={!quickChat.trim()}
                             className={cx(
                               "ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold border transition",
-                              quickChat.trim()
-                                ? "bg-white hover:bg-black/[0.03]"
-                                : "bg-white text-neutral-400 cursor-not-allowed"
+                              quickChat.trim() ? "bg-white hover:bg-black/[0.03]" : "bg-white text-neutral-400 cursor-not-allowed"
                             )}
                             style={surfaceSoftStyle}
                           >
@@ -843,7 +902,6 @@ export default function Home() {
                 </div>
               </>
             ) : (
-              // collapsed: nothing besides header arrow
               <div className="flex-1" />
             )}
           </div>
@@ -851,18 +909,14 @@ export default function Home() {
 
         {/* MAIN */}
         <div className="flex-1 flex flex-col h-full">
-          {/* Top controls for Schedule (Day nav + toggles) */}
+          {/* Top controls */}
           <div className="border-b bg-white/80 backdrop-blur-sm" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
             <div className="max-w-[1280px] mx-auto px-6 py-4 flex flex-wrap items-center gap-3">
               {/* Day nav */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={prevDay}
-                  disabled={dayIndex === 0}
-                  className={cx(
-                    "h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center",
-                    dayIndex === 0 ? "opacity-50 cursor-not-allowed" : "hover:bg-black/[0.03]"
-                  )}
+                  onClick={() => shiftSelectedDay(-1)}
+                  className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
                   style={surfaceSoftStyle}
                   aria-label="Previous day"
                 >
@@ -870,7 +924,7 @@ export default function Home() {
                 </button>
 
                 <button
-                  onClick={goToday}
+                  onClick={() => setSelectedDate(new Date(2026, 0, 12))}
                   className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
                   style={surfaceSoftStyle}
                 >
@@ -878,14 +932,8 @@ export default function Home() {
                 </button>
 
                 <button
-                  onClick={nextDay}
-                  disabled={dayIndex === dayMeta.length - 1}
-                  className={cx(
-                    "h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center",
-                    dayIndex === dayMeta.length - 1
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-black/[0.03]"
-                  )}
+                  onClick={() => shiftSelectedDay(1)}
+                  className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
                   style={surfaceSoftStyle}
                   aria-label="Next day"
                 >
@@ -893,10 +941,8 @@ export default function Home() {
                 </button>
 
                 <div className="ml-2">
-                  <div className="text-sm font-semibold">
-                    {dayMeta[dayIndex]?.label ?? "Day"}
-                  </div>
-                  <div className="text-xs text-neutral-500">{dayMeta[dayIndex]?.sub ?? ""}</div>
+                  <div className="text-sm font-semibold">{selectedLabel.line1}</div>
+                  <div className="text-xs text-neutral-500">{selectedLabel.line2}</div>
                 </div>
               </div>
 
@@ -904,23 +950,16 @@ export default function Home() {
 
               {/* View toggles */}
               <div className="flex items-center gap-2 flex-wrap">
-                <Segment
-                  value={viewSpan}
-                  options={["Day", "Week"]}
-                  onChange={(v) => setViewSpan(v as ViewSpan)}
-                />
-                <Segment
-                  value={viewFormat}
-                  options={["Schedule", "List"]}
-                  onChange={(v) => setViewFormat(v as ViewFormat)}
-                />
+                <Segment value={viewSpan} options={["Day", "Week"]} onChange={(v) => setViewSpan(v as ViewSpan)} />
+                <Segment value={viewFormat} options={["Schedule", "List"]} onChange={(v) => setViewFormat(v as ViewFormat)} />
 
-                <PillStat label="Free time" value={`${freeTimePct}%`} />
+                {/* REMOVED: Free time pill */}
                 <button
                   onClick={() => setAdjustOpen(true)}
-                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition flex items-center gap-2"
                   style={surfaceSoftStyle}
                 >
+                  <SlidersHorizontal size={16} />
                   Adjust
                 </button>
               </div>
@@ -930,7 +969,6 @@ export default function Home() {
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-[1280px] mx-auto px-6 pt-6 pb-10">
-              {/* Schedule timeline (full width now) */}
               <section>
                 {viewSpan === "Day" ? (
                   <>
@@ -940,24 +978,22 @@ export default function Home() {
                           <div className="flex items-center justify-between gap-4">
                             <div>
                               <div className="text-sm font-semibold">Schedule</div>
-                              <div className="text-xs text-neutral-500">
-                                One day at a time · timeline view
-                              </div>
+                              <div className="text-xs text-neutral-500">One day at a time · timeline view</div>
                             </div>
-                            <div className="text-[11px] text-neutral-500">
-                              {activeEvents.length} items
-                            </div>
+                            <div className="text-[11px] text-neutral-500">{activeEvents.length} items</div>
                           </div>
 
                           <div className="mt-5">
-                            <TimelineWithDaypartsLight
-                              blocks={activeBlocks}
-                              olive={OLIVE}
-                              onToggleComplete={(id) =>
-                                toggleComplete(activeKey === "today" ? "today" : "tomorrow", id)
-                              }
-                              onOpen={openDrawer}
-                            />
+                            {activeBlocks.length ? (
+                              <TimelineWithDaypartsLight
+                                blocks={activeBlocks}
+                                olive={JYNX_GREEN}
+                                onToggleComplete={(id) => toggleComplete(id)}
+                                onOpen={openDrawer}
+                              />
+                            ) : (
+                              <BlankDayCard />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -967,102 +1003,201 @@ export default function Home() {
                           <div className="flex items-center justify-between gap-4">
                             <div>
                               <div className="text-sm font-semibold">List</div>
-                              <div className="text-xs text-neutral-500">
-                                Checklist-style with times on the left
-                              </div>
+                              <div className="text-xs text-neutral-500">Clean rows · checkbox completes</div>
                             </div>
-                            <div className="text-[11px] text-neutral-500">
-                              {activeEvents.length} items
-                            </div>
+                            <div className="text-[11px] text-neutral-500">{activeEvents.length} items</div>
                           </div>
 
                           <div className="mt-5 space-y-2">
-                            {activeBlocks.map((e) => (
-                              <ListRow
-                                key={e.id}
-                                event={e}
-                                onToggle={() =>
-                                  toggleComplete(activeKey === "today" ? "today" : "tomorrow", e.id)
-                                }
-                                onOpen={() => openDrawer(e)}
-                              />
-                            ))}
+                            {activeBlocks.length ? (
+                              activeBlocks.map((e) => (
+                                <ListRow
+                                  key={e.id}
+                                  event={e}
+                                  onToggle={() => toggleComplete(e.id)}
+                                  onOpen={() => openDrawer(e)}
+                                  olive={JYNX_GREEN}
+                                />
+                              ))
+                            ) : (
+                              <BlankDayList />
+                            )}
                           </div>
                         </div>
                       </div>
                     )}
                   </>
-                ) : (
+                ) : viewFormat === "List" ? (
+                  // CHANGED: Week + List is now a readable vertical list grouped by day
                   <div className="rounded-3xl border bg-white" style={surfaceStyle}>
                     <div className="p-5">
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <div className="text-sm font-semibold">Week</div>
-                          <div className="text-xs text-neutral-500">
-                            Grid preview (UI shell — currently 2 days)
-                          </div>
+                          <div className="text-xs text-neutral-500">Readable list · grouped by day</div>
                         </div>
-                        <div className="text-[11px] text-neutral-500">
-                          Toggle Schedule vs List still applies
-                        </div>
+                        <div className="text-[11px] text-neutral-500">7 days</div>
                       </div>
 
-                      <div className="mt-5 grid grid-cols-12 gap-4">
-                        {weekColumns.map((col) => (
-                          <div key={col.meta.key} className="col-span-12 md:col-span-6">
-                            <div className="rounded-3xl border bg-white" style={surfaceSoftStyle}>
+                      <div className="mt-5 space-y-4">
+                        {weekDates.map((d) => {
+                          const events = eventsForDate(d);
+                          const blocks = buildBlocksWithFreeTime(events);
+                          const isActive = sameYMD(d, selectedDate);
+
+                          return (
+                            <div
+                              key={d.toISOString()}
+                              className="rounded-3xl border bg-white"
+                              style={{
+                                ...surfaceSoftStyle,
+                                borderColor: isActive ? rgbaBrand(0.28) : (surfaceSoftStyle.borderColor as string),
+                                boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.10)}` : surfaceSoftStyle.boxShadow,
+                              }}
+                            >
                               <div className="p-4">
-                                <div className="flex items-baseline justify-between gap-3">
-                                  <div className="text-sm font-semibold">{col.meta.label}</div>
-                                  <div className="text-xs text-neutral-500">{col.meta.sub}</div>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="text-sm font-semibold">
+                                      {d.toLocaleString(undefined, { weekday: "long" })}
+                                    </div>
+                                    <div className="text-xs text-neutral-500">
+                                      {d.toLocaleString(undefined, { month: "short" })} {d.getDate()}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-[11px] text-neutral-500">{events.length} items</div>
+                                    <button
+                                      onClick={() => openDayFromWeek(d)}
+                                      className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                                      style={surfaceSoftStyle}
+                                    >
+                                      Open day
+                                    </button>
+                                  </div>
                                 </div>
 
-                                <div className="mt-4">
-                                  {viewFormat === "Schedule" ? (
-                                    <TimelineWithDaypartsLight
-                                      blocks={col.blocks}
-                                      olive={OLIVE}
-                                      onToggleComplete={(id) =>
-                                        toggleComplete(
-                                          col.meta.key === "today" ? "today" : "tomorrow",
-                                          id
-                                        )
-                                      }
-                                      onOpen={openDrawer}
-                                      compact
-                                    />
+                                <div className="mt-3 space-y-2">
+                                  {blocks.length ? (
+                                    blocks.map((e) => (
+                                      <ListRow
+                                        key={e.id}
+                                        event={e}
+                                        onToggle={() => {
+                                          setSelectedDate(d);
+                                          setTimeout(() => toggleComplete(e.id), 0);
+                                        }}
+                                        onOpen={() => {
+                                          setSelectedDate(d);
+                                          setTimeout(() => openDrawer(e), 0);
+                                        }}
+                                        olive={JYNX_GREEN}
+                                      />
+                                    ))
                                   ) : (
-                                    <div className="space-y-2">
-                                      {col.blocks.map((e) => (
-                                        <ListRow
-                                          key={e.id}
-                                          event={e}
-                                          onToggle={() =>
-                                            toggleComplete(
-                                              col.meta.key === "today" ? "today" : "tomorrow",
-                                              e.id
-                                            )
-                                          }
-                                          onOpen={() => openDrawer(e)}
-                                        />
-                                      ))}
+                                    <div
+                                      className="rounded-2xl border bg-white px-3 py-3 text-sm text-neutral-600"
+                                      style={surfaceSoftStyle}
+                                    >
+                                      Nothing scheduled
                                     </div>
                                   )}
                                 </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
 
-                                <div className="mt-4">
+                      <div className="mt-3 text-[11px] text-neutral-500">
+                        Tip: This is the “readable week list” mode. If you flip to Week + Schedule, you still get the timeline-style preview.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  // Week + Schedule (keep the original horizontal preview)
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-semibold">Week</div>
+                          <div className="text-xs text-neutral-500">7-day preview · tap “Open day” to drill in</div>
+                        </div>
+                        <div className="text-[11px] text-neutral-500">Schedule preview</div>
+                      </div>
+
+                      <div className="mt-5 overflow-x-auto">
+                        <div className="flex gap-4 min-w-max pb-1">
+                          {weekDates.map((d) => {
+                            const events = eventsForDate(d);
+                            const blocks = buildBlocksWithFreeTime(events);
+                            const isActive = sameYMD(d, selectedDate);
+
+                            return (
+                              <div
+                                key={d.toISOString()}
+                                className={cx("w-[360px] shrink-0 rounded-3xl border bg-white", isActive ? "ring-1" : "")}
+                                style={{
+                                  ...surfaceSoftStyle,
+                                  borderColor: isActive ? rgbaBrand(0.28) : (surfaceSoftStyle.borderColor as string),
+                                  boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.10)}` : surfaceSoftStyle.boxShadow,
+                                }}
+                              >
+                                <div className="p-4">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <div className="text-sm font-semibold">
+                                        {d.toLocaleString(undefined, { weekday: "long" })}
+                                      </div>
+                                      <div className="text-xs text-neutral-500">
+                                        {d.toLocaleString(undefined, { month: "short" })} {d.getDate()}
+                                      </div>
+                                    </div>
+                                    <div className="text-[11px] text-neutral-500">{events.length} items</div>
+                                  </div>
+
+                                  <div className="mt-4">
+                                    {blocks.length ? (
+                                      <TimelineWithDaypartsLight
+                                        blocks={blocks}
+                                        olive={JYNX_GREEN}
+                                        onToggleComplete={(id) => {
+                                          setSelectedDate(d);
+                                          setTimeout(() => toggleComplete(id), 0);
+                                        }}
+                                        onOpen={(ev) => {
+                                          setSelectedDate(d);
+                                          setTimeout(() => openDrawer(ev), 0);
+                                        }}
+                                        compact
+                                      />
+                                    ) : (
+                                      <div
+                                        className="rounded-2xl border bg-white px-3 py-3 text-sm text-neutral-600"
+                                        style={surfaceSoftStyle}
+                                      >
+                                        Nothing scheduled
+                                      </div>
+                                    )}
+                                  </div>
+
                                   <button
-                                    className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                                    onClick={() => openDayFromWeek(d)}
+                                    className="mt-4 w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
                                     style={surfaceSoftStyle}
-                                    onClick={() => setDayIndex(col.meta.key === "today" ? 0 : 1)}
                                   >
                                     Open day
                                   </button>
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                        ))}
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-neutral-500">
+                        Tip: Week view scrolls horizontally. We’ll swap this to a true full-week grid once your real schedule data is wired.
                       </div>
                     </div>
                   </div>
@@ -1124,17 +1259,13 @@ export default function Home() {
 
                     {/* Importance control */}
                     {selected?.id && (
-                      <div
-                        className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5"
-                        style={surfaceSoftStyle}
-                      >
+                      <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5" style={surfaceSoftStyle}>
                         <span className="text-[11px] text-neutral-500">Importance</span>
                         <select
                           value={getImportanceLabel(selected.importance)}
                           onChange={(e) => {
                             const tier = e.target.value as "Low" | "Medium" | "High";
-                            const mapped: 1 | 2 | 3 | 4 | 5 =
-                              tier === "High" ? 4 : tier === "Low" ? 2 : 3;
+                            const mapped: 1 | 2 | 3 | 4 | 5 = tier === "High" ? 4 : tier === "Low" ? 2 : 3;
                             setImportance(selected.id, mapped);
                           }}
                           className="bg-transparent text-[11px] text-neutral-800 outline-none"
@@ -1168,8 +1299,8 @@ export default function Home() {
                       drawerTab === t ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
                     )}
                     style={{
-                      borderColor: drawerTab === t ? "rgba(85,107,47,0.22)" : "rgba(0,0,0,0.08)",
-                      boxShadow: drawerTab === t ? "0 0 0 1px rgba(85,107,47,0.08)" : undefined,
+                      borderColor: drawerTab === t ? rgbaBrand(0.22) : "rgba(0,0,0,0.08)",
+                      boxShadow: drawerTab === t ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
                     }}
                   >
                     {t}
@@ -1186,16 +1317,11 @@ export default function Home() {
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Thoughts?</div>
-                      <button
-                        className="text-[11px] text-neutral-500 hover:text-neutral-800"
-                        onClick={() => setThoughtsOpen(false)}
-                      >
+                      <button className="text-[11px] text-neutral-500 hover:text-neutral-800" onClick={() => setThoughtsOpen(false)}>
                         hide
                       </button>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-500">
-                      Quick note to yourself (or something you want the assistant to remember).
-                    </div>
+                    <div className="mt-2 text-xs text-neutral-500">Quick note to yourself (or something you want the assistant to remember).</div>
                     <textarea
                       value={thoughtsText}
                       onChange={(e) => setThoughtsText(e.target.value)}
@@ -1229,10 +1355,7 @@ export default function Home() {
             </div>
 
             {/* Drawer footer */}
-            <div
-              className="px-5 py-4 border-t bg-white/80"
-              style={{ borderColor: "rgba(0,0,0,0.08)" }}
-            >
+            <div className="px-5 py-4 border-t bg-white/80" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
               <div className="flex gap-2">
                 <button
                   className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
@@ -1283,15 +1406,10 @@ export default function Home() {
                   animation: "fadeScaleIn 220ms ease-out",
                 }}
               >
-                <div
-                  className="px-5 py-4 border-b flex items-center"
-                  style={{ borderColor: "rgba(0,0,0,0.08)" }}
-                >
+                <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
                   <div>
                     <div className="text-sm font-semibold">Adjust</div>
-                    <div className="text-xs text-neutral-500 mt-0.5">
-                      Tune free time, focus protection, and quick edits (UI shell).
-                    </div>
+                    <div className="text-xs text-neutral-500 mt-0.5">Focus protection and quick edits (UI shell).</div>
                   </div>
                   <button
                     onClick={() => setAdjustOpen(false)}
@@ -1307,28 +1425,7 @@ export default function Home() {
                   <div className="grid grid-cols-12 gap-4">
                     {/* Controls */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
-                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold">Free time</div>
-                          <div className="text-xs text-neutral-700">{freeTimePct}%</div>
-                        </div>
-                        <div className="text-xs text-neutral-500 mt-1">
-                          More free time = fewer blocks packed back-to-back.
-                        </div>
-                        <input
-                          type="range"
-                          min={10}
-                          max={45}
-                          value={freeTimePct}
-                          onChange={(e) => setFreeTimePct(Number(e.target.value))}
-                          className="mt-3 w-full"
-                          style={{ accentColor: OLIVE }}
-                        />
-                        <div className="mt-2 flex justify-between text-[11px] text-neutral-500">
-                          <span>10%</span>
-                          <span>45%</span>
-                        </div>
-                      </div>
+                      {/* REMOVED: Free time slider card */}
 
                       <div className="rounded-3xl border bg-white p-4 space-y-3" style={surfaceStyle}>
                         <ToggleRowLight
@@ -1371,6 +1468,7 @@ export default function Home() {
                               </button>
                             </div>
                           ))}
+                          {!activeEvents.length ? <div className="text-xs text-neutral-500">No events on this day (yet).</div> : null}
                         </div>
                       </div>
                     </div>
@@ -1379,9 +1477,7 @@ export default function Home() {
                     <div className="col-span-12 md:col-span-6 space-y-4">
                       <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
                         <div className="text-sm font-semibold">Add an event</div>
-                        <div className="text-xs text-neutral-500 mt-1">
-                          Adds to the currently selected day (UI shell).
-                        </div>
+                        <div className="text-xs text-neutral-500 mt-1">UI shell: only adds to demo days (Jan 12–13).</div>
 
                         <div className="mt-3 grid grid-cols-12 gap-2">
                           <div className="col-span-6">
@@ -1429,9 +1525,7 @@ export default function Home() {
                             <Label>Type</Label>
                             <select
                               value={addForm.type}
-                              onChange={(e) =>
-                                setAddForm((p) => ({ ...p, type: e.target.value as EventType }))
-                              }
+                              onChange={(e) => setAddForm((p) => ({ ...p, type: e.target.value as EventType }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
                               style={surfaceSoftStyle}
                             >
@@ -1476,11 +1570,9 @@ export default function Home() {
                                   }))
                                 }
                                 className="flex-1"
-                                style={{ accentColor: OLIVE }}
+                                style={{ accentColor: JYNX_GREEN }}
                               />
-                              <span className="text-sm text-neutral-800 w-16 text-right">
-                                {getImportanceLabel(addForm.importance)}
-                              </span>
+                              <span className="text-sm text-neutral-800 w-16 text-right">{getImportanceLabel(addForm.importance)}</span>
                             </div>
                           </div>
                         </div>
@@ -1491,9 +1583,7 @@ export default function Home() {
                             disabled={!addForm.title.trim()}
                             className={cx(
                               "rounded-2xl px-3 py-2 text-xs font-semibold border transition",
-                              addForm.title.trim()
-                                ? "bg-white hover:bg-black/[0.03]"
-                                : "bg-white text-neutral-400 cursor-not-allowed"
+                              addForm.title.trim() ? "bg-white hover:bg-black/[0.03]" : "bg-white text-neutral-400 cursor-not-allowed"
                             )}
                             style={surfaceSoftStyle}
                           >
@@ -1512,8 +1602,7 @@ export default function Home() {
                       <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
                         <div className="text-sm font-semibold">What this is (for now)</div>
                         <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
-                          This “Adjust” panel is the control center. Later it becomes the place where
-                          Jynx actually rebalances your day (importance, constraints, free time).
+                          This “Adjust” panel is the control center. Later it becomes the place where Jynx actually rebalances your day.
                         </div>
                         <div className="mt-3 text-xs text-neutral-500">
                           UI shell: protectFocus={String(protectFocus)} · autoRebalance={String(autoRebalance)}
@@ -1523,10 +1612,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div
-                  className="px-5 py-4 border-t flex items-center justify-end gap-2"
-                  style={{ borderColor: "rgba(0,0,0,0.08)" }}
-                >
+                <div className="px-5 py-4 border-t flex items-center justify-end gap-2" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
                   <button
                     onClick={() => setAdjustOpen(false)}
                     className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
@@ -1539,8 +1625,8 @@ export default function Home() {
                     className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
                     style={{
                       ...surfaceSoftStyle,
-                      borderColor: "rgba(85,107,47,0.22)",
-                      boxShadow: "0 0 0 1px rgba(85,107,47,0.08)",
+                      borderColor: rgbaBrand(0.22),
+                      boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
                     }}
                   >
                     Apply
@@ -1576,15 +1662,7 @@ export default function Home() {
   );
 }
 
-function Segment({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
+function Segment({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
   return (
     <div className="h-10 rounded-2xl border bg-white p-1 flex items-center gap-1" style={surfaceSoftStyle}>
       {options.map((opt) => {
@@ -1593,14 +1671,11 @@ function Segment({
           <button
             key={opt}
             onClick={() => onChange(opt)}
-            className={cx(
-              "h-8 rounded-xl px-3 text-xs font-semibold transition",
-              active ? "bg-black/[0.04]" : "hover:bg-black/[0.03]"
-            )}
+            className={cx("h-8 rounded-xl px-3 text-xs font-semibold transition", active ? "bg-black/[0.04]" : "hover:bg-black/[0.03]")}
             style={{
               border: "1px solid",
-              borderColor: active ? "rgba(85,107,47,0.22)" : "rgba(0,0,0,0)",
-              boxShadow: active ? "0 0 0 1px rgba(85,107,47,0.08)" : undefined,
+              borderColor: active ? rgbaBrand(0.22) : "rgba(0,0,0,0)",
+              boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
               color: active ? "rgba(0,0,0,0.88)" : "rgba(0,0,0,0.68)",
             }}
           >
@@ -1857,15 +1932,7 @@ function DrawerContentLight({
   );
 }
 
-function PanelLight({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
+function PanelLight({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-3xl border bg-white" style={surfaceStyle}>
       <div className="p-4">
@@ -1884,15 +1951,6 @@ function InfoRowLight({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-4">
       <div className="text-xs text-neutral-500">{label}</div>
       <div className="text-sm text-neutral-800 text-right">{value}</div>
-    </div>
-  );
-}
-
-function PillStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="hidden sm:flex items-center gap-2 rounded-full border bg-white px-3 py-1.5" style={surfaceSoftStyle}>
-      <span className="text-[11px] text-neutral-500">{label}</span>
-      <span className="text-[11px] font-semibold text-neutral-800">{value}</span>
     </div>
   );
 }
@@ -1923,8 +1981,8 @@ function ToggleRowLight({
         className="mt-0.5 h-4 w-7 rounded-full border relative"
         style={{
           borderColor: "rgba(0,0,0,0.10)",
-          background: value ? "rgba(85,107,47,0.16)" : "rgba(0,0,0,0.04)",
-          boxShadow: value ? "0 0 0 1px rgba(85,107,47,0.10)" : undefined,
+          background: value ? rgbaBrand(0.16) : "rgba(0,0,0,0.04)",
+          boxShadow: value ? `0 0 0 1px ${rgbaBrand(0.10)}` : undefined,
         }}
       >
         <div
@@ -1963,7 +2021,7 @@ function TimeBlockLight({
 
   const cardStyle: CSSProperties = completed
     ? {
-        opacity: 0.78,
+        opacity: 0.92,
         borderColor: "rgba(0,0,0,0.08)",
         boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
       }
@@ -1975,15 +2033,14 @@ function TimeBlockLight({
 
   const importanceLevel = getImportanceLabel(event.importance);
 
-  const dotBg = completed ? "rgba(0,0,0,0.10)" : olive;
-  const dotShadow = completed
-    ? "0 0 0 1px rgba(0,0,0,0.10)"
-    : "0 0 0 1px rgba(85,107,47,0.35), 0 0 18px rgba(85,107,47,0.10)";
+  const dotBg = completed ? "rgba(0,0,0,0.12)" : olive;
+  const dotShadow = completed ? "0 0 0 1px rgba(0,0,0,0.10)" : `0 0 0 1px ${rgbaBrand(0.38)}, 0 0 20px ${rgbaBrand(0.14)}`;
 
   return (
     <div className={cx("relative pl-8", compact ? "opacity-95" : "")}>
+      {/* connector line */}
       <div
-        className="absolute left-[10px] top-[-10px] bottom-[-10px] w-[2px]"
+        className="absolute left-[10px] top-0 bottom-0 w-[2px]"
         style={{
           background: isLast
             ? "linear-gradient(to bottom, rgba(0,0,0,0.08), rgba(0,0,0,0.00))"
@@ -1991,13 +2048,14 @@ function TimeBlockLight({
         }}
       />
 
+      {/* DOT — (Schedule keeps dots) */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           onToggleComplete();
         }}
-        className="absolute left-[1px] top-6 h-[18px] w-[18px] rounded-full ring-[7px] transition z-10 flex items-center justify-center cursor-pointer"
+        className="absolute left-[1px] top-1/2 -translate-y-1/2 h-[18px] w-[18px] rounded-full ring-[7px] transition z-10 flex items-center justify-center cursor-pointer"
         style={{ backgroundColor: dotBg, boxShadow: dotShadow }}
         aria-label={completed ? "Mark as not complete" : "Mark as complete"}
         title={completed ? "Mark as not complete" : "Mark as complete"}
@@ -2019,16 +2077,40 @@ function TimeBlockLight({
         type="button"
         onClick={onOpen}
         className={cx(
-          "group w-full text-left rounded-3xl border px-4 py-3 transition",
+          "group w-full text-left rounded-3xl border px-4 py-3 transition relative overflow-hidden",
           "bg-white hover:bg-black/[0.02] hover:-translate-y-[1px]"
         )}
         style={cardStyle}
       >
-        <div className="text-[11px] text-neutral-500 mb-1">
-          {formatRange(event.time, event.endTime)}
-        </div>
+        {/* COMPLETED overlay — obvious, with blur and text */}
+        {completed && (
+          <div className="pointer-events-none absolute inset-0 rounded-3xl">
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(135deg, ${rgbaBrand(0.22)}, rgba(255,255,255,0.55))`,
+                backdropFilter: "blur(6px)",
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div
+                className="px-4 py-2 rounded-2xl border text-[11px] font-extrabold tracking-[0.22em]"
+                style={{
+                  borderColor: rgbaBrand(0.32),
+                  background: "rgba(255,255,255,0.75)",
+                  color: "rgba(0,0,0,0.72)",
+                  boxShadow: "0 12px 28px rgba(0,0,0,0.10)",
+                }}
+              >
+                COMPLETED
+              </div>
+            </div>
+          </div>
+        )}
 
-        <div className="flex justify-between items-center gap-4">
+        <div className="text-[11px] text-neutral-500 mb-1 relative z-[1]">{formatRange(event.time, event.endTime)}</div>
+
+        <div className="flex justify-between items-center gap-4 relative z-[1]">
           <div className="min-w-0">
             <div className="text-sm font-semibold text-neutral-900 truncate">{event.title}</div>
             <div className="text-xs text-neutral-500 mt-1 truncate">{event.meta}</div>
@@ -2055,39 +2137,88 @@ function TimeBlockLight({
   );
 }
 
+/**
+ * CHANGED: ListRow now uses an EMPTY SQUARE CHECKBOX (black outline),
+ * and when checked it shows the same “COMPLETED” overlay feel as Schedule.
+ */
 function ListRow({
   event,
   onToggle,
   onOpen,
+  compact,
 }: {
   event: EventRecord;
   onToggle: () => void;
   onOpen: () => void;
+  olive: string;
+  compact?: boolean;
 }) {
   const importanceLevel = getImportanceLabel(event.importance);
+  const completed = !!event.completed;
+
   return (
-    <div className="rounded-2xl border bg-white" style={surfaceSoftStyle}>
-      <div className="flex items-center gap-3 px-3 py-2">
+    <div className={cx("rounded-2xl border bg-white relative overflow-hidden", compact ? "opacity-95" : "")} style={surfaceSoftStyle}>
+      {/* COMPLETED overlay */}
+      {completed && (
+        <div className="pointer-events-none absolute inset-0">
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(135deg, ${rgbaBrand(0.20)}, rgba(255,255,255,0.60))`,
+              backdropFilter: "blur(6px)",
+            }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div
+              className="px-4 py-2 rounded-2xl border text-[11px] font-extrabold tracking-[0.22em]"
+              style={{
+                borderColor: rgbaBrand(0.32),
+                background: "rgba(255,255,255,0.78)",
+                color: "rgba(0,0,0,0.72)",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.10)",
+              }}
+            >
+              COMPLETED
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 px-3 py-2 relative z-[1]">
+        {/* square checkbox */}
         <button
+          type="button"
           onClick={onToggle}
-          className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-          style={surfaceSoftStyle}
-          aria-label="Toggle complete"
-          title="Toggle complete"
+          className="h-[18px] w-[18px] rounded-[5px] border flex items-center justify-center transition"
+          style={{
+            borderColor: "rgba(0,0,0,0.55)",
+            background: completed ? "rgba(0,0,0,0.82)" : "rgba(255,255,255,0.95)",
+            boxShadow: completed ? "0 0 0 1px rgba(0,0,0,0.10)" : "0 0 0 1px rgba(0,0,0,0.04)",
+          }}
+          aria-label={completed ? "Mark as not complete" : "Mark as complete"}
+          title={completed ? "Mark as not complete" : "Mark as complete"}
         >
-          {event.completed ? "✓" : ""}
+          {completed ? (
+            <svg viewBox="0 0 20 20" fill="none" className="h-[12px] w-[12px]" aria-hidden="true">
+              <path
+                d="M16.5 6.0L8.5 14.0L4.0 9.5"
+                stroke="rgba(255,255,255,0.95)"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : null}
         </button>
 
-        <div className="w-[90px] text-xs text-neutral-500">
-          {formatRange(event.time, event.endTime)}
-        </div>
+        <div className="w-[120px] text-xs text-neutral-500">{formatRange(event.time, event.endTime)}</div>
 
         <button onClick={onOpen} className="min-w-0 flex-1 text-left">
           <div className="text-sm font-semibold text-neutral-900 truncate">{event.title}</div>
           <div className="text-xs text-neutral-500 truncate">{event.meta}</div>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <span
             className="hidden sm:inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
             style={getImportancePillStyleLight(importanceLevel)}
@@ -2102,6 +2233,40 @@ function ListRow({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function BlankDayCard() {
+  return (
+    <div className="rounded-3xl border bg-white p-6" style={surfaceSoftStyle}>
+      <div className="text-sm font-semibold text-neutral-900">No events yet</div>
+      <div className="mt-1 text-sm text-neutral-600 leading-relaxed">This day is blank right now. Later this will populate from your real schedule data.</div>
+      <div className="mt-4 flex gap-2">
+        <button
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+          style={surfaceSoftStyle}
+          onClick={() => alert("UI shell — add event")}
+        >
+          Add event
+        </button>
+        <button
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+          style={surfaceSoftStyle}
+          onClick={() => alert("UI shell — build blocks")}
+        >
+          Build blocks
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BlankDayList() {
+  return (
+    <div className="rounded-2xl border bg-white p-5" style={surfaceSoftStyle}>
+      <div className="text-sm font-semibold text-neutral-900">Nothing scheduled</div>
+      <div className="mt-1 text-sm text-neutral-600">Pick another day or add your first event.</div>
     </div>
   );
 }
