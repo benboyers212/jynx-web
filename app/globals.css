@@ -1,19 +1,25 @@
 @import "tailwindcss";
 
-/* App variables */
+/* App variables (light-first) */
 :root {
-  color-scheme: light; /* force light mode */
+  color-scheme: light;
+
+  /* Core */
   --background: #ffffff;
   --foreground: #111111;
 
-  /* Jynx brand accent */
-  --jynx-olive: #4b5e3c;
-}
+  /* Surfaces */
+  --surface: #ffffff; /* modals/panels */
+  --surface-2: rgba(0, 0, 0, 0.02);
 
-/* Tailwind v4 theme bridge */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Text */
+  --muted-foreground: rgba(17, 17, 17, 0.62);
+
+  /* Borders */
+  --border: rgba(0, 0, 0, 0.10);
+
+  /* Brand */
+  --jynx-olive: #4b5e3c;
 }
 
 body {

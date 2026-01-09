@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { SlidersHorizontal } from "lucide-react";
+
 
 const OLIVE = "#556B2F";
 
@@ -65,11 +67,11 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function getTagStyleDark(tag: string) {
+function getTagStyleLight(tag: string) {
   const base = {
-    borderColor: "rgba(255,255,255,0.14)",
-    color: "rgba(255,255,255,0.86)",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(0,0,0,0.08)",
+    color: "rgba(0,0,0,0.76)",
+    backgroundColor: "rgba(0,0,0,0.03)",
   };
 
   const map: Record<
@@ -77,39 +79,39 @@ function getTagStyleDark(tag: string) {
     { backgroundColor: string; color: string; borderColor: string }
   > = {
     Class: {
-      backgroundColor: "rgba(85,107,47,0.14)",
-      color: "rgba(235,245,230,0.95)",
-      borderColor: "rgba(85,107,47,0.40)",
+      backgroundColor: "rgba(85,107,47,0.10)",
+      color: "rgba(25,25,25,0.90)",
+      borderColor: "rgba(85,107,47,0.22)",
     },
     Work: {
-      backgroundColor: "rgba(255,255,255,0.07)",
-      color: "rgba(255,255,255,0.88)",
-      borderColor: "rgba(255,255,255,0.16)",
+      backgroundColor: "rgba(0,0,0,0.03)",
+      color: "rgba(0,0,0,0.80)",
+      borderColor: "rgba(0,0,0,0.10)",
     },
     Health: {
-      backgroundColor: "rgba(85,107,47,0.18)",
-      color: "rgba(235,245,230,0.95)",
-      borderColor: "rgba(85,107,47,0.46)",
+      backgroundColor: "rgba(85,107,47,0.12)",
+      color: "rgba(25,25,25,0.90)",
+      borderColor: "rgba(85,107,47,0.24)",
     },
     Prep: {
-      backgroundColor: "rgba(85,107,47,0.10)",
-      color: "rgba(235,245,230,0.92)",
-      borderColor: "rgba(85,107,47,0.34)",
+      backgroundColor: "rgba(85,107,47,0.08)",
+      color: "rgba(25,25,25,0.86)",
+      borderColor: "rgba(85,107,47,0.18)",
     },
     Study: {
-      backgroundColor: "rgba(255,255,255,0.06)",
-      color: "rgba(255,255,255,0.88)",
-      borderColor: "rgba(255,255,255,0.14)",
+      backgroundColor: "rgba(0,0,0,0.03)",
+      color: "rgba(0,0,0,0.80)",
+      borderColor: "rgba(0,0,0,0.10)",
     },
     Life: {
-      backgroundColor: "rgba(85,107,47,0.12)",
-      color: "rgba(235,245,230,0.92)",
-      borderColor: "rgba(85,107,47,0.36)",
+      backgroundColor: "rgba(85,107,47,0.08)",
+      color: "rgba(25,25,25,0.86)",
+      borderColor: "rgba(85,107,47,0.18)",
     },
     Flexible: {
-      backgroundColor: "rgba(255,255,255,0.05)",
-      color: "rgba(255,255,255,0.72)",
-      borderColor: "rgba(255,255,255,0.10)",
+      backgroundColor: "rgba(0,0,0,0.025)",
+      color: "rgba(0,0,0,0.68)",
+      borderColor: "rgba(0,0,0,0.08)",
     },
   };
 
@@ -123,45 +125,57 @@ function getImportanceLabel(i?: 1 | 2 | 3 | 4 | 5) {
   return "Medium";
 }
 
-function getImportancePillStyle(level: "High" | "Medium" | "Low") {
+function getImportancePillStyleLight(level: "High" | "Medium" | "Low") {
   if (level === "High") {
     return {
-      backgroundColor: "rgba(85,107,47,0.18)",
-      borderColor: "rgba(85,107,47,0.52)",
-      color: "rgba(235,245,230,0.95)",
-      boxShadow: "0 0 0 1px rgba(85,107,47,0.18)",
-    } as React.CSSProperties;
+      backgroundColor: "rgba(85,107,47,0.12)",
+      borderColor: "rgba(85,107,47,0.26)",
+      color: "rgba(25,25,25,0.90)",
+      boxShadow: "0 0 0 1px rgba(85,107,47,0.08)",
+    } as CSSProperties;
   }
   if (level === "Low") {
     return {
-      backgroundColor: "rgba(255,255,255,0.05)",
-      borderColor: "rgba(255,255,255,0.10)",
-      color: "rgba(255,255,255,0.72)",
-    } as React.CSSProperties;
+      backgroundColor: "rgba(0,0,0,0.025)",
+      borderColor: "rgba(0,0,0,0.08)",
+      color: "rgba(0,0,0,0.64)",
+    } as CSSProperties;
   }
   return {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderColor: "rgba(255,255,255,0.12)",
-    color: "rgba(255,255,255,0.80)",
-  } as React.CSSProperties;
+    backgroundColor: "rgba(0,0,0,0.03)",
+    borderColor: "rgba(0,0,0,0.10)",
+    color: "rgba(0,0,0,0.72)",
+  } as CSSProperties;
 }
 
-const oliveCardStyle: React.CSSProperties = {
-  borderColor: "rgba(85,107,47,0.60)",
-  boxShadow: "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.42)",
+const surfaceStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
 };
 
-const oliveSoftStyle: React.CSSProperties = {
-  borderColor: "rgba(85,107,47,0.42)",
-  boxShadow: "0 0 0 1px rgba(85,107,47,0.28)",
+const surfaceSoftStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
 };
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+type ViewSpan = "Day" | "Week";
+type ViewFormat = "Schedule" | "List";
+
+type Reminder = {
+  id: string;
+  title: string;
+  due: string; // UI shell
+  severity?: "High" | "Medium" | "Low";
+};
+
 export default function Home() {
+  // ---------------------------
   // Demo schedule data (UI shell)
+  // ---------------------------
   const [todayEvents, setTodayEvents] = useState<EventRecord[]>([
     {
       id: "e1",
@@ -230,12 +244,7 @@ export default function Home() {
       details: {
         health: {
           duration: "60 min",
-          plan: [
-            "Incline chest press",
-            "Cable fly",
-            "Triceps pushdown",
-            "Incline walk 10 min",
-          ],
+          plan: ["Incline chest press", "Cable fly", "Triceps pushdown", "Incline walk 10 min"],
           notes: "Keep it crisp. Leave 1–2 reps in the tank on first sets.",
         },
       },
@@ -275,9 +284,7 @@ export default function Home() {
           shortSummary:
             "Portfolio construction, diversification, efficient frontier, and how risk factors drive returns.",
           syllabusFiles: [{ name: "F305 Syllabus (PDF)", href: "/files" }],
-          assignmentsDue: [
-            { title: "Reading: Ch. 7", due: "Before class", points: "—" },
-          ],
+          assignmentsDue: [{ title: "Reading: Ch. 7", due: "Before class", points: "—" }],
         },
       },
     },
@@ -305,17 +312,43 @@ export default function Home() {
     },
   ]);
 
-  // Tomorrow collapsible
-  const [tomorrowOpen, setTomorrowOpen] = useState(false);
+  // Reminders (UI shell)
+  const [reminders] = useState<Reminder[]>([
+    { id: "r1", title: "Submit PS3", due: "Tonight", severity: "High" },
+    { id: "r2", title: "Email Prof. Kim", due: "Tomorrow", severity: "Medium" },
+    { id: "r3", title: "Order protein", due: "This week", severity: "Low" },
+  ]);
+
+  // ---------------------------
+  // NEW: Day navigation + views
+  // ---------------------------
+  const dayMeta = useMemo(
+    () => [
+      { key: "today", label: "Today", sub: "Thu, Sep 12" },
+      { key: "tomorrow", label: "Tomorrow", sub: "Fri, Sep 13" },
+    ],
+    []
+  );
+
+  const [dayIndex, setDayIndex] = useState(0);
+
+  const [viewSpan, setViewSpan] = useState<ViewSpan>("Day");
+  const [viewFormat, setViewFormat] = useState<ViewFormat>("Schedule");
+
+  // Left sidebar (collapsible)
+  const [leftOpen, setLeftOpen] = useState(true);
+
+  // mini month picker (UI shell)
+  const [miniMonthOffset, setMiniMonthOffset] = useState(0);
 
   // Drawer state
   const [selected, setSelected] = useState<EventRecord | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<
-    "Overview" | "Files" | "Assignments" | "Notes"
-  >("Overview");
+  const [drawerTab, setDrawerTab] = useState<"Overview" | "Files" | "Assignments" | "Notes">(
+    "Overview"
+  );
 
-  // Quick chat
+  // Quick chat (assistant input)
   const [quickChat, setQuickChat] = useState("");
   const quickChatRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -323,13 +356,12 @@ export default function Home() {
   const [thoughtsOpen, setThoughtsOpen] = useState(false);
   const [thoughtsText, setThoughtsText] = useState("");
 
-  // NEW: Adjust modal (schedule controls)
+  // Adjust modal (schedule controls)
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [freeTimePct, setFreeTimePct] = useState(22); // UI shell
+  const [freeTimePct, setFreeTimePct] = useState(22);
   const [protectFocus, setProtectFocus] = useState(true);
   const [autoRebalance, setAutoRebalance] = useState(true);
 
-  // Make Adjust modal wider (keep content the same)
   const adjustW = "min(96vw, 1160px)";
   const adjustH = "min(86vh, 760px)";
 
@@ -352,25 +384,21 @@ export default function Home() {
     importance: 3,
   });
 
-  // Focus (right rail)
-  const [focusMode, setFocusMode] = useState<
-    "Auto" | "Morning" | "Afternoon" | "Evening"
-  >("Auto");
+  // Focus (control center)
+  const [focusMode, setFocusMode] = useState<"Auto" | "Morning" | "Afternoon" | "Evening">("Auto");
 
   const focusCopy = useMemo(() => {
     const map: Record<typeof focusMode, string> = {
       Auto: "Auto: Jynx chooses the focus based on what’s scheduled next.",
-      Morning:
-        "Protect your early block. Keep distractions low and stay on rails.",
-      Afternoon:
-        "Use the mid-day gap well. Keep transitions clean and don’t drift.",
+      Morning: "Protect your early block. Keep distractions low and stay on rails.",
+      Afternoon: "Use the mid-day gap well. Keep transitions clean and don’t drift.",
       Evening:
         "Close loops. Light prep, reset, and set up tomorrow so your morning starts clean.",
     };
     return map[focusMode];
   }, [focusMode]);
 
-  // Autosize quick chat
+  // Autosize assistant textarea
   useEffect(() => {
     const el = quickChatRef.current;
     if (!el) return;
@@ -379,9 +407,7 @@ export default function Home() {
   }, [quickChat]);
 
   function openDrawer(ev: EventRecord) {
-    // Don’t open the drawer for free-time “gap bars”
     if (ev.isFree) return;
-
     setSelected(ev);
     setDrawerOpen(true);
     setDrawerTab("Overview");
@@ -410,21 +436,19 @@ export default function Home() {
 
   function toggleComplete(which: "today" | "tomorrow", id: string) {
     const setter = which === "today" ? setTodayEvents : setTomorrowEvents;
-    setter((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e))
-    );
+    setter((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
   }
 
   function setImportance(id: string, importance: 1 | 2 | 3 | 4 | 5) {
-    // only editing today's for UI shell (matches your prior behavior)
-    setTodayEvents((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, importance } : e))
-    );
+    setTodayEvents((prev) => prev.map((e) => (e.id === id ? { ...e, importance } : e)));
     if (selected?.id === id) setSelected((s) => (s ? { ...s, importance } : s));
   }
 
   function removeEvent(id: string) {
-    setTodayEvents((prev) => prev.filter((e) => e.id !== id));
+    const which = dayIndex === 0 ? "today" : "tomorrow";
+    if (which === "today") setTodayEvents((prev) => prev.filter((e) => e.id !== id));
+    else setTomorrowEvents((prev) => prev.filter((e) => e.id !== id));
+
     if (selected?.id === id) closeDrawer();
   }
 
@@ -441,9 +465,14 @@ export default function Home() {
       completed: false,
       importance: addForm.importance,
     };
-    setTodayEvents((prev) =>
-      [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time))
-    );
+
+    if (dayIndex === 0) {
+      setTodayEvents((prev) => [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time)));
+    } else {
+      setTomorrowEvents((prev) =>
+        [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time))
+      );
+    }
     setAddForm((p) => ({ ...p, title: "", meta: "" }));
   }
 
@@ -454,116 +483,128 @@ export default function Home() {
     alert(`UI shell — would send to assistant:\n\n"${text}"`);
   }
 
-  // Build "display blocks" with free-time inserted between scheduled events
-  const todayBlocks = useMemo(
-    () => buildBlocksWithFreeTime(todayEvents),
-    [todayEvents]
-  );
-  const tomorrowBlocks = useMemo(
-    () => buildBlocksWithFreeTime(tomorrowEvents),
-    [tomorrowEvents]
-  );
+  // Which day's events are we showing?
+  const activeKey = dayIndex === 0 ? "today" : "tomorrow";
+  const activeEvents = dayIndex === 0 ? todayEvents : tomorrowEvents;
+
+  // NO FREE TIME BLOCKS: just sorted events
+  const activeBlocks = useMemo(() => buildBlocksWithFreeTime(activeEvents), [activeEvents]);
+
+  const weekColumns = useMemo(() => {
+    const d0 = buildBlocksWithFreeTime(todayEvents);
+    const d1 = buildBlocksWithFreeTime(tomorrowEvents);
+    return [
+      { meta: dayMeta[0], blocks: d0 },
+      { meta: dayMeta[1], blocks: d1 },
+    ];
+  }, [todayEvents, tomorrowEvents, dayMeta]);
+
+  // Mini month calendar (UI shell)
+  const miniCal = useMemo(() => {
+    const base = new Date();
+    base.setDate(1);
+    base.setMonth(base.getMonth() + miniMonthOffset);
+
+    const year = base.getFullYear();
+    const month = base.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const startDow = firstDay.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const cells: Array<{ day: number | null; isActive?: boolean; isDemo?: boolean }> = [];
+    for (let i = 0; i < 42; i++) cells.push({ day: null });
+
+    let cursor = 1;
+    for (let i = startDow; i < startDow + daysInMonth; i++) {
+      const dayNum = cursor++;
+      const isDemo = dayNum === 12 || dayNum === 13;
+      const isActive = (dayIndex === 0 && dayNum === 12) || (dayIndex === 1 && dayNum === 13);
+      cells[i] = { day: dayNum, isActive, isDemo };
+    }
+
+    const monthLabel = base.toLocaleString(undefined, { month: "long", year: "numeric" });
+
+    return { monthLabel, cells };
+  }, [miniMonthOffset, dayIndex]);
+
+  function jumpToDemoDay(dayNum: number) {
+    if (dayNum === 12) setDayIndex(0);
+    if (dayNum === 13) setDayIndex(1);
+  }
+
+  function prevDay() {
+    setDayIndex((v) => Math.max(0, v - 1));
+  }
+  function nextDay() {
+    setDayIndex((v) => Math.min(dayMeta.length - 1, v + 1));
+  }
+  function goToday() {
+    setDayIndex(0);
+  }
 
   return (
-    <main className="h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
-      {/* Ambient background */}
+    <main className="h-screen bg-white text-neutral-950 overflow-hidden">
+      {/* very subtle ambient */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
           className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
           style={{
             background:
-              "radial-gradient(circle at 30% 30%, rgba(85,107,47,0.90), rgba(17,17,17,0) 60%)",
+              "radial-gradient(circle at 30% 30%, rgba(85,107,47,0.22), rgba(255,255,255,0) 60%)",
           }}
         />
-        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-white/20" />
+        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-20 bg-black/10" />
       </div>
 
       <div className="relative flex h-full">
-        <div className="flex-1 flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-[1280px] mx-auto px-6 pt-6 pb-10 grid grid-cols-12 gap-6">
-              {/* Schedule timeline (wide) */}
-              <section className="col-span-12 lg:col-span-9">
-                <Section
-                  title="Today"
-                  subtitle="Thu, Sep 12"
-                  right={
-                    <div className="flex items-center gap-2">
-                      <PillStat label="Free time" value={`${freeTimePct}%`} />
-                      <button
-                        onClick={() => setAdjustOpen(true)}
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                        style={oliveSoftStyle}
-                      >
-                        Adjust
-                      </button>
-                    </div>
-                  }
+        {/* LEFT SIDEBAR */}
+        <div
+          className={cx(
+            "h-full border-r bg-white/70 backdrop-blur-sm transition-[width] duration-200",
+            leftOpen ? "w-[320px]" : "w-[56px]"
+          )}
+          style={{ borderColor: "rgba(0,0,0,0.08)" }}
+        >
+          <div className="h-full flex flex-col">
+            {/* sidebar header */}
+            <div className="px-3 py-3 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setLeftOpen((v) => !v)}
+                  className="h-10 w-10 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                  style={surfaceSoftStyle}
+                  aria-label="Toggle sidebar"
+                  title="Toggle"
                 >
-                  <TimelineWithDayparts
-                    blocks={todayBlocks}
-                    olive={OLIVE}
-                    onToggleComplete={(id) => toggleComplete("today", id)}
-                    onOpen={openDrawer}
-                  />
-                </Section>
+                  <SlidersHorizontal className="h-4 w-4 text-neutral-700" />
+                </button>
 
-                {/* Tomorrow — collapsible so it’s there but not competing */}
-                <div className="mb-8">
-                  <button
-                    className="w-full flex items-center justify-between rounded-3xl border bg-white/6 backdrop-blur px-4 py-3 hover:bg-white/8 transition"
-                    style={oliveSoftStyle}
-                    onClick={() => setTomorrowOpen((v) => !v)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={cx(
-                          "transition-transform",
-                          tomorrowOpen ? "rotate-180" : ""
-                        )}
-                      >
-                        ▾
-                      </span>
-                      <div className="text-sm font-semibold">Tomorrow</div>
-                      <div className="text-xs text-neutral-400">Fri, Sep 13</div>
-                    </div>
-                    <div className="text-[11px] text-neutral-400">
-                      {tomorrowEvents.length} items
-                    </div>
-                  </button>
+                {leftOpen && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Control Center</div>
+                    <div className="text-xs text-neutral-500">Focus, calendar, reminders, assistant</div>
+                  </div>
+                )}
+              </div>
+            </div>
 
-                  {tomorrowOpen && (
-                    <div className="mt-4">
-                      <TimelineWithDayparts
-                        blocks={tomorrowBlocks}
-                        olive={OLIVE}
-                        onToggleComplete={(id) => toggleComplete("tomorrow", id)}
-                        onOpen={openDrawer}
-                      />
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              {/* Right rail */}
-              <aside className="col-span-12 lg:col-span-3 lg:pl-8 space-y-4 flex flex-col items-end">
-                {/* Focus */}
-                <div
-                  className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
-                  style={oliveCardStyle}
-                >
-                  <div className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Focus</div>
-                      <div className="text-[11px] text-neutral-400">
-                        {focusMode === "Auto" ? "auto" : "manual"}
+            {/* ONLY render content when open (collapsed = arrow only) */}
+            {leftOpen ? (
+              <>
+                <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+                  {/* 1) Focus */}
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Focus</div>
+                        <div className="text-[11px] text-neutral-500">
+                          {focusMode === "Auto" ? "auto" : "manual"}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* keep these INSIDE the card + wrap */}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {(["Auto", "Morning", "Afternoon", "Evening"] as const).map(
-                        (k) => {
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(["Auto", "Morning", "Afternoon", "Evening"] as const).map((k) => {
                           const active = focusMode === k;
                           return (
                             <button
@@ -571,112 +612,462 @@ export default function Home() {
                               onClick={() => setFocusMode(k)}
                               className={cx(
                                 "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                                active
-                                  ? "bg-white/12 border-white/14"
-                                  : "bg-white/6 border-white/10 hover:bg-white/10"
+                                active ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
                               )}
-                              style={active ? oliveSoftStyle : undefined}
+                              style={{
+                                borderColor: active ? "rgba(85,107,47,0.22)" : "rgba(0,0,0,0.08)",
+                                boxShadow: active ? "0 0 0 1px rgba(85,107,47,0.08)" : undefined,
+                              }}
                             >
                               {k}
                             </button>
                           );
-                        }
-                      )}
-                    </div>
-
-                    <div className="mt-3 text-sm text-neutral-200 leading-relaxed">
-                      {focusCopy}
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                        style={oliveSoftStyle}
-                        onClick={() => alert("UI shell")}
-                      >
-                        Build blocks
-                      </button>
-                      <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
-                        onClick={() => alert("UI shell")}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick chat */}
-                <div
-                  className="w-full max-w-[340px] rounded-3xl border bg-white/6 backdrop-blur"
-                  style={oliveCardStyle}
-                >
-                  <div className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">
-                        Schedule assistant
+                        })}
                       </div>
-                      <div className="text-[11px] text-neutral-400">quick</div>
-                    </div>
 
-                    <div className="mt-2 text-sm text-neutral-200 leading-relaxed">
-                      Conflicts, swaps, adding free time, or rebalancing your day.
-                    </div>
+                      <div className="mt-3 text-sm text-neutral-800 leading-relaxed">{focusCopy}</div>
 
-                    <div className="mt-3 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3">
-                      <textarea
-                        ref={quickChatRef}
-                        value={quickChat}
-                        onChange={(e) => setQuickChat(e.target.value)}
-                        placeholder='Example: "Move gym to 5pm and add 30min deep work after class."'
-                        rows={1}
-                        className="w-full resize-none bg-transparent outline-none text-sm text-neutral-100 placeholder:text-neutral-500 leading-relaxed"
-                        style={{ height: 0 }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            sendQuickChat();
-                          }
-                        }}
-                      />
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="text-[11px] text-neutral-500">
-                          Enter to send • Shift+Enter for new line
-                        </span>
+                      <div className="mt-3 flex gap-2">
                         <button
-                          onClick={sendQuickChat}
-                          disabled={!quickChat.trim()}
-                          className={cx(
-                            "ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold border transition",
-                            quickChat.trim()
-                              ? "bg-white/10 hover:bg-white/14 border-white/12"
-                              : "bg-white/5 border-white/5 text-neutral-500 cursor-not-allowed"
-                          )}
-                          style={quickChat.trim() ? oliveSoftStyle : undefined}
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                          onClick={() => alert("UI shell")}
                         >
-                          Send
+                          Build blocks
+                        </button>
+                        <button
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                          onClick={() => alert("UI shell")}
+                        >
+                          Edit
                         </button>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="mt-3 flex gap-2">
-                      <Link
-                        href="/chat"
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                        style={oliveSoftStyle}
-                      >
-                        Open Chat
-                      </Link>
-                      <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
-                        onClick={() => setQuickChat("")}
-                      >
-                        Clear
-                      </button>
+                  {/* 2) Calendar */}
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">{miniCal.monthLabel}</div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setMiniMonthOffset((v) => v - 1)}
+                            className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition"
+                            style={surfaceSoftStyle}
+                            aria-label="Previous month"
+                          >
+                            ←
+                          </button>
+                          <button
+                            onClick={() => setMiniMonthOffset((v) => v + 1)}
+                            className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition"
+                            style={surfaceSoftStyle}
+                            aria-label="Next month"
+                          >
+                            →
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-7 gap-1 text-[11px] text-neutral-500">
+                        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                          <div key={`${d}-${i}`} className="text-center py-1">
+                            {d}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-1">
+                        {miniCal.cells.map((c, idx) => {
+                          const clickable = !!c.day && !!c.isDemo;
+                          const active = !!c.isActive;
+
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => (clickable && c.day ? jumpToDemoDay(c.day) : null)}
+                              className={cx(
+                                "h-9 rounded-xl text-[12px] border transition",
+                                clickable ? "hover:bg-black/[0.03]" : "opacity-50 cursor-default",
+                                active ? "font-semibold" : "font-medium"
+                              )}
+                              style={{
+                                borderColor: active ? "rgba(85,107,47,0.30)" : "rgba(0,0,0,0.06)",
+                                background: active ? "rgba(85,107,47,0.10)" : "white",
+                                color: clickable ? "rgba(0,0,0,0.84)" : "rgba(0,0,0,0.38)",
+                                boxShadow: active ? "0 0 0 1px rgba(85,107,47,0.10)" : undefined,
+                              }}
+                              disabled={!clickable}
+                              aria-label={c.day ? `Day ${c.day}` : "Empty"}
+                              title={clickable ? "Jump to this day (demo)" : ""}
+                            >
+                              {c.day ?? ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-neutral-500">
+                        Demo days are highlighted (12–13).
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3) Reminders */}
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Reminders</div>
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-2.5 rounded-full border text-[11px] font-semibold"
+                          style={{
+                            borderColor: "rgba(0,0,0,0.10)",
+                            background: "rgba(0,0,0,0.03)",
+                            color: "rgba(0,0,0,0.70)",
+                          }}
+                        >
+                          {reminders.length}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {reminders.slice(0, 4).map((r) => (
+                          <button
+                            key={r.id}
+                            onClick={() => alert("UI shell — open reminders inbox")}
+                            className="w-full text-left rounded-2xl border bg-white px-3 py-2 hover:bg-black/[0.03] transition"
+                            style={surfaceSoftStyle}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="text-sm font-semibold truncate">{r.title}</div>
+                              <span className="text-[11px] text-neutral-500 shrink-0">{r.due}</span>
+                            </div>
+                            <div className="mt-1 text-[11px] text-neutral-500">
+                              {r.severity ?? "Medium"}
+                            </div>
+                          </button>
+                        ))}
+
+                        <button
+                          onClick={() => alert("UI shell — open reminders inbox")}
+                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                        >
+                          Open inbox
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4) Schedule assistant */}
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Schedule assistant</div>
+                        <div className="text-[11px] text-neutral-500">quick</div>
+                      </div>
+
+                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
+                        Conflicts, swaps, or rebalancing your day.
+                      </div>
+
+                      <div className="mt-3 rounded-2xl border px-3 py-3 bg-white" style={surfaceSoftStyle}>
+                        <textarea
+                          ref={quickChatRef}
+                          value={quickChat}
+                          onChange={(e) => setQuickChat(e.target.value)}
+                          placeholder='Example: "Move gym to 5pm and add 30min deep work after class."'
+                          rows={1}
+                          className="w-full resize-none bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400 leading-relaxed"
+                          style={{ height: 0 }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              sendQuickChat();
+                            }
+                          }}
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-[11px] text-neutral-500">
+                            Enter to send • Shift+Enter for new line
+                          </span>
+                          <button
+                            onClick={sendQuickChat}
+                            disabled={!quickChat.trim()}
+                            className={cx(
+                              "ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold border transition",
+                              quickChat.trim()
+                                ? "bg-white hover:bg-black/[0.03]"
+                                : "bg-white text-neutral-400 cursor-not-allowed"
+                            )}
+                            style={surfaceSoftStyle}
+                          >
+                            Send
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex gap-2">
+                        <Link
+                          href="/chat"
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                        >
+                          Open Chat
+                        </Link>
+                        <button
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                          onClick={() => setQuickChat("")}
+                        >
+                          Clear
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </aside>
+
+                {/* footer (open only) */}
+                <div className="px-3 py-3 border-t" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="flex-1 rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-center"
+                      style={surfaceSoftStyle}
+                      onClick={() => setAdjustOpen(true)}
+                    >
+                      Adjust
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // collapsed: nothing besides header arrow
+              <div className="flex-1" />
+            )}
+          </div>
+        </div>
+
+        {/* MAIN */}
+        <div className="flex-1 flex flex-col h-full">
+          {/* Top controls for Schedule (Day nav + toggles) */}
+          <div className="border-b bg-white/80 backdrop-blur-sm" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+            <div className="max-w-[1280px] mx-auto px-6 py-4 flex flex-wrap items-center gap-3">
+              {/* Day nav */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={prevDay}
+                  disabled={dayIndex === 0}
+                  className={cx(
+                    "h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center",
+                    dayIndex === 0 ? "opacity-50 cursor-not-allowed" : "hover:bg-black/[0.03]"
+                  )}
+                  style={surfaceSoftStyle}
+                  aria-label="Previous day"
+                >
+                  ←
+                </button>
+
+                <button
+                  onClick={goToday}
+                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  style={surfaceSoftStyle}
+                >
+                  Today
+                </button>
+
+                <button
+                  onClick={nextDay}
+                  disabled={dayIndex === dayMeta.length - 1}
+                  className={cx(
+                    "h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center",
+                    dayIndex === dayMeta.length - 1
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-black/[0.03]"
+                  )}
+                  style={surfaceSoftStyle}
+                  aria-label="Next day"
+                >
+                  →
+                </button>
+
+                <div className="ml-2">
+                  <div className="text-sm font-semibold">
+                    {dayMeta[dayIndex]?.label ?? "Day"}
+                  </div>
+                  <div className="text-xs text-neutral-500">{dayMeta[dayIndex]?.sub ?? ""}</div>
+                </div>
+              </div>
+
+              <div className="flex-1" />
+
+              {/* View toggles */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Segment
+                  value={viewSpan}
+                  options={["Day", "Week"]}
+                  onChange={(v) => setViewSpan(v as ViewSpan)}
+                />
+                <Segment
+                  value={viewFormat}
+                  options={["Schedule", "List"]}
+                  onChange={(v) => setViewFormat(v as ViewFormat)}
+                />
+
+                <PillStat label="Free time" value={`${freeTimePct}%`} />
+                <button
+                  onClick={() => setAdjustOpen(true)}
+                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  style={surfaceSoftStyle}
+                >
+                  Adjust
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-[1280px] mx-auto px-6 pt-6 pb-10">
+              {/* Schedule timeline (full width now) */}
+              <section>
+                {viewSpan === "Day" ? (
+                  <>
+                    {viewFormat === "Schedule" ? (
+                      <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                        <div className="p-5">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-semibold">Schedule</div>
+                              <div className="text-xs text-neutral-500">
+                                One day at a time · timeline view
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-neutral-500">
+                              {activeEvents.length} items
+                            </div>
+                          </div>
+
+                          <div className="mt-5">
+                            <TimelineWithDaypartsLight
+                              blocks={activeBlocks}
+                              olive={OLIVE}
+                              onToggleComplete={(id) =>
+                                toggleComplete(activeKey === "today" ? "today" : "tomorrow", id)
+                              }
+                              onOpen={openDrawer}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                        <div className="p-5">
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-semibold">List</div>
+                              <div className="text-xs text-neutral-500">
+                                Checklist-style with times on the left
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-neutral-500">
+                              {activeEvents.length} items
+                            </div>
+                          </div>
+
+                          <div className="mt-5 space-y-2">
+                            {activeBlocks.map((e) => (
+                              <ListRow
+                                key={e.id}
+                                event={e}
+                                onToggle={() =>
+                                  toggleComplete(activeKey === "today" ? "today" : "tomorrow", e.id)
+                                }
+                                onOpen={() => openDrawer(e)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-semibold">Week</div>
+                          <div className="text-xs text-neutral-500">
+                            Grid preview (UI shell — currently 2 days)
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-neutral-500">
+                          Toggle Schedule vs List still applies
+                        </div>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-12 gap-4">
+                        {weekColumns.map((col) => (
+                          <div key={col.meta.key} className="col-span-12 md:col-span-6">
+                            <div className="rounded-3xl border bg-white" style={surfaceSoftStyle}>
+                              <div className="p-4">
+                                <div className="flex items-baseline justify-between gap-3">
+                                  <div className="text-sm font-semibold">{col.meta.label}</div>
+                                  <div className="text-xs text-neutral-500">{col.meta.sub}</div>
+                                </div>
+
+                                <div className="mt-4">
+                                  {viewFormat === "Schedule" ? (
+                                    <TimelineWithDaypartsLight
+                                      blocks={col.blocks}
+                                      olive={OLIVE}
+                                      onToggleComplete={(id) =>
+                                        toggleComplete(
+                                          col.meta.key === "today" ? "today" : "tomorrow",
+                                          id
+                                        )
+                                      }
+                                      onOpen={openDrawer}
+                                      compact
+                                    />
+                                  ) : (
+                                    <div className="space-y-2">
+                                      {col.blocks.map((e) => (
+                                        <ListRow
+                                          key={e.id}
+                                          event={e}
+                                          onToggle={() =>
+                                            toggleComplete(
+                                              col.meta.key === "today" ? "today" : "tomorrow",
+                                              e.id
+                                            )
+                                          }
+                                          onOpen={() => openDrawer(e)}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="mt-4">
+                                  <button
+                                    className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                                    style={surfaceSoftStyle}
+                                    onClick={() => setDayIndex(col.meta.key === "today" ? 0 : 1)}
+                                  >
+                                    Open day
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           </div>
         </div>
@@ -684,7 +1075,7 @@ export default function Home() {
         {/* Drawer overlay */}
         {drawerOpen && (
           <button
-            className="fixed inset-0 bg-black/55 backdrop-blur-[1px] z-40"
+            className="fixed inset-0 bg-black/30 backdrop-blur-[1px] z-40"
             onClick={closeDrawer}
             aria-label="Close drawer"
           />
@@ -694,31 +1085,29 @@ export default function Home() {
         <div
           className={cx(
             "fixed top-0 right-0 h-full w-[420px] max-w-[92vw] z-50",
-            "border-l border-white/10 bg-neutral-950/80 backdrop-blur",
+            "border-l bg-white/92 backdrop-blur",
             "transition-transform duration-200",
             drawerOpen ? "translate-x-0" : "translate-x-full"
           )}
           style={{
-            boxShadow:
-              "0 0 0 1px rgba(85,107,47,0.25), -24px 0 80px rgba(0,0,0,0.60)",
+            borderColor: "rgba(0,0,0,0.08)",
+            boxShadow: "-24px 0 80px rgba(0,0,0,0.10)",
           }}
         >
           <div className="h-full flex flex-col">
             {/* Drawer header */}
-            <div className="px-5 py-4 border-b border-white/10">
+            <div className="px-5 py-4 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
               <div className="flex items-start gap-3">
                 <div
-                  className="h-10 w-10 rounded-2xl border bg-white/6 flex items-center justify-center text-sm font-semibold"
-                  style={oliveSoftStyle}
+                  className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-sm font-semibold"
+                  style={surfaceSoftStyle}
                 >
                   {selected?.tag?.slice(0, 1) ?? "E"}
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold truncate">
-                    {selected?.title ?? "Event"}
-                  </div>
-                  <div className="mt-1 text-xs text-neutral-400">
+                  <div className="text-sm font-semibold truncate">{selected?.title ?? "Event"}</div>
+                  <div className="mt-1 text-xs text-neutral-500">
                     {formatRange(selected?.time, selected?.endTime)}
                     {selected?.location ? ` · ${selected.location}` : ""}
                   </div>
@@ -727,7 +1116,7 @@ export default function Home() {
                     {selected?.tag && (
                       <span
                         className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
-                        style={getTagStyleDark(selected.tag)}
+                        style={getTagStyleLight(selected.tag)}
                       >
                         {selected.tag}
                       </span>
@@ -735,23 +1124,20 @@ export default function Home() {
 
                     {/* Importance control */}
                     {selected?.id && (
-                      <div className="flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1.5">
-                        <span className="text-[11px] text-neutral-400">
-                          Importance
-                        </span>
-
+                      <div
+                        className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5"
+                        style={surfaceSoftStyle}
+                      >
+                        <span className="text-[11px] text-neutral-500">Importance</span>
                         <select
                           value={getImportanceLabel(selected.importance)}
                           onChange={(e) => {
-                            const tier = e.target.value as
-                              | "Low"
-                              | "Medium"
-                              | "High";
+                            const tier = e.target.value as "Low" | "Medium" | "High";
                             const mapped: 1 | 2 | 3 | 4 | 5 =
                               tier === "High" ? 4 : tier === "Low" ? 2 : 3;
                             setImportance(selected.id, mapped);
                           }}
-                          className="bg-transparent text-[11px] text-neutral-200 outline-none"
+                          className="bg-transparent text-[11px] text-neutral-800 outline-none"
                         >
                           <option value="High">High</option>
                           <option value="Medium">Medium</option>
@@ -764,7 +1150,8 @@ export default function Home() {
 
                 <button
                   onClick={closeDrawer}
-                  className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
+                  className="rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
+                  style={surfaceSoftStyle}
                 >
                   ✕
                 </button>
@@ -772,23 +1159,22 @@ export default function Home() {
 
               {/* Tabs */}
               <div className="mt-4 flex gap-2 flex-wrap">
-                {(["Overview", "Assignments", "Files", "Notes"] as const).map(
-                  (t) => (
-                    <button
-                      key={t}
-                      onClick={() => setDrawerTab(t)}
-                      className={cx(
-                        "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                        drawerTab === t
-                          ? "bg-white/12 border-white/14"
-                          : "bg-white/6 border-white/10 hover:bg-white/10"
-                      )}
-                      style={drawerTab === t ? oliveSoftStyle : undefined}
-                    >
-                      {t}
-                    </button>
-                  )
-                )}
+                {(["Overview", "Assignments", "Files", "Notes"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setDrawerTab(t)}
+                    className={cx(
+                      "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
+                      drawerTab === t ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
+                    )}
+                    style={{
+                      borderColor: drawerTab === t ? "rgba(85,107,47,0.22)" : "rgba(0,0,0,0.08)",
+                      boxShadow: drawerTab === t ? "0 0 0 1px rgba(85,107,47,0.08)" : undefined,
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -796,42 +1182,40 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
               {/* Thoughts mini card */}
               {thoughtsOpen && (
-                <div
-                  className="rounded-3xl border bg-white/6"
-                  style={oliveCardStyle}
-                >
+                <div className="rounded-3xl border bg-white" style={surfaceStyle}>
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Thoughts?</div>
                       <button
-                        className="text-[11px] text-neutral-400 hover:text-neutral-200"
+                        className="text-[11px] text-neutral-500 hover:text-neutral-800"
                         onClick={() => setThoughtsOpen(false)}
                       >
                         hide
                       </button>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-400">
-                      Quick note to yourself (or something you want the assistant
-                      to remember).
+                    <div className="mt-2 text-xs text-neutral-500">
+                      Quick note to yourself (or something you want the assistant to remember).
                     </div>
                     <textarea
                       value={thoughtsText}
                       onChange={(e) => setThoughtsText(e.target.value)}
                       placeholder="e.g., Ask about CAPM intuition in office hours…"
-                      className="mt-3 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3 text-sm outline-none placeholder:text-neutral-500 resize-none"
+                      className="mt-3 w-full rounded-2xl border bg-white px-3 py-3 text-sm outline-none placeholder:text-neutral-400 resize-none"
+                      style={surfaceSoftStyle}
                       rows={3}
                     />
                     <div className="mt-3 flex gap-2">
                       <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                        style={oliveSoftStyle}
+                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                        style={surfaceSoftStyle}
                         onClick={() => alert("UI shell — would save note")}
                         disabled={!thoughtsText.trim()}
                       >
                         Save
                       </button>
                       <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                        style={surfaceSoftStyle}
                         onClick={() => setThoughtsText("")}
                       >
                         Clear
@@ -841,22 +1225,26 @@ export default function Home() {
                 </div>
               )}
 
-              <DrawerContent selected={selected} tab={drawerTab} />
+              <DrawerContentLight selected={selected} tab={drawerTab} />
             </div>
 
             {/* Drawer footer */}
-            <div className="px-5 py-4 border-t border-white/10 bg-neutral-950/60">
+            <div
+              className="px-5 py-4 border-t bg-white/80"
+              style={{ borderColor: "rgba(0,0,0,0.08)" }}
+            >
               <div className="flex gap-2">
                 <button
-                  className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                  style={oliveSoftStyle}
+                  className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  style={surfaceSoftStyle}
                   onClick={() => alert("UI shell — Edit event")}
                 >
                   Edit
                 </button>
                 {selected?.id && (
                   <button
-                    className="rounded-2xl px-4 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                    className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                    style={surfaceSoftStyle}
                     onClick={() => removeEvent(selected.id)}
                   >
                     Drop
@@ -864,7 +1252,8 @@ export default function Home() {
                 )}
                 <div className="ml-auto" />
                 <button
-                  className="rounded-2xl px-4 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                  className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  style={surfaceSoftStyle}
                   onClick={closeDrawer}
                 >
                   Close
@@ -878,33 +1267,36 @@ export default function Home() {
         {adjustOpen && (
           <>
             <button
-              className="fixed inset-0 bg-black/65 backdrop-blur-[1px] z-[60]"
+              className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-[60]"
               style={{ animation: "fadeIn 180ms ease-out" }}
               onClick={() => setAdjustOpen(false)}
               aria-label="Close adjust"
             />
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
               <div
-                className="relative rounded-3xl border bg-neutral-950/90 backdrop-blur overflow-hidden"
+                className="relative rounded-3xl border bg-white/92 backdrop-blur overflow-hidden"
                 style={{
                   width: adjustW,
                   height: adjustH,
-                  borderColor: "rgba(85,107,47,0.40)",
-                  boxShadow:
-                    "0 0 0 1px rgba(85,107,47,0.25), 0 30px 120px rgba(0,0,0,0.70)",
+                  borderColor: "rgba(0,0,0,0.10)",
+                  boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
                   animation: "fadeScaleIn 220ms ease-out",
                 }}
               >
-                <div className="px-5 py-4 border-b border-white/10 flex items-center">
+                <div
+                  className="px-5 py-4 border-b flex items-center"
+                  style={{ borderColor: "rgba(0,0,0,0.08)" }}
+                >
                   <div>
                     <div className="text-sm font-semibold">Adjust</div>
-                    <div className="text-xs text-neutral-400 mt-0.5">
+                    <div className="text-xs text-neutral-500 mt-0.5">
                       Tune free time, focus protection, and quick edits (UI shell).
                     </div>
                   </div>
                   <button
                     onClick={() => setAdjustOpen(false)}
-                    className="ml-auto rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
+                    className="ml-auto rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
+                    style={surfaceSoftStyle}
                   >
                     ✕
                   </button>
@@ -915,14 +1307,12 @@ export default function Home() {
                   <div className="grid grid-cols-12 gap-4">
                     {/* Controls */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
-                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-semibold">Free time</div>
-                          <div className="text-xs text-neutral-300">
-                            {freeTimePct}%
-                          </div>
+                          <div className="text-xs text-neutral-700">{freeTimePct}%</div>
                         </div>
-                        <div className="text-xs text-neutral-400 mt-1">
+                        <div className="text-xs text-neutral-500 mt-1">
                           More free time = fewer blocks packed back-to-back.
                         </div>
                         <input
@@ -931,7 +1321,8 @@ export default function Home() {
                           max={45}
                           value={freeTimePct}
                           onChange={(e) => setFreeTimePct(Number(e.target.value))}
-                          className="mt-3 w-full accent-[rgba(85,107,47,0.95)]"
+                          className="mt-3 w-full"
+                          style={{ accentColor: OLIVE }}
                         />
                         <div className="mt-2 flex justify-between text-[11px] text-neutral-500">
                           <span>10%</span>
@@ -939,14 +1330,14 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4 space-y-3">
-                        <ToggleRow
+                      <div className="rounded-3xl border bg-white p-4 space-y-3" style={surfaceStyle}>
+                        <ToggleRowLight
                           label="Protect focus blocks"
                           desc="Keeps deep work earlier, reduces interruptions."
                           value={protectFocus}
                           onChange={setProtectFocus}
                         />
-                        <ToggleRow
+                        <ToggleRowLight
                           label="Auto rebalance"
                           desc="When you add/drop, the day gets re-packed."
                           value={autoRebalance}
@@ -954,29 +1345,27 @@ export default function Home() {
                         />
                       </div>
 
-                      {/* KEEP: Drop an event */}
-                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                      {/* Drop an event */}
+                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
                         <div className="text-sm font-semibold">Drop an event</div>
-                        <div className="text-xs text-neutral-400 mt-1">
-                          Quick remove (UI shell).
-                        </div>
+                        <div className="text-xs text-neutral-500 mt-1">Quick remove (UI shell).</div>
                         <div className="mt-3 space-y-2 max-h-[260px] overflow-auto pr-1">
-                          {todayEvents.map((e) => (
+                          {activeEvents.map((e) => (
                             <div
                               key={e.id}
-                              className="flex items-center gap-2 rounded-2xl border border-white/10 bg-neutral-900/35 px-3 py-2"
+                              className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2"
+                              style={surfaceSoftStyle}
                             >
                               <div className="min-w-0 flex-1">
-                                <div className="text-xs text-neutral-300 truncate">
+                                <div className="text-xs text-neutral-800 truncate">
                                   {formatRange(e.time, e.endTime)} · {e.title}
                                 </div>
-                                <div className="text-[11px] text-neutral-500 truncate">
-                                  {e.meta}
-                                </div>
+                                <div className="text-[11px] text-neutral-500 truncate">{e.meta}</div>
                               </div>
                               <button
                                 onClick={() => removeEvent(e.id)}
-                                className="rounded-xl px-2 py-1 text-[11px] font-semibold border border-white/12 bg-white/6 hover:bg-white/10 transition"
+                                className="rounded-xl px-2 py-1 text-[11px] font-semibold border bg-white hover:bg-black/[0.03] transition"
+                                style={surfaceSoftStyle}
                               >
                                 Drop
                               </button>
@@ -988,10 +1377,10 @@ export default function Home() {
 
                     {/* Add / Info */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
-                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
                         <div className="text-sm font-semibold">Add an event</div>
-                        <div className="text-xs text-neutral-400 mt-1">
-                          Adds to Today (UI shell).
+                        <div className="text-xs text-neutral-500 mt-1">
+                          Adds to the currently selected day (UI shell).
                         </div>
 
                         <div className="mt-3 grid grid-cols-12 gap-2">
@@ -999,26 +1388,18 @@ export default function Home() {
                             <Label>Start</Label>
                             <input
                               value={addForm.time}
-                              onChange={(e) =>
-                                setAddForm((p) => ({
-                                  ...p,
-                                  time: e.target.value,
-                                }))
-                              }
-                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              onChange={(e) => setAddForm((p) => ({ ...p, time: e.target.value }))}
+                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              style={surfaceSoftStyle}
                             />
                           </div>
                           <div className="col-span-6">
                             <Label>End</Label>
                             <input
                               value={addForm.endTime}
-                              onChange={(e) =>
-                                setAddForm((p) => ({
-                                  ...p,
-                                  endTime: e.target.value,
-                                }))
-                              }
-                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              onChange={(e) => setAddForm((p) => ({ ...p, endTime: e.target.value }))}
+                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              style={surfaceSoftStyle}
                             />
                           </div>
 
@@ -1026,13 +1407,9 @@ export default function Home() {
                             <Label>Title</Label>
                             <input
                               value={addForm.title}
-                              onChange={(e) =>
-                                setAddForm((p) => ({
-                                  ...p,
-                                  title: e.target.value,
-                                }))
-                              }
-                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              onChange={(e) => setAddForm((p) => ({ ...p, title: e.target.value }))}
+                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              style={surfaceSoftStyle}
                               placeholder="e.g., Call Dylan"
                             />
                           </div>
@@ -1041,13 +1418,9 @@ export default function Home() {
                             <Label>Meta</Label>
                             <input
                               value={addForm.meta}
-                              onChange={(e) =>
-                                setAddForm((p) => ({
-                                  ...p,
-                                  meta: e.target.value,
-                                }))
-                              }
-                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              onChange={(e) => setAddForm((p) => ({ ...p, meta: e.target.value }))}
+                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              style={surfaceSoftStyle}
                               placeholder="e.g., 20 min · quick sync"
                             />
                           </div>
@@ -1057,12 +1430,10 @@ export default function Home() {
                             <select
                               value={addForm.type}
                               onChange={(e) =>
-                                setAddForm((p) => ({
-                                  ...p,
-                                  type: e.target.value as EventType,
-                                }))
+                                setAddForm((p) => ({ ...p, type: e.target.value as EventType }))
                               }
-                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              style={surfaceSoftStyle}
                             >
                               <option value="class">class</option>
                               <option value="work">work</option>
@@ -1077,13 +1448,9 @@ export default function Home() {
                             <Label>Tag</Label>
                             <select
                               value={addForm.tag}
-                              onChange={(e) =>
-                                setAddForm((p) => ({
-                                  ...p,
-                                  tag: e.target.value as any,
-                                }))
-                              }
-                              className="mt-1 w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none"
+                              onChange={(e) => setAddForm((p) => ({ ...p, tag: e.target.value as any }))}
+                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              style={surfaceSoftStyle}
                             >
                               <option>Class</option>
                               <option>Work</option>
@@ -1105,17 +1472,13 @@ export default function Home() {
                                 onChange={(e) =>
                                   setAddForm((p) => ({
                                     ...p,
-                                    importance: Number(e.target.value) as
-                                      | 1
-                                      | 2
-                                      | 3
-                                      | 4
-                                      | 5,
+                                    importance: Number(e.target.value) as 1 | 2 | 3 | 4 | 5,
                                   }))
                                 }
-                                className="flex-1 accent-[rgba(85,107,47,0.95)]"
+                                className="flex-1"
+                                style={{ accentColor: OLIVE }}
                               />
-                              <span className="text-sm text-neutral-200 w-16 text-right">
+                              <span className="text-sm text-neutral-800 w-16 text-right">
                                 {getImportanceLabel(addForm.importance)}
                               </span>
                             </div>
@@ -1129,51 +1492,56 @@ export default function Home() {
                             className={cx(
                               "rounded-2xl px-3 py-2 text-xs font-semibold border transition",
                               addForm.title.trim()
-                                ? "bg-white/10 hover:bg-white/14 border-white/12"
-                                : "bg-white/5 border-white/5 text-neutral-500 cursor-not-allowed"
+                                ? "bg-white hover:bg-black/[0.03]"
+                                : "bg-white text-neutral-400 cursor-not-allowed"
                             )}
-                            style={addForm.title.trim() ? oliveSoftStyle : undefined}
+                            style={surfaceSoftStyle}
                           >
                             Add
                           </button>
                           <button
-                            onClick={() =>
-                              setAddForm((p) => ({ ...p, title: "", meta: "" }))
-                            }
-                            className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                            onClick={() => setAddForm((p) => ({ ...p, title: "", meta: "" }))}
+                            className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                            style={surfaceSoftStyle}
                           >
                             Clear
                           </button>
                         </div>
                       </div>
 
-                      {/* KEEP: What this is */}
-                      <div className="rounded-3xl border border-white/10 bg-white/6 p-4">
+                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
                         <div className="text-sm font-semibold">What this is (for now)</div>
-                        <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
+                        <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
                           This “Adjust” panel is the control center. Later it becomes the place where
                           Jynx actually rebalances your day (importance, constraints, free time).
                         </div>
                         <div className="mt-3 text-xs text-neutral-500">
-                          UI shell: protectFocus={String(protectFocus)} · autoRebalance=
-                          {String(autoRebalance)}
+                          UI shell: protectFocus={String(protectFocus)} · autoRebalance={String(autoRebalance)}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="px-5 py-4 border-t border-white/10 flex items-center justify-end gap-2">
+                <div
+                  className="px-5 py-4 border-t flex items-center justify-end gap-2"
+                  style={{ borderColor: "rgba(0,0,0,0.08)" }}
+                >
                   <button
                     onClick={() => setAdjustOpen(false)}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                    style={surfaceSoftStyle}
                   >
                     Close
                   </button>
                   <button
                     onClick={() => alert("UI shell — would apply rebalance")}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                    style={oliveSoftStyle}
+                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                    style={{
+                      ...surfaceSoftStyle,
+                      borderColor: "rgba(85,107,47,0.22)",
+                      boxShadow: "0 0 0 1px rgba(85,107,47,0.08)",
+                    }}
                   >
                     Apply
                   </button>
@@ -1208,45 +1576,79 @@ export default function Home() {
   );
 }
 
-function TimelineWithDayparts({
+function Segment({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="h-10 rounded-2xl border bg-white p-1 flex items-center gap-1" style={surfaceSoftStyle}>
+      {options.map((opt) => {
+        const active = value === opt;
+        return (
+          <button
+            key={opt}
+            onClick={() => onChange(opt)}
+            className={cx(
+              "h-8 rounded-xl px-3 text-xs font-semibold transition",
+              active ? "bg-black/[0.04]" : "hover:bg-black/[0.03]"
+            )}
+            style={{
+              border: "1px solid",
+              borderColor: active ? "rgba(85,107,47,0.22)" : "rgba(0,0,0,0)",
+              boxShadow: active ? "0 0 0 1px rgba(85,107,47,0.08)" : undefined,
+              color: active ? "rgba(0,0,0,0.88)" : "rgba(0,0,0,0.68)",
+            }}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TimelineWithDaypartsLight({
   blocks,
   olive,
   onToggleComplete,
   onOpen,
+  compact,
 }: {
   blocks: EventRecord[];
   olive: string;
   onToggleComplete: (id: string) => void;
   onOpen: (ev: EventRecord) => void;
+  compact?: boolean;
 }) {
-  // boundaries: Morning < 12:00, Afternoon 12:00–5:00, Evening >= 5:00
   const marks = useMemo(() => {
-    const firstAfternoonIdx = blocks.findIndex(
-      (b) => timeSort(b.time) >= 12 * 60
-    );
+    const firstAfternoonIdx = blocks.findIndex((b) => timeSort(b.time) >= 12 * 60);
     const firstEveningIdx = blocks.findIndex((b) => timeSort(b.time) >= 17 * 60);
     return { firstAfternoonIdx, firstEveningIdx };
   }, [blocks]);
 
   return (
-    <div className="space-y-3">
-      <DaypartLine label="MORNING" hint="Before noon" />
+    <div className={cx("space-y-3", compact ? "opacity-95" : "")}>
+      <DaypartLineLight label="MORNING" hint="Before noon" />
       <div className="space-y-3">
         {blocks.map((e, idx) => {
-          const showAfternoon =
-            idx === marks.firstAfternoonIdx && marks.firstAfternoonIdx !== -1;
-          const showEvening =
-            idx === marks.firstEveningIdx && marks.firstEveningIdx !== -1;
+          const showAfternoon = idx === marks.firstAfternoonIdx && marks.firstAfternoonIdx !== -1;
+          const showEvening = idx === marks.firstEveningIdx && marks.firstEveningIdx !== -1;
           return (
             <div key={e.id}>
-              {showAfternoon ? <DaypartLine label="AFTERNOON" hint="12–5 PM" /> : null}
-              {showEvening ? <DaypartLine label="EVENING" hint="After 5 PM" /> : null}
-              <TimeBlock
+              {showAfternoon ? <DaypartLineLight label="AFTERNOON" hint="12–5 PM" /> : null}
+              {showEvening ? <DaypartLineLight label="EVENING" hint="After 5 PM" /> : null}
+              <TimeBlockLight
                 event={e}
                 olive={olive}
                 isLast={idx === blocks.length - 1}
                 onToggleComplete={() => onToggleComplete(e.id)}
                 onOpen={() => onOpen(e)}
+                compact={compact}
               />
             </div>
           );
@@ -1256,31 +1658,24 @@ function TimelineWithDayparts({
   );
 }
 
-function DaypartLine({ label, hint }: { label: string; hint?: string }) {
+function DaypartLineLight({ label, hint }: { label: string; hint?: string }) {
   return (
     <div className="flex items-center gap-3 pt-1 pb-2">
-      <div className="text-[11px] tracking-widest text-neutral-500 font-semibold">
-        {label}
-      </div>
-      <div className="h-px flex-1 bg-white/8" />
+      <div className="text-[11px] tracking-widest text-neutral-500 font-semibold">{label}</div>
+      <div className="h-px flex-1" style={{ background: "rgba(0,0,0,0.06)" }} />
       {hint ? <div className="text-[11px] text-neutral-500">{hint}</div> : null}
     </div>
   );
 }
 
-function DrawerContent({
+function DrawerContentLight({
   selected,
   tab,
 }: {
   selected: EventRecord | null;
   tab: "Overview" | "Files" | "Assignments" | "Notes";
 }) {
-  if (!selected)
-    return (
-      <div className="text-sm text-neutral-400">
-        Select an event to view details.
-      </div>
-    );
+  if (!selected) return <div className="text-sm text-neutral-500">Select an event to view details.</div>;
 
   const type = selected.type;
   const classD = selected.details?.class;
@@ -1290,32 +1685,28 @@ function DrawerContent({
   if (tab === "Overview") {
     return (
       <div className="space-y-4">
-        <Panel title="Overview" subtitle="high-level details">
-          <div className="text-sm text-neutral-200 leading-relaxed">
-            {selected.meta}
-          </div>
+        <PanelLight title="Overview" subtitle="high-level details">
+          <div className="text-sm text-neutral-800 leading-relaxed">{selected.meta}</div>
 
           {type === "class" && classD && (
             <div className="mt-4 space-y-2 text-sm">
-              <InfoRow label="Instructor" value={classD.instructor} />
-              <InfoRow label="Email" value={classD.email ?? "—"} />
-              <InfoRow label="Room" value={classD.room} />
-              <InfoRow label="Meets" value={classD.meetingPattern} />
-              <div className="mt-3 text-xs text-neutral-400">Summary</div>
-              <div className="text-sm text-neutral-200 leading-relaxed">
-                {classD.shortSummary}
-              </div>
+              <InfoRowLight label="Instructor" value={classD.instructor} />
+              <InfoRowLight label="Email" value={classD.email ?? "—"} />
+              <InfoRowLight label="Room" value={classD.room} />
+              <InfoRowLight label="Meets" value={classD.meetingPattern} />
+              <div className="mt-3 text-xs text-neutral-500">Summary</div>
+              <div className="text-sm text-neutral-800 leading-relaxed">{classD.shortSummary}</div>
             </div>
           )}
 
           {type === "work" && workD && (
             <div className="mt-4 space-y-2 text-sm">
-              <InfoRow label="Owner" value={workD.owner ?? "—"} />
-              <InfoRow label="Priority" value={workD.priority ?? "—"} />
+              <InfoRowLight label="Owner" value={workD.owner ?? "—"} />
+              <InfoRowLight label="Priority" value={workD.priority ?? "—"} />
               {workD.deliverables?.length ? (
                 <>
-                  <div className="mt-3 text-xs text-neutral-400">Deliverables</div>
-                  <ul className="text-sm text-neutral-200 list-disc pl-5 space-y-1">
+                  <div className="mt-3 text-xs text-neutral-500">Deliverables</div>
+                  <ul className="text-sm text-neutral-800 list-disc pl-5 space-y-1">
                     {workD.deliverables.map((d) => (
                       <li key={d}>{d}</li>
                     ))}
@@ -1327,11 +1718,11 @@ function DrawerContent({
 
           {type === "health" && healthD && (
             <div className="mt-4 space-y-2 text-sm">
-              <InfoRow label="Duration" value={healthD.duration ?? "—"} />
+              <InfoRowLight label="Duration" value={healthD.duration ?? "—"} />
               {healthD.plan?.length ? (
                 <>
-                  <div className="mt-3 text-xs text-neutral-400">Plan</div>
-                  <ul className="text-sm text-neutral-200 list-disc pl-5 space-y-1">
+                  <div className="mt-3 text-xs text-neutral-500">Plan</div>
+                  <ul className="text-sm text-neutral-800 list-disc pl-5 space-y-1">
                     {healthD.plan.map((p) => (
                       <li key={p}>{p}</li>
                     ))}
@@ -1340,24 +1731,22 @@ function DrawerContent({
               ) : null}
               {healthD.notes ? (
                 <>
-                  <div className="mt-3 text-xs text-neutral-400">Notes</div>
-                  <div className="text-sm text-neutral-200 leading-relaxed">
-                    {healthD.notes}
-                  </div>
+                  <div className="mt-3 text-xs text-neutral-500">Notes</div>
+                  <div className="text-sm text-neutral-800 leading-relaxed">{healthD.notes}</div>
                 </>
               ) : null}
             </div>
           )}
-        </Panel>
+        </PanelLight>
 
         {type === "class" && classD?.nextTopics?.length ? (
-          <Panel title="Next topics" subtitle="coming up">
-            <ul className="text-sm text-neutral-200 list-disc pl-5 space-y-1">
+          <PanelLight title="Next topics" subtitle="coming up">
+            <ul className="text-sm text-neutral-800 list-disc pl-5 space-y-1">
               {classD.nextTopics.map((t) => (
                 <li key={t}>{t}</li>
               ))}
             </ul>
-          </Panel>
+          </PanelLight>
         ) : null}
       </div>
     );
@@ -1366,116 +1755,109 @@ function DrawerContent({
   if (tab === "Assignments") {
     if (type === "class" && classD?.assignmentsDue?.length) {
       return (
-        <Panel title="Assignments" subtitle="due soon">
+        <PanelLight title="Assignments" subtitle="due soon">
           <div className="space-y-2">
             {classD.assignmentsDue.map((a) => (
-              <div
-                key={a.title}
-                className="rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3"
-              >
+              <div key={a.title} className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-neutral-100">
-                    {a.title}
-                  </div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/12 text-neutral-200">
+                  <div className="text-sm font-semibold text-neutral-900">{a.title}</div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full border text-neutral-700" style={surfaceSoftStyle}>
                     {a.points ?? "—"}
                   </span>
                 </div>
-                <div className="mt-1 text-xs text-neutral-400">
-                  Due: {a.due}
-                </div>
+                <div className="mt-1 text-xs text-neutral-500">Due: {a.due}</div>
               </div>
             ))}
           </div>
-        </Panel>
+        </PanelLight>
       );
     }
 
     return (
-      <Panel title="Assignments" subtitle="none found">
-        <div className="text-sm text-neutral-400">
-          This event type doesn’t have assignments yet.
-        </div>
-      </Panel>
+      <PanelLight title="Assignments" subtitle="none found">
+        <div className="text-sm text-neutral-500">This event type doesn’t have assignments yet.</div>
+      </PanelLight>
     );
   }
 
   if (tab === "Files") {
     if (type === "class" && classD?.syllabusFiles?.length) {
       return (
-        <Panel title="Files" subtitle="materials">
+        <PanelLight title="Files" subtitle="materials">
           <div className="space-y-2">
             {classD.syllabusFiles.map((f) => (
               <Link
                 key={f.name}
                 href={f.href}
-                className="flex items-center justify-between rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3 hover:bg-white/6 transition"
+                className="flex items-center justify-between rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition"
+                style={surfaceSoftStyle}
               >
-                <div className="text-sm text-neutral-100">{f.name}</div>
-                <div className="text-xs text-neutral-400">open</div>
+                <div className="text-sm text-neutral-900">{f.name}</div>
+                <div className="text-xs text-neutral-500">open</div>
               </Link>
             ))}
           </div>
-        </Panel>
+        </PanelLight>
       );
     }
 
     if (type === "work" && workD?.links?.length) {
       return (
-        <Panel title="Links" subtitle="resources">
+        <PanelLight title="Links" subtitle="resources">
           <div className="space-y-2">
             {workD.links.map((l) => (
               <Link
                 key={l.name}
                 href={l.href}
-                className="flex items-center justify-between rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3 hover:bg-white/6 transition"
+                className="flex items-center justify-between rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition"
+                style={surfaceSoftStyle}
               >
-                <div className="text-sm text-neutral-100">{l.name}</div>
-                <div className="text-xs text-neutral-400">open</div>
+                <div className="text-sm text-neutral-900">{l.name}</div>
+                <div className="text-xs text-neutral-500">open</div>
               </Link>
             ))}
           </div>
-        </Panel>
+        </PanelLight>
       );
     }
 
     return (
-      <Panel title="Files" subtitle="not available yet">
-        <div className="text-sm text-neutral-400">
-          Wire this to your Files tab later.
-        </div>
-      </Panel>
+      <PanelLight title="Files" subtitle="not available yet">
+        <div className="text-sm text-neutral-500">Wire this to your Files tab later.</div>
+      </PanelLight>
     );
   }
 
   return (
-    <Panel title="Notes" subtitle="freeform">
+    <PanelLight title="Notes" subtitle="freeform">
       <textarea
-        className="w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-3 text-sm outline-none placeholder:text-neutral-500 resize-none"
+        className="w-full rounded-2xl border bg-white px-3 py-3 text-sm outline-none placeholder:text-neutral-400 resize-none"
+        style={surfaceSoftStyle}
         rows={6}
         placeholder="Add notes for this event…"
         defaultValue=""
       />
       <div className="mt-3 flex gap-2">
         <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-          style={oliveSoftStyle}
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+          style={surfaceSoftStyle}
           onClick={() => alert("UI shell — save notes")}
         >
           Save
         </button>
         <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+          style={surfaceSoftStyle}
           onClick={() => alert("UI shell — clear notes")}
         >
           Clear
         </button>
       </div>
-    </Panel>
+    </PanelLight>
   );
 }
 
-function Panel({
+function PanelLight({
   title,
   subtitle,
   children,
@@ -1485,13 +1867,11 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
+    <div className="rounded-3xl border bg-white" style={surfaceStyle}>
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold">{title}</div>
-          {subtitle ? (
-            <div className="text-[11px] text-neutral-400">{subtitle}</div>
-          ) : null}
+          {subtitle ? <div className="text-[11px] text-neutral-500">{subtitle}</div> : null}
         </div>
         <div className="mt-3">{children}</div>
       </div>
@@ -1499,56 +1879,29 @@ function Panel({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRowLight({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <div className="text-xs text-neutral-400">{label}</div>
-      <div className="text-sm text-neutral-200 text-right">{value}</div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  subtitle,
-  right,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  right?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="mb-8">
-      <div className="flex items-end justify-between gap-4 mb-3">
-        <div className="flex items-baseline gap-2">
-          <div className="text-sm font-semibold text-neutral-100">{title}</div>
-          {subtitle ? (
-            <div className="text-xs text-neutral-500">{subtitle}</div>
-          ) : null}
-        </div>
-        {right ?? null}
-      </div>
-      <div>{children}</div>
+      <div className="text-xs text-neutral-500">{label}</div>
+      <div className="text-sm text-neutral-800 text-right">{value}</div>
     </div>
   );
 }
 
 function PillStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1.5">
-      <span className="text-[11px] text-neutral-400">{label}</span>
-      <span className="text-[11px] font-semibold text-neutral-200">{value}</span>
+    <div className="hidden sm:flex items-center gap-2 rounded-full border bg-white px-3 py-1.5" style={surfaceSoftStyle}>
+      <span className="text-[11px] text-neutral-500">{label}</span>
+      <span className="text-[11px] font-semibold text-neutral-800">{value}</span>
     </div>
   );
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <div className="text-[11px] text-neutral-400 font-medium">{children}</div>;
+  return <div className="text-[11px] text-neutral-500 font-medium">{children}</div>;
 }
 
-function ToggleRow({
+function ToggleRowLight({
   label,
   desc,
   value,
@@ -1563,189 +1916,94 @@ function ToggleRow({
     <button
       type="button"
       onClick={() => onChange(!value)}
-      className="w-full flex items-start gap-3 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3 hover:bg-white/6 transition text-left"
+      className="w-full flex items-start gap-3 rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition text-left"
+      style={surfaceSoftStyle}
     >
       <div
-        className="mt-0.5 h-4 w-7 rounded-full border border-white/15 relative"
+        className="mt-0.5 h-4 w-7 rounded-full border relative"
         style={{
-          background: value ? "rgba(85,107,47,0.35)" : "rgba(255,255,255,0.06)",
-          boxShadow: value ? "0 0 0 1px rgba(85,107,47,0.25)" : undefined,
+          borderColor: "rgba(0,0,0,0.10)",
+          background: value ? "rgba(85,107,47,0.16)" : "rgba(0,0,0,0.04)",
+          boxShadow: value ? "0 0 0 1px rgba(85,107,47,0.10)" : undefined,
         }}
       >
         <div
           className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full"
           style={{
             left: value ? 16 : 2,
-            background: value
-              ? "rgba(235,245,230,0.95)"
-              : "rgba(255,255,255,0.45)",
+            background: value ? "rgba(25,25,25,0.92)" : "rgba(0,0,0,0.35)",
             transition: "left 140ms ease",
           }}
         />
       </div>
       <div className="flex-1">
-        <div className="text-sm font-semibold text-neutral-100">{label}</div>
-        <div className="text-xs text-neutral-400 mt-0.5">{desc}</div>
+        <div className="text-sm font-semibold text-neutral-900">{label}</div>
+        <div className="text-xs text-neutral-500 mt-0.5">{desc}</div>
       </div>
     </button>
   );
 }
 
-/**
- * ✅ Free time = “lane”, not a card
- * - subtle dashed capsule
- * - + Add appears on hover
- */
-function GapBar({
-  start,
-  end,
-  hint = "flexible",
-  onAdd,
-}: {
-  start: string;
-  end?: string;
-  hint?: string;
-  onAdd: () => void;
-}) {
-  return (
-    <div className="group w-full">
-      <div
-        className="rounded-2xl px-4 py-3 border bg-white/[0.03]"
-        style={{
-          borderStyle: "dashed",
-          borderColor: "rgba(255,255,255,0.14)",
-          boxShadow: "inset 0 0 0 1px rgba(85,107,47,0.07)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5"
-            style={{
-              borderColor: "rgba(85,107,47,0.30)",
-              background: "rgba(85,107,47,0.09)",
-              color: "rgba(255,255,255,0.82)",
-            }}
-          >
-            <span className="text-[11px] font-semibold">Free time</span>
-          </span>
-
-          <div className="min-w-0 flex items-center gap-2 text-[11px] text-neutral-400">
-            <span className="truncate">
-              {start}
-              {end ? `–${end}` : ""}
-            </span>
-            <span className="text-neutral-600">•</span>
-            <span className="font-semibold text-neutral-300">{hint}</span>
-          </div>
-
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onAdd();
-            }}
-            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity rounded-full border border-white/12 bg-white/5 px-3 py-1.5 text-[11px] font-semibold text-neutral-200 hover:bg-white/8"
-          >
-            + Add
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TimeBlock({
+function TimeBlockLight({
   event,
   olive,
   onToggleComplete,
   onOpen,
   isLast,
+  compact,
 }: {
   event: EventRecord;
   olive: string;
   onToggleComplete: () => void;
   onOpen: () => void;
   isLast?: boolean;
+  compact?: boolean;
 }) {
   const completed = !!event.completed;
-  const isFree = !!event.isFree;
 
-  const cardStyle: React.CSSProperties = completed
+  const cardStyle: CSSProperties = completed
     ? {
-        opacity: 0.72,
-        filter: "blur(1.15px) saturate(0.92)",
-        borderColor: "rgba(255,255,255,0.12)",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.22)",
+        opacity: 0.78,
+        borderColor: "rgba(0,0,0,0.08)",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
       }
     : {
         opacity: 1,
-        filter: "none",
-        borderColor: isFree ? "rgba(255,255,255,0.08)" : "rgba(85,107,47,0.50)",
-        boxShadow: isFree
-          ? "none"
-          : "0 0 0 1px rgba(85,107,47,0.35), 0 16px 44px rgba(0,0,0,0.35)",
+        borderColor: "rgba(0,0,0,0.08)",
+        boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
       };
 
   const importanceLevel = getImportanceLabel(event.importance);
 
-  // ✅ Free time dot = hollow marker
-  const dotBg = isFree
-    ? "rgba(0,0,0,0)"
-    : completed
-    ? "rgba(255,255,255,0.16)"
-    : olive;
-
-  const dotShadow = isFree
-    ? "0 0 0 2px rgba(255,255,255,0.16)"
-    : completed
-    ? "0 0 0 1px rgba(255,255,255,0.12)"
-    : "0 0 0 1px rgba(85,107,47,0.55), 0 0 22px rgba(85,107,47,0.22)";
+  const dotBg = completed ? "rgba(0,0,0,0.10)" : olive;
+  const dotShadow = completed
+    ? "0 0 0 1px rgba(0,0,0,0.10)"
+    : "0 0 0 1px rgba(85,107,47,0.35), 0 0 18px rgba(85,107,47,0.10)";
 
   return (
-    <div className="relative pl-8">
-      {/* timeline spine */}
+    <div className={cx("relative pl-8", compact ? "opacity-95" : "")}>
       <div
         className="absolute left-[10px] top-[-10px] bottom-[-10px] w-[2px]"
         style={{
           background: isLast
-            ? "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.00))"
-            : "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.10))",
+            ? "linear-gradient(to bottom, rgba(0,0,0,0.08), rgba(0,0,0,0.00))"
+            : "linear-gradient(to bottom, rgba(0,0,0,0.08), rgba(0,0,0,0.08))",
         }}
       />
 
-      {/* dot */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          if (!isFree) onToggleComplete();
+          onToggleComplete();
         }}
-        className={cx(
-          "absolute left-[1px] top-6 h-[18px] w-[18px] rounded-full ring-[7px] ring-neutral-950 transition z-10 flex items-center justify-center",
-          isFree ? "cursor-default" : "cursor-pointer"
-        )}
-        style={{
-          backgroundColor: dotBg,
-          boxShadow: dotShadow,
-        }}
-        aria-label={
-          isFree
-            ? "Free time marker"
-            : completed
-            ? "Mark as not complete"
-            : "Mark as complete"
-        }
-        title={
-          isFree ? "Free time" : completed ? "Mark as not complete" : "Mark as complete"
-        }
+        className="absolute left-[1px] top-6 h-[18px] w-[18px] rounded-full ring-[7px] transition z-10 flex items-center justify-center cursor-pointer"
+        style={{ backgroundColor: dotBg, boxShadow: dotShadow }}
+        aria-label={completed ? "Mark as not complete" : "Mark as complete"}
+        title={completed ? "Mark as not complete" : "Mark as complete"}
       >
-        {!isFree && completed && (
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            className="h-[11px] w-[11px]"
-            aria-hidden="true"
-          >
+        {completed && (
+          <svg viewBox="0 0 20 20" fill="none" className="h-[11px] w-[11px]" aria-hidden="true">
             <path
               d="M16.5 6.0L8.5 14.0L4.0 9.5"
               stroke="rgba(255,255,255,0.95)"
@@ -1757,69 +2015,93 @@ function TimeBlock({
         )}
       </button>
 
-      {/* CONTENT */}
-      {isFree ? (
-        <div className="py-1">
-          <GapBar
-            start={event.time}
-            end={event.endTime}
-            hint="flexible"
-            onAdd={() => alert("UI shell — add something into this free time")}
-          />
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cx(
+          "group w-full text-left rounded-3xl border px-4 py-3 transition",
+          "bg-white hover:bg-black/[0.02] hover:-translate-y-[1px]"
+        )}
+        style={cardStyle}
+      >
+        <div className="text-[11px] text-neutral-500 mb-1">
+          {formatRange(event.time, event.endTime)}
         </div>
-      ) : (
+
+        <div className="flex justify-between items-center gap-4">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-neutral-900 truncate">{event.title}</div>
+            <div className="text-xs text-neutral-500 mt-1 truncate">{event.meta}</div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
+              style={getImportancePillStyleLight(importanceLevel)}
+            >
+              {importanceLevel}
+            </span>
+
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
+              style={getTagStyleLight(event.tag)}
+            >
+              {event.tag}
+            </span>
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function ListRow({
+  event,
+  onToggle,
+  onOpen,
+}: {
+  event: EventRecord;
+  onToggle: () => void;
+  onOpen: () => void;
+}) {
+  const importanceLevel = getImportanceLabel(event.importance);
+  return (
+    <div className="rounded-2xl border bg-white" style={surfaceSoftStyle}>
+      <div className="flex items-center gap-3 px-3 py-2">
         <button
-          type="button"
-          onClick={onOpen}
-          className={cx(
-            "group w-full text-left rounded-3xl border backdrop-blur px-4 py-3 transition",
-            "bg-white/6 hover:bg-white/8 hover:-translate-y-[1px]"
-          )}
-          style={cardStyle}
+          onClick={onToggle}
+          className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+          style={surfaceSoftStyle}
+          aria-label="Toggle complete"
+          title="Toggle complete"
         >
-          {/* time range INSIDE the block */}
-          <div className="text-[11px] text-neutral-400 mb-1">
-            {formatRange(event.time, event.endTime)}
-          </div>
-
-          <div className="flex justify-between items-center gap-4">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-neutral-100 truncate">
-                {event.title}
-              </div>
-              <div className="text-xs text-neutral-400 mt-1 truncate">
-                {event.meta}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <span
-                className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
-                style={getImportancePillStyle(importanceLevel)}
-              >
-                {importanceLevel}
-              </span>
-
-              <span
-                className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
-                style={getTagStyleDark(event.tag)}
-              >
-                {event.tag}
-              </span>
-            </div>
-          </div>
-
-          {/* Hover behavior: unblur completed items */}
-          {completed && (
-            <style jsx>{`
-              button.group:hover {
-                filter: none !important;
-                opacity: 0.92 !important;
-              }
-            `}</style>
-          )}
+          {event.completed ? "✓" : ""}
         </button>
-      )}
+
+        <div className="w-[90px] text-xs text-neutral-500">
+          {formatRange(event.time, event.endTime)}
+        </div>
+
+        <button onClick={onOpen} className="min-w-0 flex-1 text-left">
+          <div className="text-sm font-semibold text-neutral-900 truncate">{event.title}</div>
+          <div className="text-xs text-neutral-500 truncate">{event.meta}</div>
+        </button>
+
+        <div className="flex items-center gap-2">
+          <span
+            className="hidden sm:inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
+            style={getImportancePillStyleLight(importanceLevel)}
+          >
+            {importanceLevel}
+          </span>
+          <span
+            className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
+            style={getTagStyleLight(event.tag)}
+          >
+            {event.tag}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1830,51 +2112,11 @@ function formatRange(start?: string, end?: string) {
   return start ?? end ?? "—";
 }
 
-/** Build free-time blocks between events (clean flow). */
+/** NO free-time blocks: just sort and return actual events */
 function buildBlocksWithFreeTime(events: EventRecord[]) {
-  const sorted = [...events].sort((a, b) => timeSort(a.time) - timeSort(b.time));
-  const out: EventRecord[] = [];
-
-  for (let i = 0; i < sorted.length; i++) {
-    const cur = sorted[i];
-    out.push(cur);
-
-    const next = sorted[i + 1];
-    if (!next) continue;
-
-    const curEnd = cur.endTime ? timeSort(cur.endTime) : timeSort(cur.time) + 60;
-    const nextStart = timeSort(next.time);
-
-    // only insert if meaningful gap (>= 20 min)
-    if (nextStart - curEnd >= 20) {
-      out.push({
-        id: `free-${cur.id}-${next.id}`,
-        type: "free",
-        tag: "Flexible",
-        title: "Free time",
-        meta: `${minsToTime(curEnd)}–${minsToTime(nextStart)} · flexible`,
-        time: minsToTime(curEnd),
-        endTime: minsToTime(nextStart),
-        completed: false,
-        importance: 1,
-        isFree: true,
-      });
-    }
-  }
-
-  return out;
+  return [...events].sort((a, b) => timeSort(a.time) - timeSort(b.time));
 }
 
-function minsToTime(mins: number) {
-  let h = Math.floor(mins / 60);
-  const m = mins % 60;
-  const ap = h >= 12 ? "PM" : "AM";
-  if (h === 0) h = 12;
-  if (h > 12) h -= 12;
-  return `${h}:${String(m).padStart(2, "0")} ${ap}`;
-}
-
-/** simple helper: rough ordering for AM/PM strings (UI shell) */
 function timeSort(t: string) {
   const m = t.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
   if (!m) return 999999;
