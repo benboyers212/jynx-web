@@ -1,1197 +1,1365 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import Link from "next/link";
+import React, { useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  SlidersHorizontal,
+  Search,
+  Plus,
+  Users,
+  MessageSquare,
+  Bell,
+  Pin,
+  ChevronRight,
+} from "lucide-react";
 
-const OLIVE = "#556B2F";
+/**
+ * Groups page (UI shell) — based on the newer layout, with old interactions restored:
+ * - Clicking a group opens a Group modal (class overview / private chat / org people + DM)
+ * - Pinned toggles work (pin icon on rows + pinned list in left rail)
+ * - Quick actions work (Create group / Find group / Invites)
+ * - Notifications clear + small toast pops
+ * - My groups vs Discover actually swaps lists
+ * - Invite to group button (email input) in group modal
+ *
+ * NOTE: This is still a UI shell (no backend). All actions are stateful in-memory.
+ */
 
-/** visibility (solves “class isn’t public/private”) */
-type GroupVisibility = "Public" | "Private" | "Verified";
-
-/** add Class mode */
-type GroupMode = "Class" | "Study" | "Accountability" | "Project" | "Light";
-type GroupCategory = "Study" | "Fitness" | "Work" | "Life";
-
-/** class-specific data shell */
-type ClassStats = {
-  avgTimePerWeek: string; // "4.2 hrs"
-  exam1Avg: string; // "7.1 hrs"
-  exam2Avg: string;
-  difficulty: "Easy" | "Medium" | "Hard" | "Very hard";
-  mostDifficultConcepts: string[];
-};
-
-type UpcomingAssignment = {
-  title: string;
-  due: string; // "Thu 11:59 PM"
-  estTime: string; // "~45 min"
-};
-
-type ClassInfo = {
-  schoolLabel: string; // "Indiana University"
-  courseCode: string; // "F305"
-  courseTitle: string; // "Financial Management"
-  instructor: string; // "Prof. Kim"
-  term: string; // "Spring 2026"
-  verifiedRuleLabel: string; // "IU email required" / "Request to join"
-  upcomingAssignments: UpcomingAssignment[];
-  stats: ClassStats;
-};
-
-type Group = {
-  id: string;
-  name: string;
-  description: string;
-  members: number;
-
-  visibility: GroupVisibility;
-  category: GroupCategory;
-
-  // Purpose / “what is this for?”
-  mode: GroupMode;
-
-  // Expectations preview (light)
-  cadence: string;
-  timeCommit: string;
-  structure: "Loose" | "Moderate" | "Structured";
-  scheduleRelevant?: boolean;
-  activityLabel: string;
-
-  /** chat rules (UI shell only) */
-  chatEnabled?: boolean; // only true for Private groups (for now)
-  memberLimit?: number; // 20 for Private unless org (later)
-
-  /** class shell */
-  classInfo?: ClassInfo;
-};
-
-const INITIAL_YOUR_GROUPS: Group[] = [
-  {
-    id: "g1",
-    name: "F305 — Financial Management",
-    description: "Course hub: assignments + pacing insights (verified)",
-    members: 186,
-    visibility: "Verified",
-    category: "Study",
-    mode: "Class",
-    cadence: "Weekly rhythm",
-    timeCommit: "~3–6 hrs/week",
-    structure: "Structured",
-    scheduleRelevant: true,
-    activityLabel: "Active",
-    chatEnabled: false,
-    classInfo: {
-      schoolLabel: "Indiana University",
-      courseCode: "F305",
-      courseTitle: "Financial Management",
-      instructor: "Prof. Kim",
-      term: "Spring 2026",
-      verifiedRuleLabel: "IU email required (MVP)",
-      upcomingAssignments: [
-        { title: "HW 3 — Time Value of Money", due: "Thu 11:59 PM", estTime: "~45–60 min" },
-        { title: "Quiz — WACC Concepts", due: "Mon 9:00 AM", estTime: "~15 min" },
-      ],
-      stats: {
-        avgTimePerWeek: "4.2 hrs",
-        exam1Avg: "7.1 hrs",
-        exam2Avg: "8.0 hrs",
-        difficulty: "Hard",
-        mostDifficultConcepts: ["WACC sensitivities", "Capital structure intuition", "Real vs nominal rates"],
-      },
-    },
-  },
-  {
-    id: "g2",
-    name: "F305 Study Group",
-    description: "Exam reviews, problem sets, weekly cadence",
-    members: 6,
-    visibility: "Private",
-    category: "Study",
-    mode: "Study",
-    cadence: "2–3x/week check-ins",
-    timeCommit: "~30–60 min/session",
-    structure: "Moderate",
-    scheduleRelevant: true,
-    activityLabel: "Active",
-    chatEnabled: true,
-    memberLimit: 20,
-  },
-  {
-    id: "g3",
-    name: "Gym Accountability",
-    description: "3x/week check-ins (no streak pressure)",
-    members: 4,
-    visibility: "Private",
-    category: "Fitness",
-    mode: "Accountability",
-    cadence: "3x/week check-ins",
-    timeCommit: "~5 min/check-in",
-    structure: "Loose",
-    scheduleRelevant: false,
-    activityLabel: "Active",
-    chatEnabled: true,
-    memberLimit: 20,
-  },
-];
-
-const PUBLIC_GROUPS: Group[] = [
-  {
-    id: "p1",
-    name: "Kelley — Finance Grind",
-    description: "Study blocks, recruiting prep, accountability",
-    members: 128,
-    visibility: "Public",
-    category: "Study",
-    mode: "Study",
-    cadence: "Daily focus block (optional)",
-    timeCommit: "~45–90 min",
-    structure: "Moderate",
-    scheduleRelevant: true,
-    activityLabel: "Active",
-    chatEnabled: false,
-  },
-  {
-    id: "p2",
-    name: "Morning Deep Work",
-    description: "9–11 AM focus blocks. Minimal distractions.",
-    members: 62,
-    visibility: "Public",
-    category: "Work",
-    mode: "Accountability",
-    cadence: "Weekdays",
-    timeCommit: "~60–120 min",
-    structure: "Structured",
-    scheduleRelevant: true,
-    activityLabel: "Active",
-    chatEnabled: false,
-  },
-  {
-    id: "p3",
-    name: "Sunday Reset Crew",
-    description: "Plan week, batch chores, light cardio",
-    members: 41,
-    visibility: "Public",
-    category: "Life",
-    mode: "Light",
-    cadence: "Weekly",
-    timeCommit: "~30–60 min",
-    structure: "Loose",
-    scheduleRelevant: false,
-    activityLabel: "Active",
-    chatEnabled: false,
-  },
-];
+const BRAND_RGB = { r: 31, g: 138, b: 91 };
+function rgbaBrand(a: number) {
+  return `rgba(${BRAND_RGB.r},${BRAND_RGB.g},${BRAND_RGB.b},${a})`;
+}
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function pillStyleDark(kind: GroupCategory) {
-  const map: Record<GroupCategory, any> = {
-    Study: {
-      backgroundColor: "rgba(255,255,255,0.06)",
-      color: "rgba(255,255,255,0.88)",
-      borderColor: "rgba(255,255,255,0.14)",
-    },
-    Work: {
-      backgroundColor: "rgba(255,255,255,0.07)",
-      color: "rgba(255,255,255,0.88)",
-      borderColor: "rgba(255,255,255,0.16)",
-    },
-    Fitness: {
-      backgroundColor: "rgba(85,107,47,0.18)",
-      color: "rgba(235,245,230,0.95)",
-      borderColor: "rgba(85,107,47,0.46)",
-    },
-    Life: {
-      backgroundColor: "rgba(85,107,47,0.12)",
-      color: "rgba(235,245,230,0.92)",
-      borderColor: "rgba(85,107,47,0.36)",
-    },
-  };
-  return map[kind];
-}
-
-function modePillStyle(mode: GroupMode) {
-  const map: Record<GroupMode, CSSProperties> = {
-    Class: {
-      backgroundColor: "rgba(85,107,47,0.16)",
-      borderColor: "rgba(85,107,47,0.44)",
-      color: "rgba(235,245,230,0.95)",
-    },
-    Study: {
-      backgroundColor: "rgba(255,255,255,0.06)",
-      borderColor: "rgba(255,255,255,0.14)",
-      color: "rgba(255,255,255,0.88)",
-    },
-    Accountability: {
-      backgroundColor: "rgba(85,107,47,0.14)",
-      borderColor: "rgba(85,107,47,0.40)",
-      color: "rgba(235,245,230,0.95)",
-    },
-    Project: {
-      backgroundColor: "rgba(255,255,255,0.06)",
-      borderColor: "rgba(255,255,255,0.14)",
-      color: "rgba(255,255,255,0.88)",
-    },
-    Light: {
-      backgroundColor: "rgba(255,255,255,0.045)",
-      borderColor: "rgba(255,255,255,0.12)",
-      color: "rgba(255,255,255,0.82)",
-    },
-  };
-  return map[mode];
-}
-
-function visibilityPillStyle(v: GroupVisibility) {
-  const map: Record<GroupVisibility, CSSProperties> = {
-    Public: {
-      backgroundColor: "rgba(255,255,255,0.05)",
-      borderColor: "rgba(255,255,255,0.12)",
-      color: "rgba(255,255,255,0.85)",
-    },
-    Private: {
-      backgroundColor: "rgba(255,255,255,0.06)",
-      borderColor: "rgba(255,255,255,0.14)",
-      color: "rgba(255,255,255,0.88)",
-    },
-    Verified: {
-      backgroundColor: "rgba(85,107,47,0.12)",
-      borderColor: "rgba(85,107,47,0.40)",
-      color: "rgba(235,245,230,0.95)",
-    },
-  };
-  return map[v];
-}
-
-type CreateTab = "Details" | "People" | "Files";
-type GroupModalTab =
-  | "Overview"
-  | "Expectations"
-  | "People"
-  | "Files"
-  | "Schedule"
-  | "Chat"
-  | "Class"
-  | "Assignments"
-  | "Insights";
-
-const oliveCardStyle: CSSProperties = {
-  borderColor: "rgba(85,107,47,0.60)",
-  boxShadow: "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.42)",
+const surfaceStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
 };
 
-const oliveSoftStyle: CSSProperties = {
-  borderColor: "rgba(85,107,47,0.42)",
-  boxShadow: "0 0 0 1px rgba(85,107,47,0.28)",
+const surfaceSoftStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
 };
 
-const primaryPanelStyle: CSSProperties = {
-  borderColor: "rgba(85,107,47,0.65)",
-  boxShadow: "0 0 0 1px rgba(85,107,47,0.45), 0 26px 90px rgba(0,0,0,0.62)",
+type GroupVisibility = "Private" | "Public" | "Verified";
+type GroupType = "Class hub" | "Study group" | "Accountability" | "Project" | "Organization";
+type GroupCategory = "Study" | "Fitness" | "Work" | "Life";
+
+type ClassStats = {
+  avgTimePerWeek: string;
+  exam1Avg: string;
+  exam2Avg: string;
+  difficulty: "Easy" | "Medium" | "Hard" | "Very hard";
 };
+
+type UpcomingAssignment = {
+  title: string;
+  due: string;
+  estTime: string;
+};
+
+type GroupMember = {
+  id: string;
+  name: string;
+  email?: string;
+};
+
+type ChatMsg = {
+  id: string;
+  who: string;
+  text: string;
+  ts: string;
+};
+
+type Group = {
+  id: string;
+  name: string;
+  type: GroupType;
+  visibility: GroupVisibility;
+  category: GroupCategory;
+
+  verified?: boolean;
+  active?: boolean;
+
+  memberCount: number;
+  chatEnabled: boolean;
+
+  description: string;
+  expectations: string;
+
+  // UI shell
+  pinned?: boolean;
+  unread?: number; // chat notifications (private groups only)
+  lastActivity: string;
+  lastActivityText: string;
+
+  // Class (optional)
+  classStats?: ClassStats;
+  upcomingAssignments?: UpcomingAssignment[];
+
+  // Org (optional)
+  membersList?: GroupMember[];
+};
+
+type Activity = {
+  id: string;
+  groupId: string;
+  groupName: string;
+  kind: "chat" | "update" | "reminder";
+  text: string;
+  when: string;
+};
+
+function pillStyleBase(active?: boolean): CSSProperties {
+  return {
+    borderColor: active ? rgbaBrand(0.26) : "rgba(0,0,0,0.08)",
+    background: active ? rgbaBrand(0.10) : "rgba(0,0,0,0.03)",
+    color: active ? "rgba(0,0,0,0.82)" : "rgba(0,0,0,0.70)",
+    boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
+  };
+}
+
+function badgeStyle(
+  kind: "Verified" | "Private" | "Public" | "Active" | "Chat" | "Quiet"
+): CSSProperties {
+  const base: CSSProperties = {
+    borderColor: "rgba(0,0,0,0.10)",
+    background: "rgba(0,0,0,0.03)",
+    color: "rgba(0,0,0,0.72)",
+  };
+
+  if (kind === "Verified") {
+    return {
+      borderColor: rgbaBrand(0.28),
+      background: rgbaBrand(0.10),
+      color: "rgba(0,0,0,0.80)",
+      boxShadow: `0 0 0 1px ${rgbaBrand(0.06)}`,
+    };
+  }
+
+  if (kind === "Active") {
+    return {
+      borderColor: rgbaBrand(0.20),
+      background: "rgba(0,0,0,0.02)",
+      color: "rgba(0,0,0,0.64)",
+    };
+  }
+
+  if (kind === "Quiet") {
+    return {
+      borderColor: "rgba(0,0,0,0.10)",
+      background: "rgba(0,0,0,0.02)",
+      color: "rgba(0,0,0,0.58)",
+    };
+  }
+
+  if (kind === "Chat") {
+    return {
+      borderColor: "rgba(0,0,0,0.12)",
+      background: "rgba(0,0,0,0.02)",
+      color: "rgba(0,0,0,0.66)",
+    };
+  }
+
+  return base;
+}
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+type MainTab = "My groups" | "Discover";
+type GroupModalTab = "Overview" | "Chat" | "Assignments" | "People" | "Files" | "Schedule";
+
 export default function GroupsPage() {
-  const [yourGroups, setYourGroups] = useState<Group[]>(INITIAL_YOUR_GROUPS);
+  // Left sidebar (collapsible) — match Schedule
+  const [leftOpen, setLeftOpen] = useState(true);
 
-  // Your groups search
-  const [yourQuery, setYourQuery] = useState("");
-  const [yourCategory, setYourCategory] = useState<"All" | GroupCategory>("All");
+  // Main filters
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<"All" | GroupCategory>("All");
+  const [tab, setTab] = useState<MainTab>("My groups");
 
-  // Find group modal (this replaces the on-page discovery blocks)
-  const [showFind, setShowFind] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
-  const [findCategory, setFindCategory] = useState<"All" | GroupCategory>("All");
-  const [intent, setIntent] = useState<"all" | "class" | "study" | "consistent" | "project" | "people">("all");
+  // Toast
+  const [toast, setToast] = useState<{ open: boolean; text: string }>({ open: false, text: "" });
+  const toastTimer = useRef<number | null>(null);
+  function showToast(text: string) {
+    setToast({ open: true, text });
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast({ open: false, text: "" }), 1700);
+  }
 
-  // Create modal
+  // Modals
   const [showCreate, setShowCreate] = useState(false);
-  const [createTab, setCreateTab] = useState<CreateTab>("Details");
+  const [showFind, setShowFind] = useState(false);
+  const [showInvites, setShowInvites] = useState(false);
+
+  // Create modal fields (simple)
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
-  const [newVisibility, setNewVisibility] = useState<GroupVisibility>("Private");
   const [newCategory, setNewCategory] = useState<GroupCategory>("Study");
-  const [newMode, setNewMode] = useState<GroupMode>("Study");
+  const [newType, setNewType] = useState<GroupType>("Study group");
+  const [newVisibility, setNewVisibility] = useState<GroupVisibility>("Private");
 
-  const [people, setPeople] = useState<string[]>([]);
-  const [personInput, setPersonInput] = useState("");
-
-  const [files, setFiles] = useState<string[]>([]);
-  const [fileInput, setFileInput] = useState("");
-
-  // Group assistant (UI shell)
-  const [assistantInput, setAssistantInput] = useState("");
+  // Invite modal fields
+  const [inviteEmail, setInviteEmail] = useState("");
 
   // Group modal
   const [openGroup, setOpenGroup] = useState<Group | null>(null);
-  const [groupModalTab, setGroupModalTab] = useState<GroupModalTab>("Overview");
+  const [groupTab, setGroupTab] = useState<GroupModalTab>("Overview");
   const [groupExpanded, setGroupExpanded] = useState(false);
 
-  // Assistant collapse inside modal (reduces competition)
-  const [assistantCollapsed, setAssistantCollapsed] = useState(true);
-
-  // Chat UI shell (private groups only)
+  // Chat state per-group (UI shell)
+  const [chatByGroup, setChatByGroup] = useState<Record<string, ChatMsg[]>>({
+    g2: [
+      { id: "m1", who: "You", text: "Quick check-in: when are we meeting?", ts: "Today 2:14 PM" },
+      { id: "m2", who: "Dylan", text: "I can do 6:30 after class.", ts: "Today 2:16 PM" },
+    ],
+    g3: [
+      { id: "m3", who: "You", text: "Leg day today — anyone in?", ts: "Today 9:41 AM" },
+      { id: "m4", who: "Dylan", text: "I’m down. 4:30?", ts: "Today 9:43 AM" },
+    ],
+  });
   const [chatDraft, setChatDraft] = useState("");
-  const [chatMsgs, setChatMsgs] = useState<Array<{ id: string; who: string; text: string; ts: string }>>([
-    { id: "m1", who: "You", text: "Quick check-in: when are we meeting?", ts: "Today 2:14 PM" },
-    { id: "m2", who: "Dylan", text: "I can do 6:30 after class.", ts: "Today 2:16 PM" },
+
+  // My groups (stateful)
+  const [myGroups, setMyGroups] = useState<Group[]>([
+    {
+      id: "g1",
+      name: "F305 — Financial Management",
+      type: "Class hub",
+      visibility: "Verified",
+      category: "Study",
+      verified: true,
+      active: true,
+      memberCount: 186,
+      chatEnabled: false,
+      description: "Course hub: assignments + pacing insights (verified)",
+      expectations: "Weekly rhythm · ~3–6 hrs/week · Structured",
+      pinned: true,
+      unread: 0,
+      lastActivity: "1h ago",
+      lastActivityText: "New assignment posted: Problem Set 3",
+      classStats: { avgTimePerWeek: "4.2 hrs", exam1Avg: "7.1 hrs", exam2Avg: "8.0 hrs", difficulty: "Hard" },
+      upcomingAssignments: [
+        { title: "HW 3 — Time Value of Money", due: "Thu 11:59 PM", estTime: "~45–60 min" },
+        { title: "Quiz — WACC Concepts", due: "Mon 9:00 AM", estTime: "~15 min" },
+      ],
+    },
+    {
+      id: "g2",
+      name: "F305 Study Group",
+      type: "Study group",
+      visibility: "Private",
+      category: "Study",
+      active: true,
+      memberCount: 6,
+      chatEnabled: true,
+      description: "Exam reviews, problem sets, weekly cadence",
+      expectations: "2–3x/week check-ins · ~30–60 min/session · Moderate",
+      pinned: false,
+      unread: 3,
+      lastActivity: "2h ago",
+      lastActivityText: "3 new messages in chat",
+      membersList: [
+        { id: "u1", name: "You" },
+        { id: "u2", name: "Dylan" },
+        { id: "u3", name: "Ava" },
+        { id: "u4", name: "Noah" },
+        { id: "u5", name: "Mia" },
+        { id: "u6", name: "Ryan" },
+      ],
+    },
+    {
+      id: "g3",
+      name: "Gym Accountability",
+      type: "Accountability",
+      visibility: "Private",
+      category: "Fitness",
+      active: true,
+      memberCount: 4,
+      chatEnabled: true,
+      description: "3x/week check-ins (no streak pressure)",
+      expectations: "3x/week check-ins · ~5 min/check-in · Loose",
+      pinned: false,
+      unread: 0,
+      lastActivity: "Yesterday",
+      lastActivityText: "Check-in reminder went out",
+      membersList: [
+        { id: "u1", name: "You" },
+        { id: "u2", name: "Dylan" },
+        { id: "u7", name: "Sam" },
+        { id: "u8", name: "Lena" },
+      ],
+    },
+    {
+      id: "g4",
+      name: "Deal Prep Sprint",
+      type: "Project",
+      visibility: "Private",
+      category: "Work",
+      active: false,
+      memberCount: 3,
+      chatEnabled: true,
+      description: "Light structure for interview + modeling reps",
+      expectations: "3 sessions/week · 45–60 min · Structured",
+      pinned: false,
+      unread: 1,
+      lastActivity: "3d ago",
+      lastActivityText: "Pinned: Technicals checklist updated",
+      membersList: [
+        { id: "u1", name: "You" },
+        { id: "u2", name: "Dylan" },
+        { id: "u9", name: "Chris" },
+      ],
+    },
   ]);
 
-  const filteredYourGroups = useMemo(() => {
-    const q = yourQuery.trim().toLowerCase();
-    return yourGroups.filter((g) => {
-      const matchQ = !q || g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q);
-      const matchCat = yourCategory === "All" || g.category === yourCategory;
-      return matchQ && matchCat;
-    });
-  }, [yourGroups, yourQuery, yourCategory]);
+  // Discover groups (separate list)
+  const [discoverGroups] = useState<Group[]>([
+    {
+      id: "d1",
+      name: "Kelley — Finance Grind",
+      type: "Organization",
+      visibility: "Public",
+      category: "Study",
+      active: true,
+      memberCount: 128,
+      chatEnabled: false,
+      description: "Study blocks, recruiting prep, accountability",
+      expectations: "Weekdays · 45–90 min · Moderate",
+      pinned: false,
+      unread: 0,
+      lastActivity: "Today",
+      lastActivityText: "New: IB technicals sheet shared",
+      membersList: [
+        { id: "m1", name: "Sasha", email: "sasha@kelley.edu" },
+        { id: "m2", name: "Andrew", email: "andrew@kelley.edu" },
+        { id: "m3", name: "Priya", email: "priya@kelley.edu" },
+        { id: "m4", name: "Max", email: "max@kelley.edu" },
+      ],
+    },
+    {
+      id: "d2",
+      name: "Morning Deep Work",
+      type: "Accountability",
+      visibility: "Public",
+      category: "Work",
+      active: true,
+      memberCount: 62,
+      chatEnabled: false,
+      description: "9–11 AM focus blocks. Minimal distractions.",
+      expectations: "Weekdays · 60–120 min · Structured",
+      pinned: false,
+      unread: 0,
+      lastActivity: "2d ago",
+      lastActivityText: "Schedule template updated",
+    },
+    {
+      id: "d3",
+      name: "Sunday Reset Crew",
+      type: "Organization",
+      visibility: "Public",
+      category: "Life",
+      active: true,
+      memberCount: 41,
+      chatEnabled: false,
+      description: "Plan week, batch chores, light cardio",
+      expectations: "Weekly · 30–60 min · Loose",
+      pinned: false,
+      unread: 0,
+      lastActivity: "This week",
+      lastActivityText: "New weekly checklist posted",
+      membersList: [
+        { id: "x1", name: "Jordan" },
+        { id: "x2", name: "Leah" },
+        { id: "x3", name: "Kevin" },
+      ],
+    },
+    {
+      id: "d4",
+      name: "Calc II — Verified Hub",
+      type: "Class hub",
+      visibility: "Verified",
+      category: "Study",
+      verified: true,
+      active: true,
+      memberCount: 212,
+      chatEnabled: false,
+      description: "Assignments + pacing insights (verified)",
+      expectations: "Weekly rhythm · ~3–5 hrs/week · Structured",
+      pinned: false,
+      unread: 0,
+      lastActivity: "5h ago",
+      lastActivityText: "New homework posted",
+      classStats: { avgTimePerWeek: "3.7 hrs", exam1Avg: "6.4 hrs", exam2Avg: "7.6 hrs", difficulty: "Hard" },
+      upcomingAssignments: [
+        { title: "Problem Set 5", due: "Fri 5:00 PM", estTime: "~60–90 min" },
+        { title: "Quiz — Sequences", due: "Tue 9:00 AM", estTime: "~15 min" },
+      ],
+    },
+  ]);
 
-  const filteredPublic = useMemo(() => {
-    const q = findQuery.trim().toLowerCase();
+  // Demo “recent activity” (left rail)
+  const [activity] = useState<Activity[]>([
+    {
+      id: "a1",
+      groupId: "g1",
+      groupName: "F305 — Financial Management",
+      kind: "update",
+      text: "Problem Set 3 posted · due before next class",
+      when: "1h",
+    },
+    {
+      id: "a2",
+      groupId: "g2",
+      groupName: "F305 Study Group",
+      kind: "chat",
+      text: "“Anyone want to meet 8pm to review CAPM?”",
+      when: "2h",
+    },
+    {
+      id: "a3",
+      groupId: "g3",
+      groupName: "Gym Accountability",
+      kind: "reminder",
+      text: "Check-in: what’s the plan for today?",
+      when: "1d",
+    },
+  ]);
 
-    function matchIntent(g: Group) {
-      if (intent === "all") return true;
-      if (intent === "class") return g.mode === "Class" || g.visibility === "Verified";
-      if (intent === "study") return g.mode === "Study" || g.category === "Study";
-      if (intent === "consistent") return g.mode === "Accountability";
-      if (intent === "project") return g.mode === "Project" || g.category === "Work";
-      if (intent === "people") return g.mode === "Light" || g.category === "Life";
-      return true;
-    }
+  const list = useMemo(() => (tab === "My groups" ? myGroups : discoverGroups), [tab, myGroups, discoverGroups]);
 
-    return PUBLIC_GROUPS.filter((g) => {
-      const matchQ = !q || g.name.toLowerCase().includes(q) || g.description.toLowerCase().includes(q);
-      const matchCat = findCategory === "All" || g.category === findCategory;
-      return matchQ && matchCat && matchIntent(g);
-    });
-  }, [findQuery, findCategory, intent]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return list
+      .filter((g) => (category === "All" ? true : g.category === category))
+      .filter((g) => {
+        if (!q) return true;
+        return (
+          g.name.toLowerCase().includes(q) ||
+          g.description.toLowerCase().includes(q) ||
+          g.expectations.toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        // pinned first ONLY for My groups (discover ignores pinned)
+        if (tab === "My groups") {
+          const ap = a.pinned ? 1 : 0;
+          const bp = b.pinned ? 1 : 0;
+          if (ap !== bp) return bp - ap;
+        }
+        const aa = a.active ? 1 : 0;
+        const ba = b.active ? 1 : 0;
+        if (aa !== ba) return ba - aa;
+        return a.name.localeCompare(b.name);
+      });
+  }, [list, query, category, tab]);
 
-  function resetCreateModal() {
-    setCreateTab("Details");
-    setNewName("");
-    setNewDesc("");
-    setNewVisibility("Private");
-    setNewCategory("Study");
-    setNewMode("Study");
-    setPeople([]);
-    setPersonInput("");
-    setFiles([]);
-    setFileInput("");
-  }
+  const pinned = tab === "My groups" ? filtered.filter((g) => g.pinned) : [];
+  const rest = tab === "My groups" ? filtered.filter((g) => !g.pinned) : filtered;
 
-  function openCreate() {
-    resetCreateModal();
-    setShowCreate(true);
-  }
-
-  function closeCreate() {
-    setShowCreate(false);
-  }
-
-  function openFind() {
-    setShowFind(true);
-  }
-
-  function closeFind() {
-    setShowFind(false);
-  }
-
-  function addPerson() {
-    const v = personInput.trim();
-    if (!v) return;
-    if (people.includes(v)) return;
-    setPeople((p) => [...p, v]);
-    setPersonInput("");
-  }
-
-  function removePerson(v: string) {
-    setPeople((p) => p.filter((x) => x !== v));
-  }
-
-  function addFile() {
-    const v = fileInput.trim();
-    if (!v) return;
-    if (files.includes(v)) return;
-    setFiles((f) => [...f, v]);
-    setFileInput("");
-  }
-
-  function removeFile(v: string) {
-    setFiles((f) => f.filter((x) => x !== v));
-  }
-
-  function createGroupNow() {
-    const name = newName.trim();
-    if (!name) {
-      alert("Please add a group name.");
-      setCreateTab("Details");
-      return;
-    }
-
-    // Rules
-    const visibility: GroupVisibility = newMode === "Class" ? "Verified" : newVisibility;
-    const chatEnabled = visibility === "Private"; // MVP: only private has chat
-    const memberLimit = visibility === "Private" ? 20 : undefined;
-
-    // Member limit enforcement for private groups
-    const proposedMembers = Math.max(1, people.length + 1);
-    if (visibility === "Private" && proposedMembers > 20) {
-      alert("Private groups are limited to 20 people for now. (Org limits can be added later.)");
-      setCreateTab("People");
-      return;
-    }
-
-    const newGroup: Group = {
-      id: `g_${Date.now()}_${uid()}`,
-      name,
-      description: newDesc.trim() || "No description yet",
-      members: proposedMembers,
-      visibility,
-      category: newCategory,
-      mode: newMode,
-
-      cadence:
-        newMode === "Class"
-          ? "Weekly rhythm"
-          : newMode === "Study"
-          ? "2–3x/week check-ins"
-          : newMode === "Accountability"
-          ? "3x/week check-ins"
-          : newMode === "Project"
-          ? "Weekly touchpoint"
-          : "Optional",
-      timeCommit:
-        newMode === "Class"
-          ? "~3–6 hrs/week"
-          : newMode === "Study"
-          ? "~30–60 min/session"
-          : newMode === "Accountability"
-          ? "~5 min/check-in"
-          : "~30–60 min",
-      structure:
-        newMode === "Accountability" || newMode === "Light"
-          ? "Loose"
-          : newMode === "Class"
-          ? "Structured"
-          : "Moderate",
-      scheduleRelevant: newMode === "Study" || newMode === "Accountability" || newMode === "Class",
-      activityLabel: "Active",
-
-      chatEnabled,
-      memberLimit,
-
-      classInfo:
-        newMode === "Class"
-          ? {
-              schoolLabel: "Your University",
-              courseCode: "COURSE",
-              courseTitle: "Course Title",
-              instructor: "Instructor",
-              term: "Term",
-              verifiedRuleLabel: "Verified community (MVP)",
-              upcomingAssignments: [],
-              stats: {
-                avgTimePerWeek: "—",
-                exam1Avg: "—",
-                exam2Avg: "—",
-                difficulty: "Medium",
-                mostDifficultConcepts: [],
-              },
-            }
-          : undefined,
-    };
-
-    setYourGroups((g) => [newGroup, ...g]);
-    closeCreate();
-  }
+  const maxW = "max-w-[1280px]";
 
   function openGroupModal(g: Group) {
     setOpenGroup(g);
     setGroupExpanded(false);
-    setAssistantCollapsed(true);
-    setChatDraft("");
 
-    if (g.mode === "Class") setGroupModalTab("Assignments");
-    else setGroupModalTab(g.visibility === "Private" ? "Chat" : "Overview");
+    // Default tab based on group type
+    if (g.type === "Class hub") setGroupTab("Assignments");
+    else if (g.visibility === "Private" && g.chatEnabled) setGroupTab("Chat");
+    else if (g.type === "Organization") setGroupTab("People");
+    else setGroupTab("Overview");
+
+    // Clear unread if it’s one of *your* groups
+    if (tab === "My groups" && g.unread && g.unread > 0) {
+      setMyGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, unread: 0, lastActivityText: "Opened" } : x)));
+      showToast("Marked as read");
+    }
   }
 
   function closeGroupModal() {
     setOpenGroup(null);
     setGroupExpanded(false);
     setChatDraft("");
+    setInviteEmail("");
+  }
+
+  function togglePin(groupId: string) {
+    setMyGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, pinned: !g.pinned } : g))
+    );
+  }
+
+  function createGroupNow() {
+    const name = newName.trim();
+    if (!name) {
+      showToast("Add a group name");
+      return;
+    }
+
+    // Rules (MVP):
+    // - Private => chat enabled
+    // - Public/Verified => no chat in this UI shell
+    const visibility: GroupVisibility = newType === "Class hub" ? "Verified" : newVisibility;
+    const chatEnabled = visibility === "Private";
+    const newGroup: Group = {
+      id: `g_${Date.now()}_${uid()}`,
+      name,
+      type: newType,
+      visibility,
+      category: newCategory,
+      verified: visibility === "Verified",
+      active: true,
+      memberCount: 1,
+      chatEnabled,
+      description: newDesc.trim() || "No description yet",
+      expectations:
+        newType === "Accountability"
+          ? "3x/week check-ins · ~5 min/check-in · Loose"
+          : newType === "Project"
+          ? "2–3 sessions/week · 45–60 min · Structured"
+          : newType === "Class hub"
+          ? "Weekly rhythm · ~3–6 hrs/week · Structured"
+          : "2–3x/week check-ins · ~30–60 min/session · Moderate",
+      pinned: false,
+      unread: 0,
+      lastActivity: "Just now",
+      lastActivityText: "Created",
+      membersList: [{ id: "me", name: "You" }],
+    };
+
+    setMyGroups((prev) => [newGroup, ...prev]);
+    setShowCreate(false);
+    setNewName("");
+    setNewDesc("");
+    setNewCategory("Study");
+    setNewType("Study group");
+    setNewVisibility("Private");
+    showToast("Group created");
   }
 
   function sendChat() {
-    if (!openGroup?.chatEnabled) return;
+    if (!openGroup) return;
+    if (!(openGroup.visibility === "Private" && openGroup.chatEnabled)) return;
+
     const txt = chatDraft.trim();
     if (!txt) return;
-    setChatMsgs((m) => [...m, { id: uid(), who: "You", text: txt, ts: "Just now" }]);
+
+    setChatByGroup((prev) => {
+      const cur = prev[openGroup.id] ?? [];
+      return {
+        ...prev,
+        [openGroup.id]: [...cur, { id: uid(), who: "You", text: txt, ts: "Just now" }],
+      };
+    });
+
     setChatDraft("");
   }
 
-  const canShowChat = !!openGroup?.chatEnabled && openGroup.visibility === "Private";
-
-  const modalTabs: GroupModalTab[] = useMemo(() => {
-    if (!openGroup) return ["Overview"];
-    if (openGroup.mode === "Class") {
-      return ["Assignments", "Insights", "Schedule", "Files", "Class"];
+  function inviteToGroup() {
+    if (!openGroup) return;
+    const email = inviteEmail.trim();
+    if (!email || !email.includes("@")) {
+      showToast("Enter a valid email");
+      return;
     }
-    const base: GroupModalTab[] = ["Overview", "Expectations", "Schedule", "Files", "People"];
-    if (canShowChat) base.unshift("Chat");
-    return base;
-  }, [openGroup, canShowChat]);
 
-  const classInfo = openGroup?.classInfo;
-  const classStats = classInfo?.stats;
+    // UI shell: add member count + member list entry for private groups
+    if (tab === "My groups") {
+      setMyGroups((prev) =>
+        prev.map((g) => {
+          if (g.id !== openGroup.id) return g;
+          const nextMembers = (g.membersList ?? []).some((m) => m.email === email)
+            ? g.membersList ?? []
+            : [...(g.membersList ?? []), { id: uid(), name: email.split("@")[0], email }];
+          return {
+            ...g,
+            memberCount: g.memberCount + 1,
+            membersList: nextMembers,
+            lastActivity: "Just now",
+            lastActivityText: `Invited ${email}`,
+          };
+        })
+      );
+    }
+
+    showToast("Invite sent");
+    setInviteEmail("");
+  }
+
+  // Left rail pinned list should be “your groups” with pin toggles
+  const leftPinnedList = useMemo(() => {
+    return myGroups
+      .slice()
+      .sort((a, b) => {
+        const ap = a.pinned ? 1 : 0;
+        const bp = b.pinned ? 1 : 0;
+        if (ap !== bp) return bp - ap;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 6);
+  }, [myGroups]);
 
   return (
-    <main className="h-screen bg-neutral-950 text-neutral-100 overflow-hidden">
-      {/* Ambient background */}
+    <main className="h-screen bg-white text-neutral-950 overflow-hidden">
+      {/* Subtle ambient — match Schedule */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
-          className="absolute -top-40 left-1/2 h-[520px] w-[920px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
+          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
           style={{
-            background: "radial-gradient(circle at 30% 30%, rgba(85,107,47,0.90), rgba(17,17,17,0) 60%)",
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(
+              0.22
+            )}, rgba(255,255,255,0) 60%)`,
           }}
         />
-        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-white/20" />
+        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-20 bg-black/10" />
       </div>
 
-      {/* Content */}
-      <div className="relative h-full overflow-y-auto">
-        {/* WIDER container fixes side “blank space” */}
-        <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-          {/* Top row */}
-          <div className="flex items-start justify-between gap-4">
-            <div>
+      {/* Toast */}
+      {toast.open && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[80]">
+          <div
+            className="rounded-2xl border bg-white px-4 py-2 text-sm font-semibold"
+            style={{
+              borderColor: "rgba(0,0,0,0.10)",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.10)",
+            }}
+          >
+            {toast.text}
+          </div>
+        </div>
+      )}
+
+      <div className="relative flex h-full">
+        {/* LEFT RAIL */}
+        <div
+          className={cx(
+            "h-full border-r bg-white/70 backdrop-blur-sm transition-[width] duration-200",
+            leftOpen ? "w-[320px]" : "w-[56px]"
+          )}
+          style={{ borderColor: "rgba(0,0,0,0.08)" }}
+        >
+          <div className="h-full flex flex-col">
+            <div className="px-3 py-3 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
               <div className="flex items-center gap-2">
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{
-                    backgroundColor: OLIVE,
-                    boxShadow: "0 0 0 4px rgba(85,107,47,0.18)",
-                  }}
-                />
-                <div className="text-sm font-semibold tracking-wide">Groups</div>
-              </div>
-              <div className="text-xs text-neutral-400 mt-1">
-                Structure + expectations — not feeds. (Class hubs focus on pacing + assignments.)
+                <button
+                  onClick={() => setLeftOpen((v) => !v)}
+                  className="h-10 w-10 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                  style={surfaceSoftStyle}
+                  aria-label="Toggle Groups rail"
+                  title="Groups rail"
+                >
+                  <SlidersHorizontal size={18} />
+                </button>
+
+                {leftOpen && (
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">Groups</div>
+                    <div className="text-xs text-neutral-500">Activity, pins, quick actions</div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* BUTTON PAIR: Create (primary) + Find (secondary) */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={openCreate}
-                className="rounded-xl px-3 py-2 text-xs font-semibold text-white transition"
-                style={{
-                  backgroundColor: OLIVE,
-                  boxShadow: "0 0 0 1px rgba(85,107,47,0.45), 0 18px 45px rgba(0,0,0,0.25)",
-                }}
-              >
-                Create group
-              </button>
+            {leftOpen ? (
+              <>
+                <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+                  {/* Recent activity */}
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Recent activity</div>
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-2.5 rounded-full border text-[11px] font-semibold"
+                          style={{
+                            borderColor: "rgba(0,0,0,0.10)",
+                            background: "rgba(0,0,0,0.03)",
+                            color: "rgba(0,0,0,0.70)",
+                          }}
+                        >
+                          {activity.length}
+                        </span>
+                      </div>
 
-              <button
-                onClick={openFind}
-                className="rounded-xl px-3 py-2 text-xs font-semibold border bg-white/6 hover:bg-white/10 transition"
-                style={oliveSoftStyle}
-              >
-                Find group
-              </button>
+                      <div className="mt-3 space-y-2">
+                        {activity.map((a) => (
+                          <button
+                            key={a.id}
+                            onClick={() => {
+                              const g = myGroups.find((x) => x.id === a.groupId);
+                              if (g) openGroupModal(g);
+                              else showToast("That group isn’t in My groups");
+                            }}
+                            className="w-full text-left rounded-2xl border bg-white px-3 py-2 hover:bg-black/[0.03] transition"
+                            style={surfaceSoftStyle}
+                          >
+                            <div className="flex items-start gap-2">
+                              <div
+                                className="mt-0.5 h-8 w-8 rounded-2xl border bg-white flex items-center justify-center"
+                                style={{
+                                  ...surfaceSoftStyle,
+                                  borderColor: rgbaBrand(0.16),
+                                }}
+                              >
+                                {a.kind === "chat" ? (
+                                  <MessageSquare size={16} />
+                                ) : a.kind === "update" ? (
+                                  <Bell size={16} />
+                                ) : (
+                                  <Users size={16} />
+                                )}
+                              </div>
 
-              <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] text-neutral-200">
-                <span className="inline-block h-2 w-2 rounded-full bg-emerald-400/80" />
-                UI shell
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-semibold text-neutral-900 truncate">{a.groupName}</div>
+                                <div className="text-[11px] text-neutral-500 leading-relaxed">{a.text}</div>
+                              </div>
+
+                              <div className="text-[11px] text-neutral-400 shrink-0">{a.when}</div>
+                            </div>
+                          </button>
+                        ))}
+
+                        <button
+                          onClick={() => showToast("Activity inbox (UI shell)")}
+                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                        >
+                          Open activity
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pinned (actually your groups + pin toggles) */}
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Pinned</div>
+                        <div className="text-[11px] text-neutral-500">
+                          {myGroups.filter((g) => g.pinned).length}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {leftPinnedList.map((g) => (
+                          <div
+                            key={g.id}
+                            className="w-full rounded-2xl border bg-white px-3 py-2"
+                            style={surfaceSoftStyle}
+                          >
+                            <div className="flex items-center gap-2">
+                              <button
+                                className="min-w-0 flex-1 text-left"
+                                onClick={() => openGroupModal(g)}
+                              >
+                                <div className="text-sm font-semibold text-neutral-900 truncate">{g.name}</div>
+                                <div className="text-[11px] text-neutral-500 truncate">
+                                  {g.lastActivityText}
+                                </div>
+                              </button>
+
+                              <button
+                                className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                                style={surfaceSoftStyle}
+                                title={g.pinned ? "Unpin" : "Pin"}
+                                onClick={() => {
+                                  togglePin(g.id);
+                                  showToast(g.pinned ? "Unpinned" : "Pinned");
+                                }}
+                              >
+                                <Pin size={14} className={g.pinned ? "text-neutral-900" : "text-neutral-500"} />
+                              </button>
+
+                              <ChevronRight size={16} className="text-neutral-400" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick actions */}
+                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="text-sm font-semibold">Quick actions</div>
+                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
+                        Keep groups lightweight: structure + expectations, not feeds.
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                          onClick={() => setShowCreate(true)}
+                        >
+                          Create group
+                        </button>
+                        <button
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                          onClick={() => {
+                            setTab("Discover");
+                            setShowFind(true);
+                          }}
+                        >
+                          Find group
+                        </button>
+                        <button
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition col-span-2"
+                          style={surfaceSoftStyle}
+                          onClick={() => setShowInvites(true)}
+                        >
+                          Invites / requests
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-3 py-3 border-t" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                  <Link
+                    href="/chat"
+                    className="w-full block rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-center"
+                    style={surfaceSoftStyle}
+                  >
+                    Open Chat
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1" />
+            )}
+          </div>
+        </div>
+
+        {/* MAIN */}
+        <div className="flex-1 flex flex-col h-full">
+          {/* Top controls */}
+          <div className="border-b bg-white/80 backdrop-blur-sm" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+            <div className={cx(maxW, "mx-auto px-6 py-4 flex flex-wrap items-center gap-3")}>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">Groups</div>
+                <div className="text-xs text-neutral-500">Structure + expectations. No feed. No noise.</div>
+              </div>
+
+              <div className="flex-1" />
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition flex items-center gap-2"
+                  style={{
+                    ...surfaceSoftStyle,
+                    borderColor: rgbaBrand(0.22),
+                    boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
+                  }}
+                >
+                  <Plus size={16} />
+                  Create group
+                </button>
+
+                <button
+                  onClick={() => {
+                    setTab("Discover");
+                    setShowFind(true);
+                  }}
+                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  style={surfaceSoftStyle}
+                >
+                  Find group
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Layout: more balanced columns + bigger gutter */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-7 space-y-6">
-              {/* Your groups */}
-              <section className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
-                <div className="p-4">
-                  <div className="mb-4">
-                    <div className="text-sm font-semibold">Your groups</div>
-                    <div className="text-xs text-neutral-400 mt-0.5">
-                      Private groups have chat (max 20). Verified class hubs show aggregated stats + assignments.
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            <div className={cx(maxW, "mx-auto px-6 pt-6 pb-10")}>
+              {/* Toolbar row */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search */}
+                <div
+                  className="flex items-center gap-2 rounded-2xl border bg-white px-3 h-10 min-w-[280px] flex-1"
+                  style={surfaceSoftStyle}
+                >
+                  <Search size={16} className="text-neutral-400" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={tab === "My groups" ? "Search groups…" : "Search discover…"}
+                    className="w-full bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400"
+                  />
+                </div>
+
+                {/* Category filter */}
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as any)}
+                  className="h-10 rounded-2xl border bg-white px-3 text-sm outline-none"
+                  style={surfaceSoftStyle}
+                >
+                  <option value="All">All</option>
+                  <option value="Study">Study</option>
+                  <option value="Fitness">Fitness</option>
+                  <option value="Work">Work</option>
+                  <option value="Life">Life</option>
+                </select>
+
+                {/* Tabs */}
+                <div className="h-10 rounded-2xl border bg-white p-1 flex items-center gap-1" style={surfaceSoftStyle}>
+                  {(["My groups", "Discover"] as const).map((t) => {
+                    const active = tab === t;
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setTab(t)}
+                        className={cx(
+                          "h-8 rounded-xl px-3 text-xs font-semibold transition",
+                          active ? "bg-black/[0.04]" : "hover:bg-black/[0.03]"
+                        )}
+                        style={{
+                          border: "1px solid",
+                          borderColor: active ? rgbaBrand(0.22) : "rgba(0,0,0,0)",
+                          boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
+                          color: active ? "rgba(0,0,0,0.88)" : "rgba(0,0,0,0.68)",
+                        }}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="mt-6 space-y-8">
+                {/* Pinned section (only in My groups) */}
+                {tab === "My groups" && pinned.length ? (
+                  <section>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-semibold tracking-widest text-neutral-500">PINNED</div>
+                      <div className="text-[11px] text-neutral-500">{pinned.length} pinned</div>
                     </div>
-                  </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                    <input
-                      value={yourQuery}
-                      onChange={(e) => setYourQuery(e.target.value)}
-                      placeholder="Search groups…"
-                      className="flex-1 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    />
-                    <select
-                      value={yourCategory}
-                      onChange={(e) => setYourCategory(e.target.value as any)}
-                      className="sm:w-44 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    >
-                      <option value="All">All</option>
-                      <option value="Study">Study</option>
-                      <option value="Work">Work</option>
-                      <option value="Fitness">Fitness</option>
-                      <option value="Life">Life</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-3">
-                    {filteredYourGroups.map((g) => {
-                      const isClass = g.mode === "Class" && g.visibility === "Verified";
-                      return (
-                        <button
+                    <div className="mt-3 space-y-3">
+                      {pinned.map((g) => (
+                        <GroupRow
                           key={g.id}
-                          onClick={() => openGroupModal(g)}
-                          className={cx(
-                            "w-full text-left rounded-3xl border border-white/12 bg-neutral-900/35 hover:bg-white/6 transition px-4 py-4",
-                            isClass && "bg-[rgba(255,255,255,0.06)]"
-                          )}
-                          style={isClass ? primaryPanelStyle : undefined}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className="mt-1 h-2.5 w-2.5 rounded-full shrink-0"
+                          group={g}
+                          isMyGroups
+                          onOpen={() => openGroupModal(g)}
+                          onTogglePin={() => togglePin(g.id)}
+                          onNotify={(txt) => showToast(txt)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                <section>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold tracking-widest text-neutral-500">
+                      {tab === "My groups" ? "MY GROUPS" : "DISCOVER"}
+                    </div>
+                    <div className="text-[11px] text-neutral-500">{filtered.length} total</div>
+                  </div>
+
+                  <div className="mt-3 space-y-3">
+                    {rest.length ? (
+                      rest.map((g) => (
+                        <GroupRow
+                          key={g.id}
+                          group={g}
+                          isMyGroups={tab === "My groups"}
+                          onOpen={() => openGroupModal(g)}
+                          onTogglePin={() => togglePin(g.id)}
+                          onNotify={(txt) => showToast(txt)}
+                        />
+                      ))
+                    ) : (
+                      <div className="rounded-3xl border bg-white p-6" style={surfaceSoftStyle}>
+                        <div className="text-sm font-semibold text-neutral-900">No matches</div>
+                        <div className="mt-1 text-sm text-neutral-600 leading-relaxed">
+                          Try a different search, or flip the category filter back to All.
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                            style={surfaceSoftStyle}
+                            onClick={() => {
+                              setQuery("");
+                              setCategory("All");
+                            }}
+                          >
+                            Clear filters
+                          </button>
+                          {tab === "My groups" ? (
+                            <button
+                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
                               style={{
-                                backgroundColor: g.scheduleRelevant ? OLIVE : "rgba(255,255,255,0.16)",
-                                boxShadow: g.scheduleRelevant ? "0 0 0 4px rgba(85,107,47,0.16)" : "none",
+                                ...surfaceSoftStyle,
+                                borderColor: rgbaBrand(0.22),
+                                boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
                               }}
-                              title={g.scheduleRelevant ? "Touches your schedule" : "Passive group"}
-                            />
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-neutral-100 truncate">{g.name}</div>
-                                  <div className="text-xs text-neutral-400 mt-1 truncate">{g.description}</div>
-
-                                  {isClass && (
-                                    <div className="mt-2 text-[11px] text-neutral-300">
-                                      See how students pace this class — before you fall behind.
-                                    </div>
-                                  )}
-
-                                  <div className="mt-2 text-[11px] text-neutral-400">
-                                    <span className="text-neutral-300 font-semibold">Expectations:</span>{" "}
-                                    {g.cadence} · {g.timeCommit} · {g.structure}
-                                  </div>
-
-                                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-neutral-300">
-                                    <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(g.visibility)}>
-                                      {g.visibility}
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                      {g.members} members
-                                    </span>
-                                    {g.visibility === "Private" && (
-                                      <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                        Chat • max {g.memberLimit ?? 20}
-                                      </span>
-                                    )}
-                                    <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                                      {g.activityLabel}
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(g.mode)}>
-                                      {g.mode}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <span
-                                  className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border shrink-0"
-                                  style={pillStyleDark(g.category)}
-                                >
-                                  {g.category}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-
-                    {filteredYourGroups.length === 0 && (
-                      <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                        <div className="text-sm font-semibold">No groups found</div>
-                        <div className="text-sm text-neutral-300 mt-2">Try a different search or category.</div>
+                              onClick={() => setShowCreate(true)}
+                            >
+                              Create group
+                            </button>
+                          ) : (
+                            <button
+                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                              style={{
+                                ...surfaceSoftStyle,
+                                borderColor: rgbaBrand(0.22),
+                                boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
+                              }}
+                              onClick={() => setShowFind(true)}
+                            >
+                              Browse
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-              </section>
+                </section>
 
-              {/* IMPORTANT CHANGE:
-                  - Removed the on-page “What are you trying to do?” + “Explore groups”
-                  - Discovery now lives entirely inside Find group modal
-                  This reduces clutter and fixes the “long left column” issue.
-              */}
+                <div className="text-[11px] text-neutral-500">
+                  Tip: Verified class hubs focus on pacing + assignments. Private groups keep chat small (max 20 for MVP).
+                </div>
+              </div>
             </div>
-
-            {/* Right panel: sticky to balance visual weight */}
-            <aside className="lg:col-span-5 space-y-6 lg:sticky lg:top-6 self-start">
-              <section className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold">Group assistant</div>
-                      <div className="text-xs text-neutral-400 mt-0.5">
-                        Find groups, understand expectations, keep it quiet.
-                      </div>
-                    </div>
-                    <div className="text-[11px] text-neutral-500">UI shell</div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 p-3">
-                    <div className="text-[11px] text-neutral-500">
-                      Example: “Is there a class hub for F305?” or “What does this group expect?”
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <input
-                        value={assistantInput}
-                        onChange={(e) => setAssistantInput(e.target.value)}
-                        placeholder="Ask about groups…"
-                        className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
-                      />
-                      <button
-                        onClick={() => {
-                          if (!assistantInput.trim()) return;
-                          alert("UI shell — assistant response later");
-                          setAssistantInput("");
-                        }}
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/8 hover:bg-white/12 transition border-white/10"
-                        style={oliveSoftStyle}
-                      >
-                        Send
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
-                    <div className="text-xs font-semibold text-neutral-200">Design rule</div>
-                    <div className="mt-1 text-sm text-neutral-300 leading-relaxed">
-                      Groups are structure + expectations. No feed. No noise.
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
-                <div className="p-4">
-                  <div className="text-sm font-semibold">Cheating risk (MVP)</div>
-                  <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
-                    Public groups have no chat. Private groups can chat (max 20) for real coordination.
-                    Verified class hubs emphasize pacing + assignments over messaging.
-                  </div>
-                  <div className="mt-3 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
-                    <div className="text-xs text-neutral-400">
-                      Later: add “study-safe” guardrails + moderation tools if needed.
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </aside>
           </div>
         </div>
       </div>
 
-      {/* Find Group Modal (now the only discovery surface) */}
-      {showFind && (
-        <ModalDark onClose={closeFind} maxWidthClass="max-w-4xl">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm font-semibold">Find a group</div>
-              <div className="text-xs text-neutral-400 mt-1">
-                Public groups don’t have chat (MVP). Verified class hubs are gated.
-              </div>
-            </div>
-
-            <button
-              onClick={closeFind}
-              className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Intent chips (moved here; removed from main page) */}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {[
-              { id: "all", label: "All" },
-              { id: "class", label: "Join a class hub" },
-              { id: "study", label: "Study for a class" },
-              { id: "consistent", label: "Stay consistent" },
-              { id: "project", label: "Work on a project" },
-              { id: "people", label: "Meet people" },
-            ].map((x) => (
-              <button
-                key={x.id}
-                onClick={() => setIntent(x.id as any)}
-                className={cx(
-                  "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                  intent === (x.id as any) ? "bg-white/12 border-white/14" : "bg-white/6 border-white/10 hover:bg-white/10"
-                )}
-                style={intent === (x.id as any) ? oliveSoftStyle : undefined}
-              >
-                {x.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search + filters */}
-          <div className="mt-4 flex flex-col sm:flex-row gap-3">
-            <input
-              value={findQuery}
-              onChange={(e) => setFindQuery(e.target.value)}
-              placeholder="Search groups…"
-              className="flex-1 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-            />
-            <select
-              value={findCategory}
-              onChange={(e) => setFindCategory(e.target.value as any)}
-              className="sm:w-44 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-            >
-              <option value="All">All</option>
-              <option value="Study">Study</option>
-              <option value="Work">Work</option>
-              <option value="Fitness">Fitness</option>
-              <option value="Life">Life</option>
-            </select>
-          </div>
-
-          {/* Results */}
-          <div className="mt-4 space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-            {filteredPublic.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => {
-                  closeFind();
-                  openGroupModal(g);
-                }}
-                className="w-full text-left rounded-3xl border border-white/12 bg-neutral-900/35 px-4 py-4 hover:bg-white/6 transition"
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="mt-1 h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: g.scheduleRelevant ? OLIVE : "rgba(255,255,255,0.16)",
-                      boxShadow: g.scheduleRelevant ? "0 0 0 4px rgba(85,107,47,0.16)" : "none",
-                    }}
-                  />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-neutral-100 truncate">{g.name}</div>
-                        <div className="text-xs text-neutral-400 mt-1 truncate">{g.description}</div>
-
-                        <div className="mt-2 text-[11px] text-neutral-400">
-                          <span className="text-neutral-300 font-semibold">Expectations:</span>{" "}
-                          {g.cadence} · {g.timeCommit} · {g.structure}
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-neutral-300">
-                          <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(g.visibility)}>
-                            {g.visibility}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                            {g.members} members
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                            {g.activityLabel}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(g.mode)}>
-                            {g.mode}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <span
-                          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
-                          style={pillStyleDark(g.category)}
-                        >
-                          {g.category}
-                        </span>
-
-                        <span className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 border-white/12 text-neutral-200">
-                          View
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
-
-            {filteredPublic.length === 0 && (
-              <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5 text-sm text-neutral-300">
-                No groups found. Try a different search.
-              </div>
-            )}
-          </div>
-        </ModalDark>
-      )}
-
-      {/* Create Group Modal */}
+      {/* Create modal */}
       {showCreate && (
-        <ModalDark onClose={closeCreate}>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-sm font-semibold">Create group</div>
-              <div className="text-xs text-neutral-400 mt-1">Private = chat (max 20). Class mode forces Verified.</div>
+        <Modal onClose={() => setShowCreate(false)} title="Create group" subtitle="UI shell — creates a new group in My groups.">
+          <div className="space-y-3">
+            <Field label="Group name">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                style={surfaceSoftStyle}
+                placeholder="e.g., F305 Study Group"
+              />
+            </Field>
+
+            <Field label="Description (optional)">
+              <input
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                style={surfaceSoftStyle}
+                placeholder="What’s this group for?"
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Category">
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value as any)}
+                  className="w-full h-10 rounded-2xl border bg-white px-3 text-sm outline-none"
+                  style={surfaceSoftStyle}
+                >
+                  <option value="Study">Study</option>
+                  <option value="Fitness">Fitness</option>
+                  <option value="Work">Work</option>
+                  <option value="Life">Life</option>
+                </select>
+              </Field>
+
+              <Field label="Type">
+                <select
+                  value={newType}
+                  onChange={(e) => {
+                    const next = e.target.value as GroupType;
+                    setNewType(next);
+                    if (next === "Class hub") setNewVisibility("Verified");
+                  }}
+                  className="w-full h-10 rounded-2xl border bg-white px-3 text-sm outline-none"
+                  style={surfaceSoftStyle}
+                >
+                  <option value="Study group">Study group</option>
+                  <option value="Accountability">Accountability</option>
+                  <option value="Project">Project</option>
+                  <option value="Class hub">Class hub (Verified)</option>
+                  <option value="Organization">Organization</option>
+                </select>
+              </Field>
             </div>
 
-            <button
-              onClick={closeCreate}
-              className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="mt-4 flex gap-2 flex-wrap">
-            {(["Details", "People", "Files"] as CreateTab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setCreateTab(t)}
+            <Field label="Visibility">
+              <select
+                value={newType === "Class hub" ? "Verified" : newVisibility}
+                onChange={(e) => setNewVisibility(e.target.value as any)}
+                disabled={newType === "Class hub"}
                 className={cx(
-                  "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                  createTab === t ? "bg-white/12 border-white/14" : "bg-white/6 border-white/10 hover:bg-white/10"
+                  "w-full h-10 rounded-2xl border bg-white px-3 text-sm outline-none",
+                  newType === "Class hub" && "opacity-70 cursor-not-allowed"
                 )}
-                style={createTab === t ? oliveSoftStyle : undefined}
+                style={surfaceSoftStyle}
               >
-                {t}
-              </button>
-            ))}
+                <option value="Private">Private (chat)</option>
+                <option value="Public">Public (no chat)</option>
+                <option value="Verified">Verified</option>
+              </select>
+              {newType === "Class hub" && (
+                <div className="mt-2 text-[11px] text-neutral-500">
+                  Class hubs aren’t public/private — they’re verified communities (school/org gate later).
+                </div>
+              )}
+            </Field>
           </div>
 
-          <div className="mt-4">
-            {createTab === "Details" && (
-              <div className="space-y-3">
-                <FieldDark label="Group name">
-                  <input
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    className="w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    placeholder="e.g., F305 Study Group"
-                  />
-                </FieldDark>
-
-                <FieldDark label="Description (optional)">
-                  <input
-                    value={newDesc}
-                    onChange={(e) => setNewDesc(e.target.value)}
-                    className="w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    placeholder="What’s this group for?"
-                  />
-                </FieldDark>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <FieldDark label="Category">
-                    <select
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value as any)}
-                      className="w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    >
-                      <option value="Study">Study</option>
-                      <option value="Work">Work</option>
-                      <option value="Fitness">Fitness</option>
-                      <option value="Life">Life</option>
-                    </select>
-                  </FieldDark>
-
-                  <FieldDark label="Mode (purpose)">
-                    <select
-                      value={newMode}
-                      onChange={(e) => {
-                        const next = e.target.value as GroupMode;
-                        setNewMode(next);
-                        if (next === "Class") setNewVisibility("Verified");
-                      }}
-                      className="w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    >
-                      <option value="Class">Class (Verified)</option>
-                      <option value="Study">Study</option>
-                      <option value="Accountability">Accountability</option>
-                      <option value="Project">Project</option>
-                      <option value="Light">Light</option>
-                    </select>
-                  </FieldDark>
-                </div>
-
-                <FieldDark label="Visibility">
-                  <select
-                    value={newMode === "Class" ? "Verified" : newVisibility}
-                    onChange={(e) => setNewVisibility(e.target.value as any)}
-                    disabled={newMode === "Class"}
-                    className={cx(
-                      "w-full rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10",
-                      newMode === "Class" && "opacity-70 cursor-not-allowed"
-                    )}
-                  >
-                    <option value="Private">Private (chat, max 20)</option>
-                    <option value="Public">Public (no chat)</option>
-                    <option value="Verified">Verified (class/org)</option>
-                  </select>
-
-                  {newMode === "Class" && (
-                    <div className="mt-2 text-[11px] text-neutral-500">
-                      Class hubs aren’t public/private — they’re verified communities (e.g., school email gate).
-                    </div>
-                  )}
-                </FieldDark>
-              </div>
-            )}
-
-            {createTab === "People" && (
-              <div>
-                <div className="text-sm text-neutral-200">Add people (emails or names). Private groups are max 20.</div>
-
-                <div className="mt-3 flex gap-2">
-                  <input
-                    value={personInput}
-                    onChange={(e) => setPersonInput(e.target.value)}
-                    className="flex-1 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    placeholder="e.g., dylan@gmail.com"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") addPerson();
-                    }}
-                  />
-                  <button
-                    onClick={addPerson}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                    style={oliveSoftStyle}
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {people.length === 0 ? (
-                    <div className="text-sm text-neutral-400">No people added yet.</div>
-                  ) : (
-                    people.map((p) => (
-                      <div
-                        key={p}
-                        className="flex items-center justify-between rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2"
-                      >
-                        <div className="text-sm text-neutral-100">{p}</div>
-                        <button
-                          onClick={() => removePerson(p)}
-                          className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {createTab === "Files" && (
-              <div>
-                <div className="text-sm text-neutral-200">Attach files (names/links for now).</div>
-
-                <div className="mt-3 flex gap-2">
-                  <input
-                    value={fileInput}
-                    onChange={(e) => setFileInput(e.target.value)}
-                    className="flex-1 rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/10"
-                    placeholder="e.g., Exam 1 Formula Sheet.pdf"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") addFile();
-                    }}
-                  />
-                  <button
-                    onClick={addFile}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/10 hover:bg-white/14 transition"
-                    style={oliveSoftStyle}
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {files.length === 0 ? (
-                    <div className="text-sm text-neutral-400">No files added yet.</div>
-                  ) : (
-                    files.map((f) => (
-                      <div
-                        key={f}
-                        className="flex items-center justify-between rounded-2xl border border-white/12 bg-neutral-900/35 px-3 py-2"
-                      >
-                        <div className="text-sm text-neutral-100">{f}</div>
-                        <button
-                          onClick={() => removeFile(f)}
-                          className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 flex gap-2 justify-end">
+          <div className="mt-6 flex justify-end gap-2">
             <button
-              onClick={closeCreate}
-              className="rounded-2xl px-3 py-2 text-xs font-semibold border border-white/12 bg-transparent hover:bg-white/6 transition"
+              onClick={() => setShowCreate(false)}
+              className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+              style={surfaceSoftStyle}
             >
               Cancel
             </button>
             <button
               onClick={createGroupNow}
-              className="rounded-2xl px-3 py-2 text-xs font-semibold text-white"
-              style={{ backgroundColor: OLIVE }}
+              className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+              style={{
+                ...surfaceSoftStyle,
+                borderColor: rgbaBrand(0.22),
+                boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
+              }}
             >
               Create
             </button>
           </div>
-        </ModalDark>
+        </Modal>
+      )}
+
+      {/* Find modal (Discover browser) */}
+      {showFind && (
+        <Modal
+          onClose={() => setShowFind(false)}
+          title="Find a group"
+          subtitle="UI shell — browse Discover. (Public groups have no chat.)"
+          maxWidthClass="max-w-4xl"
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <div
+              className="flex items-center gap-2 rounded-2xl border bg-white px-3 h-10 min-w-[280px] flex-1"
+              style={surfaceSoftStyle}
+            >
+              <Search size={16} className="text-neutral-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search discover…"
+                className="w-full bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400"
+              />
+            </div>
+
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as any)}
+              className="h-10 rounded-2xl border bg-white px-3 text-sm outline-none"
+              style={surfaceSoftStyle}
+            >
+              <option value="All">All</option>
+              <option value="Study">Study</option>
+              <option value="Fitness">Fitness</option>
+              <option value="Work">Work</option>
+              <option value="Life">Life</option>
+            </select>
+          </div>
+
+          <div className="mt-4 space-y-3 max-h-[62vh] overflow-y-auto pr-1">
+            {filtered
+              .filter((g) => tab === "Discover") // ensure discover list
+              .map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => {
+                    setShowFind(false);
+                    openGroupModal(g);
+                  }}
+                  className="w-full text-left rounded-3xl border bg-white px-5 py-4 hover:bg-black/[0.02] transition"
+                  style={surfaceStyle}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold text-neutral-900 truncate">{g.name}</div>
+                      <div className="mt-1 text-sm text-neutral-600">{g.description}</div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={badgeStyle(g.visibility === "Verified" ? "Verified" : g.visibility)}
+                        >
+                          {g.visibility}
+                        </span>
+
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={badgeStyle(g.active ? "Active" : "Quiet")}
+                        >
+                          {g.active ? "Active" : "Quiet"}
+                        </span>
+
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={badgeStyle("Chat")}
+                        >
+                          {g.chatEnabled ? "Chat · max 20" : "No chat"}
+                        </span>
+
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={pillStyleBase(false)}
+                        >
+                          {g.category}
+                        </span>
+
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={pillStyleBase(false)}
+                        >
+                          {g.memberCount} members
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <div className="text-[11px] text-neutral-500">{g.lastActivity}</div>
+                      <div className="mt-1 text-sm text-neutral-800 max-w-[260px] leading-snug">{g.lastActivityText}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+
+            {tab === "Discover" && filtered.length === 0 && (
+              <div className="rounded-3xl border bg-white p-6" style={surfaceSoftStyle}>
+                <div className="text-sm font-semibold text-neutral-900">No matches</div>
+                <div className="mt-1 text-sm text-neutral-600 leading-relaxed">Try a different search.</div>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Invites / Requests modal */}
+      {showInvites && (
+        <Modal onClose={() => setShowInvites(false)} title="Invites / requests" subtitle="UI shell — this becomes your group invites inbox.">
+          <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
+            <div className="text-sm font-semibold">Nothing pending</div>
+            <div className="mt-1 text-sm text-neutral-600">
+              When someone invites you to a private group or a verified hub, it shows up here.
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={() => {
+                  setShowInvites(false);
+                  showToast("All caught up");
+                }}
+                className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                style={surfaceSoftStyle}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Group Modal */}
       {openGroup && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/70" onClick={closeGroupModal} />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 bg-black/40" onClick={closeGroupModal} />
+
+          {/* FIX: anchor from top + allow scroll so it never clips */}
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-6 pb-6 px-4">
             <div
               className={cx(
-                "relative bg-neutral-950 border border-white/15 shadow-2xl transition-all duration-200 ease-out overflow-hidden flex flex-col",
-                groupExpanded ? "w-full h-full rounded-none" : "w-[92vw] max-w-[1200px] h-[85vh] rounded-3xl"
+                "relative bg-white border transition-all duration-200 ease-out overflow-hidden flex flex-col",
+                groupExpanded
+                  ? "w-full min-h-[calc(100vh-3.5rem)] rounded-none"
+                  : "w-[92vw] max-w-[1200px] mt-2 rounded-3xl h-[calc(100vh-3.5rem)]"
+
               )}
-              style={{ boxShadow: "0 0 0 1px rgba(85,107,47,0.30), 0 28px 90px rgba(0,0,0,0.70)" }}
+              style={{
+                borderColor: "rgba(0,0,0,0.10)",
+                boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 28px 90px rgba(0,0,0,0.14)",
+                background: "white",
+              }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal header */}
-              <div className="h-12 px-4 flex items-center border-b border-white/10 shrink-0">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-white truncate">{openGroup.name}</div>
+              {/* Header */}
+              <div className="min-h-[64px] px-6 py-3 flex items-center border-b shrink-0" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                <div className="min-w-0 leading-tight">
+                    <div className="text-[15px] font-semibold text-neutral-900 truncate">{openGroup.name}</div>
+                  <div className="text-[11px] text-neutral-500 truncate">{openGroup.description}</div>
                 </div>
 
                 <div className="ml-auto flex items-center gap-2">
+                  {/* Invite button */}
+                  {tab === "My groups" && (
+                    <div className="flex items-center gap-2">
+                      <div className="hidden md:flex items-center gap-2 rounded-2xl border bg-white px-2 h-9" style={surfaceSoftStyle}>
+                        <input
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                          placeholder="Invite by email…"
+                          className="w-[220px] bg-transparent outline-none text-sm placeholder:text-neutral-400"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") inviteToGroup();
+                          }}
+                        />
+                        <button
+                          onClick={inviteToGroup}
+                          className="h-7 rounded-xl px-2 text-[11px] font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={{
+                            ...surfaceSoftStyle,
+                            borderColor: rgbaBrand(0.18),
+                          }}
+                        >
+                          Invite
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          // Mobile / quick invite prompt
+                          const email = window.prompt("Invite email:");
+                          if (!email) return;
+                          setInviteEmail(email);
+                          setTimeout(() => inviteToGroup(), 0);
+                        }}
+                        className="md:hidden h-9 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                        style={surfaceSoftStyle}
+                      >
+                        Invite
+                      </button>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => setGroupExpanded((v) => !v)}
-                    className="h-8 w-8 rounded-lg border border-white/20 text-white hover:bg-white/10 transition"
+                    className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                    style={surfaceSoftStyle}
                     title={groupExpanded ? "Exit full screen" : "Full screen"}
                   >
                     ⛶
                   </button>
                   <button
                     onClick={closeGroupModal}
-                    className="h-8 w-8 rounded-lg border border-white/20 text-white hover:bg-white/10 transition"
+                    className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                    style={surfaceSoftStyle}
                     title="Close"
                   >
                     ✕
@@ -1199,71 +1367,95 @@ export default function GroupsPage() {
                 </div>
               </div>
 
-              {/* Modal body */}
+              {/* Body */}
               <div className="flex-1 min-h-0 overflow-hidden">
                 <div className="h-full grid grid-cols-1 lg:grid-cols-12">
                   {/* Left */}
                   <div className="lg:col-span-8 p-5 overflow-y-auto">
-                    {/* Primary summary */}
-                    <div className="rounded-3xl border bg-white/6 p-4" style={primaryPanelStyle}>
+                    {/* Summary */}
+                    <div
+                      className="rounded-3xl border bg-white p-4"
+                      style={{
+                        ...surfaceStyle,
+                        borderColor: openGroup.visibility === "Verified" ? rgbaBrand(0.22) : "rgba(0,0,0,0.08)",
+                      }}
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-white truncate">{openGroup.description}</div>
-                          <div className="mt-1 text-xs text-neutral-400">
-                            {openGroup.mode === "Class"
-                              ? "See pacing + assignments — without member lists."
+                          <div className="text-sm font-semibold text-neutral-900 truncate">{openGroup.description}</div>
+                          <div className="mt-1 text-xs text-neutral-600">
+                            {openGroup.type === "Class hub"
+                              ? "Class hub: assignments + pacing insights — no member lists."
+                              : openGroup.visibility === "Private"
+                              ? "Private group: keep chat small and practical."
+                              : openGroup.type === "Organization"
+                              ? "Organization: see members + message people."
                               : "Clear expectations before you commit."}
                           </div>
                         </div>
+
                         <span
-                          className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border shrink-0"
-                          style={pillStyleDark(openGroup.category)}
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={pillStyleBase(false)}
                         >
                           {openGroup.category}
                         </span>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-neutral-300">
-                        <span className="px-2 py-0.5 rounded-full border" style={visibilityPillStyle(openGroup.visibility)}>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={badgeStyle(openGroup.visibility === "Verified" ? "Verified" : openGroup.visibility)}
+                        >
                           {openGroup.visibility}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                          {openGroup.members} members{openGroup.mode === "Class" ? " (not shown individually)" : ""}
+
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={badgeStyle(openGroup.active ? "Active" : "Quiet")}
+                        >
+                          {openGroup.active ? "Active" : "Quiet"}
                         </span>
-                        {openGroup.visibility === "Private" && (
-                          <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                            Chat • max {openGroup.memberLimit ?? 20}
-                          </span>
-                        )}
-                        <span className="px-2 py-0.5 rounded-full border border-white/12 bg-white/6">
-                          {openGroup.activityLabel}
+
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={badgeStyle("Chat")}
+                        >
+                          {openGroup.chatEnabled ? "Chat · max 20" : "No chat"}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full border" style={modePillStyle(openGroup.mode)}>
-                          {openGroup.mode}
+
+                        <span
+                          className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+                          style={pillStyleBase(false)}
+                        >
+                          {openGroup.memberCount} members
                         </span>
                       </div>
 
-                      {openGroup.mode === "Class" && classStats && (
+                      <div className="mt-3 text-sm text-neutral-800">
+                        <span className="text-neutral-500">Expectations:</span> {openGroup.expectations}
+                      </div>
+
+                      {openGroup.type === "Class hub" && openGroup.classStats && (
                         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          <MiniStat label="Avg / week" value={classStats.avgTimePerWeek} />
-                          <MiniStat label="Difficulty" value={classStats.difficulty} />
-                          <MiniStat label="Exam 1 avg" value={classStats.exam1Avg} />
-                          <MiniStat label="Exam 2 avg" value={classStats.exam2Avg} />
+                          <MiniStat label="Avg / week" value={openGroup.classStats.avgTimePerWeek} />
+                          <MiniStat label="Difficulty" value={openGroup.classStats.difficulty} />
+                          <MiniStat label="Exam 1 avg" value={openGroup.classStats.exam1Avg} />
+                          <MiniStat label="Exam 2 avg" value={openGroup.classStats.exam2Avg} />
                         </div>
                       )}
                     </div>
 
-                    {/* Tabs */}
+                    {/* Tabs (no Assistant tab) */}
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {modalTabs.map((t) => (
+                      {getGroupTabs(openGroup).map((t) => (
                         <button
                           key={t}
-                          onClick={() => setGroupModalTab(t)}
+                          onClick={() => setGroupTab(t)}
                           className={cx(
                             "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                            groupModalTab === t ? "bg-white/12 border-white/14" : "bg-white/6 border-white/10 hover:bg-white/10"
+                            groupTab === t ? "bg-neutral-900 text-white border-neutral-900" : "bg-white border-neutral-200 hover:bg-neutral-50"
                           )}
-                          style={groupModalTab === t ? oliveSoftStyle : undefined}
                         >
                           {t}
                         </button>
@@ -1272,34 +1464,33 @@ export default function GroupsPage() {
 
                     {/* Content */}
                     <div className="mt-4 space-y-4">
-                      {/* CLASS: Assignments */}
-                      {openGroup.mode === "Class" && groupModalTab === "Assignments" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
+                      {/* Assignments (class) */}
+                      {groupTab === "Assignments" && openGroup.type === "Class hub" && (
+                        <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="text-sm font-semibold text-white">Upcoming assignments</div>
-                              <div className="mt-1 text-xs text-neutral-400">
-                                UI shell — later sync from syllabus/LMS or community submissions.
-                              </div>
+                              <div className="text-sm font-semibold text-neutral-900">Upcoming assignments</div>
+                              <div className="mt-1 text-xs text-neutral-600">UI shell — sync later from syllabus/LMS.</div>
                             </div>
                             <span className="text-[11px] text-neutral-500">Focus</span>
                           </div>
 
                           <div className="mt-4 space-y-2">
-                            {(classInfo?.upcomingAssignments ?? []).length === 0 ? (
-                              <div className="text-sm text-neutral-400">No assignments added yet.</div>
+                            {(openGroup.upcomingAssignments ?? []).length === 0 ? (
+                              <div className="text-sm text-neutral-600">No assignments added yet.</div>
                             ) : (
-                              (classInfo?.upcomingAssignments ?? []).map((a) => (
+                              (openGroup.upcomingAssignments ?? []).map((a) => (
                                 <div
                                   key={a.title + a.due}
-                                  className="rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3"
+                                  className="rounded-2xl border bg-white px-3 py-3"
+                                  style={surfaceSoftStyle}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <div className="text-sm font-semibold text-neutral-100 truncate">{a.title}</div>
-                                      <div className="mt-1 text-xs text-neutral-400">Due {a.due}</div>
+                                      <div className="text-sm font-semibold text-neutral-900 truncate">{a.title}</div>
+                                      <div className="mt-1 text-xs text-neutral-600">Due {a.due}</div>
                                     </div>
-                                    <div className="text-[11px] text-neutral-400 whitespace-nowrap">{a.estTime}</div>
+                                    <div className="text-[11px] text-neutral-600 whitespace-nowrap">{a.estTime}</div>
                                   </div>
                                 </div>
                               ))
@@ -1308,134 +1499,36 @@ export default function GroupsPage() {
                         </div>
                       )}
 
-                      {/* CLASS: Insights */}
-                      {openGroup.mode === "Class" && groupModalTab === "Insights" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Insights</div>
-                          <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
-                            UI shell — this becomes *collective pacing intelligence*:
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <InsightCard title="Study ramp" body="Most people ramp study time ~6 days before Exam 1." meta="Example" />
-                            <InsightCard
-                              title="Confusion cluster"
-                              body="Top confusion topics this week: WACC sensitivities, real vs nominal."
-                              meta="Example"
-                            />
-                            <InsightCard
-                              title="Recommended pacing"
-                              body="3 × 60-min blocks beats 1 big cram (opt-in schedule suggestion)."
-                              meta="Example"
-                            />
-                            <InsightCard
-                              title="Difficulty pulse"
-                              body="Perceived difficulty trend can change week-to-week (aggregated)."
-                              meta="Example"
-                            />
-                          </div>
-
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
-                            <div className="text-xs text-neutral-400">Privacy by design: no member lists, only aggregated stats.</div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* CLASS: Schedule */}
-                      {groupModalTab === "Schedule" && openGroup.mode === "Class" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Schedule</div>
-                          <div className="mt-2 text-sm text-neutral-300">UI shell — opt-in suggestions only. Nothing forced.</div>
-
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
-                            <div className="text-xs text-neutral-400">
-                              Example: “Suggest a 60-min block Sunday afternoon” based on class pacing.
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Files */}
-                      {groupModalTab === "Files" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Files</div>
-                          <div className="mt-2 text-sm text-neutral-300">
-                            UI shell — connects to your Files tab and adds “group context.”
-                          </div>
-
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
-                            <div className="text-xs text-neutral-400">No files yet.</div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* CLASS: metadata */}
-                      {openGroup.mode === "Class" && groupModalTab === "Class" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Course info</div>
-
-                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <InfoRowSoft label="School" value={classInfo?.schoolLabel ?? "—"} />
-                            <InfoRowSoft
-                              label="Course"
-                              value={`${classInfo?.courseCode ?? "—"} • ${classInfo?.courseTitle ?? ""}`}
-                            />
-                            <InfoRowSoft label="Instructor" value={classInfo?.instructor ?? "—"} />
-                            <InfoRowSoft label="Term" value={classInfo?.term ?? "—"} />
-                            <InfoRowSoft label="Verification" value={classInfo?.verifiedRuleLabel ?? "—"} />
-                            <InfoRowSoft label="Members" value={`${openGroup.members} (not shown individually)`} />
-                          </div>
-
-                          <div className="mt-4">
-                            <div className="text-xs font-semibold text-neutral-300">Most difficult concepts</div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {(classStats?.mostDifficultConcepts ?? []).length === 0 ? (
-                                <span className="text-sm text-neutral-400">No data yet.</span>
-                              ) : (
-                                (classStats?.mostDifficultConcepts ?? []).map((x) => (
-                                  <span
-                                    key={x}
-                                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-neutral-200"
-                                    style={oliveSoftStyle}
-                                  >
-                                    {x}
-                                  </span>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* NON-CLASS: Chat */}
-                      {canShowChat && groupModalTab === "Chat" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
+                      {/* Chat (private only) */}
+                      {groupTab === "Chat" && openGroup.visibility === "Private" && openGroup.chatEnabled && (
+                        <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="text-sm font-semibold text-white">Group chat</div>
-                              <div className="text-xs text-neutral-400 mt-1">
-                                Private groups only (max {openGroup.memberLimit ?? 20}). UI shell.
-                              </div>
+                              <div className="text-sm font-semibold text-neutral-900">Group chat</div>
+                              <div className="text-xs text-neutral-600 mt-1">Private groups only (max 20). UI shell.</div>
                             </div>
                             <div className="text-[11px] text-neutral-500">MVP</div>
                           </div>
 
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 p-3 h-[320px] overflow-y-auto">
+                          <div className="mt-4 rounded-2xl border bg-white p-3 h-[320px] overflow-y-auto" style={surfaceSoftStyle}>
                             <div className="space-y-3">
-                              {chatMsgs.map((m) => (
+                              {(chatByGroup[openGroup.id] ?? []).map((m) => (
                                 <div key={m.id} className="flex items-start gap-3">
                                   <div
-                                    className="h-8 w-8 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center text-[10px] font-semibold"
-                                    style={m.who === "You" ? oliveSoftStyle : undefined}
+                                    className="h-8 w-8 rounded-xl border bg-white flex items-center justify-center text-[10px] font-semibold text-neutral-800"
+                                    style={{
+                                      ...surfaceSoftStyle,
+                                      borderColor: m.who === "You" ? rgbaBrand(0.30) : "rgba(0,0,0,0.10)",
+                                    }}
                                   >
                                     {m.who === "You" ? "YOU" : "MEM"}
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
-                                      <div className="text-xs font-semibold text-neutral-200">{m.who}</div>
+                                      <div className="text-xs font-semibold text-neutral-900">{m.who}</div>
                                       <div className="text-[11px] text-neutral-500">{m.ts}</div>
                                     </div>
-                                    <div className="mt-1 text-sm text-neutral-100 leading-relaxed">{m.text}</div>
+                                    <div className="mt-1 text-sm text-neutral-900 leading-relaxed">{m.text}</div>
                                   </div>
                                 </div>
                               ))}
@@ -1447,15 +1540,16 @@ export default function GroupsPage() {
                               value={chatDraft}
                               onChange={(e) => setChatDraft(e.target.value)}
                               placeholder="Message…"
-                              className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
+                              className="flex-1 rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-500"
+                              style={surfaceSoftStyle}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") sendChat();
                               }}
                             />
                             <button
                               onClick={sendChat}
-                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/8 hover:bg-white/12 transition border-white/10"
-                              style={oliveSoftStyle}
+                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                              style={surfaceSoftStyle}
                             >
                               Send
                             </button>
@@ -1463,54 +1557,126 @@ export default function GroupsPage() {
                         </div>
                       )}
 
-                      {/* NON-CLASS: Overview */}
-                      {groupModalTab === "Overview" && openGroup.mode !== "Class" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Overview</div>
-                          <div className="mt-2 text-sm text-neutral-300 leading-relaxed">
-                            UI shell — this becomes “one-screen clarity”:
-                            <ul className="mt-2 space-y-1">
-                              <li>• What it is</li>
-                              <li>• What it expects</li>
-                              <li>• What you get from it</li>
-                              <li>• Where it touches your schedule (optional)</li>
-                            </ul>
+                      {/* People (org + private) */}
+                      {groupTab === "People" && (
+                        <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-neutral-900">People</div>
+                              <div className="mt-1 text-xs text-neutral-600">
+                                {openGroup.type === "Class hub"
+                                  ? "Class hubs don’t show member lists (privacy by design)."
+                                  : openGroup.type === "Organization"
+                                  ? "Organizations: view members + message people."
+                                  : "Private groups: view members (UI shell)."}
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-neutral-500">{openGroup.memberCount} total</div>
                           </div>
+
+                          {openGroup.type === "Class hub" ? (
+                            <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                              <div className="text-sm text-neutral-700">
+                                Member list hidden. You only see aggregated stats + assignments.
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-4 space-y-2">
+                              {(openGroup.membersList ?? []).length === 0 ? (
+                                <div className="text-sm text-neutral-600">No member list yet.</div>
+                              ) : (
+                                (openGroup.membersList ?? []).map((m) => (
+                                  <div
+                                    key={m.id}
+                                    className="rounded-2xl border bg-white px-3 py-3 flex items-center justify-between gap-3"
+                                    style={surfaceSoftStyle}
+                                  >
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-semibold text-neutral-900 truncate">{m.name}</div>
+                                      {m.email ? (
+                                        <div className="text-[11px] text-neutral-500 truncate">{m.email}</div>
+                                      ) : null}
+                                    </div>
+
+                                    {/* DM only for Organizations (your request) */}
+                                    {openGroup.type === "Organization" ? (
+                                      <button
+                                        onClick={() => showToast(`DM to ${m.name} (UI shell)`)}
+                                        className="h-9 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                                        style={{
+                                          ...surfaceSoftStyle,
+                                          borderColor: rgbaBrand(0.18),
+                                        }}
+                                      >
+                                        Message
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* NON-CLASS: Expectations */}
-                      {groupModalTab === "Expectations" && openGroup.mode !== "Class" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Expectations</div>
-                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <StatCardSoft title="Cadence" value={openGroup.cadence} />
-                            <StatCardSoft title="Time" value={openGroup.timeCommit} />
-                            <StatCardSoft title="Structure" value={openGroup.structure} />
+                      {/* Overview */}
+                      {groupTab === "Overview" && (
+                        <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
+                          <div className="text-sm font-semibold text-neutral-900">Overview</div>
+                          <div className="mt-2 text-sm text-neutral-700 leading-relaxed">
+                            {openGroup.type === "Class hub" ? (
+                              <>
+                                This is a <b>verified class hub</b>. You’ll see assignments + pacing insights,
+                                but not member lists.
+                              </>
+                            ) : openGroup.type === "Organization" ? (
+                              <>
+                                This is an <b>organization</b>. You can view members and privately message people.
+                              </>
+                            ) : openGroup.visibility === "Private" ? (
+                              <>
+                                This is a <b>private group</b>. Chat is enabled (max 20). Keep it coordination-only.
+                              </>
+                            ) : (
+                              <>This is a <b>public group</b>. No chat in MVP — join for structure + expectations.</>
+                            )}
                           </div>
-                        </div>
-                      )}
 
-                      {/* NON-CLASS: People */}
-                      {groupModalTab === "People" && openGroup.mode !== "Class" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">People</div>
-                          <div className="mt-2 text-sm text-neutral-300">
-                            UI shell — later show member list for private groups (or limited roles).
-                          </div>
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-950/35 px-3 py-3">
-                            <div className="text-xs text-neutral-400">
-                              Current: {openGroup.members} members. (List hidden in MVP.)
+                          <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                            <div className="text-xs text-neutral-600">
+                              UI shell: schedule suggestions + files attach later.
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* NON-CLASS: Schedule */}
-                      {groupModalTab === "Schedule" && openGroup.mode !== "Class" && (
-                        <div className="rounded-3xl border border-white/12 bg-neutral-900/35 p-5">
-                          <div className="text-sm font-semibold text-white">Schedule</div>
-                          <div className="mt-2 text-sm text-neutral-300">UI shell — later becomes opt-in schedule suggestions.</div>
+                      {/* Files */}
+                      {groupTab === "Files" && (
+                        <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
+                          <div className="text-sm font-semibold text-neutral-900">Files</div>
+                          <div className="mt-2 text-sm text-neutral-700">
+                            UI shell — connects to your Files tab and adds group context.
+                          </div>
+
+                          <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                            <div className="text-xs text-neutral-600">No files yet.</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Schedule */}
+                      {groupTab === "Schedule" && (
+                        <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
+                          <div className="text-sm font-semibold text-neutral-900">Schedule</div>
+                          <div className="mt-2 text-sm text-neutral-700">
+                            UI shell — opt-in schedule suggestions only. Nothing forced.
+                          </div>
+
+                          <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                            <div className="text-xs text-neutral-600">
+                              Example: “Suggest a 60-min block Sunday afternoon” based on pacing.
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1518,75 +1684,46 @@ export default function GroupsPage() {
                     <div className="h-6" />
                   </div>
 
-                  {/* Right (assistant reduced + collapsible) */}
-                  <div className="lg:col-span-4 p-5 border-l border-white/10 bg-neutral-950/40">
-                    <div className="rounded-3xl border border-white/12 bg-white/6 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-semibold">Assistant</div>
-                          <div className="text-xs text-neutral-400 mt-1">Ask about expectations, pacing, or schedule fit.</div>
-                        </div>
-
+                  {/* Right column (NO assistant block) */}
+                  <div className="lg:col-span-4 p-5 border-l bg-neutral-50" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                    <div className="rounded-3xl border bg-white p-4" style={surfaceSoftStyle}>
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">At a glance</div>
                         <button
-                          onClick={() => setAssistantCollapsed((v) => !v)}
-                          className="rounded-xl px-2 py-1 text-xs border border-white/12 bg-white/6 hover:bg-white/10 transition"
+                          onClick={() => showToast("Notifications (UI shell)")}
+                          className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                          style={surfaceSoftStyle}
+                          title="Notifications"
                         >
-                          {assistantCollapsed ? "Open" : "Hide"}
+                          <Bell size={16} />
                         </button>
                       </div>
 
-                      {!assistantCollapsed && (
-                        <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 p-3">
-                          <div className="text-[11px] text-neutral-500">
-                            Example: “How much do people study for Exam 1?” or “What’s the hardest topic?”
-                          </div>
-                          <div className="mt-3 flex gap-2">
-                            <input
-                              value={assistantInput}
-                              onChange={(e) => setAssistantInput(e.target.value)}
-                              placeholder="Ask…"
-                              className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
-                            />
-                            <button
-                              onClick={() => {
-                                if (!assistantInput.trim()) return;
-                                alert("UI shell — assistant response later");
-                                setAssistantInput("");
-                              }}
-                              className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white/8 hover:bg-white/12 transition border-white/10"
-                              style={oliveSoftStyle}
-                            >
-                              Send
-                            </button>
-                          </div>
+                      <div className="mt-3 space-y-2">
+                        <InfoLine label="Type" value={openGroup.type} />
+                        <InfoLine label="Visibility" value={openGroup.visibility} />
+                        <InfoLine label="Members" value={`${openGroup.memberCount}`} />
+                        <InfoLine label="Chat" value={openGroup.chatEnabled ? "Enabled (private only)" : "Off"} />
+                      </div>
+
+                      <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                        <div className="text-xs text-neutral-600">
+                          Design rule: no feeds, no streak pressure, no noise.
                         </div>
-                      )}
-
-                      <div className="mt-4 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
-                        <div className="text-xs text-neutral-400">Design rule: no feeds, no streak pressure, no noise.</div>
                       </div>
                     </div>
 
-                    <div className="mt-4 rounded-3xl border border-white/12 bg-white/6 p-4">
-                      <div className="text-sm font-semibold">Expectations</div>
-                      <div className="mt-2 text-sm text-neutral-300">
-                        {openGroup.cadence}
-                        <div className="text-xs text-neutral-400 mt-1">{openGroup.timeCommit}</div>
-                        <div className="text-xs text-neutral-400 mt-1">Structure: {openGroup.structure}</div>
-                      </div>
-                    </div>
-
-                    {openGroup.visibility === "Private" && (
-                      <div className="mt-4 rounded-3xl border border-white/12 bg-white/6 p-4">
+                    {openGroup.visibility === "Private" ? (
+                      <div className="mt-4 rounded-3xl border bg-white p-4" style={surfaceSoftStyle}>
                         <div className="text-sm font-semibold">Private group rules</div>
-                        <div className="mt-2 text-sm text-neutral-300">Chat enabled • Max {openGroup.memberLimit ?? 20}</div>
-                        <div className="mt-3 rounded-2xl border border-white/10 bg-neutral-900/30 px-3 py-3">
-                          <div className="text-xs text-neutral-400">
-                            Use for coordination (projects, scheduling). Public groups don’t have chat.
+                        <div className="mt-2 text-sm text-neutral-700">Chat enabled • Max 20</div>
+                        <div className="mt-3 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                          <div className="text-xs text-neutral-600">
+                            Use for coordination (projects, scheduling). Keep it simple.
                           </div>
                         </div>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1598,79 +1735,254 @@ export default function GroupsPage() {
   );
 }
 
+function getGroupTabs(g: Group): GroupModalTab[] {
+  if (g.type === "Class hub") return ["Assignments", "Overview", "Schedule", "Files"];
+  if (g.visibility === "Private" && g.chatEnabled) return ["Chat", "Overview", "People", "Schedule", "Files"];
+  if (g.type === "Organization") return ["People", "Overview", "Files"];
+  return ["Overview", "People", "Schedule", "Files"];
+}
+
+function GroupRow({
+  group,
+  isMyGroups,
+  onOpen,
+  onTogglePin,
+  onNotify,
+}: {
+  group: Group;
+  isMyGroups: boolean;
+  onOpen: () => void;
+  onTogglePin: () => void;
+  onNotify: (txt: string) => void;
+}) {
+  const leftDot = group.verified ? rgbaBrand(0.9) : "rgba(0,0,0,0.22)";
+  const visibilityBadge =
+    group.visibility === "Verified" ? "Verified" : group.visibility === "Private" ? "Private" : "Public";
+  const hasUnread = !!group.unread && group.unread > 0 && group.chatEnabled;
+
+  // FIX: Make the whole card clickable WITHOUT nesting buttons.
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className={cx(
+        "w-full rounded-3xl border bg-white px-5 py-4 transition relative overflow-hidden cursor-pointer",
+        "hover:bg-black/[0.02] hover:-translate-y-[1px]"
+      )}
+      style={{
+        borderColor: "rgba(0,0,0,0.08)",
+        boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+      }}
+    >
+      {/* subtle left accent */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-[6px]"
+        style={{
+          background: `linear-gradient(to bottom, ${leftDot}, rgba(255,255,255,0))`,
+          opacity: 0.55,
+        }}
+      />
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="text-base font-semibold text-neutral-900 truncate">{group.name}</div>
+
+            {isMyGroups ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onTogglePin();
+                  onNotify(group.pinned ? "Unpinned" : "Pinned");
+                }}
+                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] font-semibold hover:bg-black/[0.02] transition"
+                style={{
+                  borderColor: group.pinned ? rgbaBrand(0.22) : "rgba(0,0,0,0.10)",
+                  background: group.pinned ? rgbaBrand(0.10) : "rgba(0,0,0,0.02)",
+                  color: "rgba(0,0,0,0.78)",
+                }}
+                title={group.pinned ? "Unpin" : "Pin"}
+              >
+                <Pin size={12} />
+                {group.pinned ? "Pinned" : "Pin"}
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-1 text-sm text-neutral-600 leading-relaxed">{group.description}</div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+              style={badgeStyle(group.verified ? "Verified" : (visibilityBadge as any))}
+            >
+              {visibilityBadge}
+            </span>
+
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+              style={badgeStyle(group.active ? "Active" : "Quiet")}
+            >
+              {group.active ? "Active" : "Quiet"}
+            </span>
+
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+              style={badgeStyle("Chat")}
+            >
+              {group.chatEnabled ? "Chat · max 20" : "No chat"}
+            </span>
+
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+              style={pillStyleBase(false)}
+            >
+              {group.category}
+            </span>
+
+            <span
+              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
+              style={pillStyleBase(false)}
+            >
+              {group.memberCount} members
+            </span>
+          </div>
+
+          <div className="mt-3 text-sm text-neutral-800">
+            <span className="text-neutral-500">Expectations:</span> {group.expectations}
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div className="shrink-0 text-right">
+          <div className="text-[11px] text-neutral-500">{group.lastActivity}</div>
+          <div className="mt-1 text-sm text-neutral-800 max-w-[260px] leading-snug">{group.lastActivityText}</div>
+
+          <div className="mt-3 flex items-center justify-end gap-2">
+            {group.chatEnabled ? (
+              <div className="relative">
+                <span
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-2xl border bg-white"
+                  style={surfaceSoftStyle}
+                  aria-label="Chat"
+                  title="Chat"
+                >
+                  <MessageSquare size={16} />
+                </span>
+
+                {hasUnread ? (
+                  <span
+                    className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full border text-[11px] font-semibold flex items-center justify-center"
+                    style={{
+                      borderColor: rgbaBrand(0.30),
+                      background: rgbaBrand(0.14),
+                      color: "rgba(0,0,0,0.82)",
+                      boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
+                    }}
+                    title={`${group.unread} unread`}
+                  >
+                    {group.unread}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            <span
+              className="inline-flex items-center justify-center h-9 w-9 rounded-2xl border bg-white"
+              style={{
+                ...surfaceSoftStyle,
+                borderColor: rgbaBrand(0.18),
+              }}
+              aria-label="Members"
+              title="Members"
+            >
+              <Users size={16} />
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- small UI primitives ---------- */
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-2">
+    <div className="rounded-2xl border bg-white px-3 py-2" style={surfaceSoftStyle}>
       <div className="text-[10px] text-neutral-500">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold text-neutral-100">{value}</div>
+      <div className="mt-0.5 text-sm font-semibold text-neutral-900">{value}</div>
     </div>
   );
 }
 
-function InfoRowSoft({ label, value }: { label: string; value: string }) {
+function InfoLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border bg-white px-3 py-2" style={surfaceSoftStyle}>
       <div className="text-[11px] text-neutral-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-neutral-100">{value}</div>
+      <div className="text-sm font-semibold text-neutral-900">{value}</div>
     </div>
   );
 }
 
-function StatCardSoft({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-3">
-      <div className="text-[11px] text-neutral-500">{title}</div>
-      <div className="mt-1 text-sm font-semibold text-neutral-100">{value}</div>
-    </div>
-  );
-}
-
-function InsightCard({ title, body, meta }: { title: string; body: string; meta: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-neutral-950/30 px-3 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-neutral-100">{title}</div>
-        <div className="text-[11px] text-neutral-500">{meta}</div>
-      </div>
-      <div className="mt-2 text-sm text-neutral-300 leading-relaxed">{body}</div>
-    </div>
-  );
-}
-
-function FieldDark({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs font-medium text-neutral-400 mb-1">{label}</div>
+      <div className="text-xs font-medium text-neutral-600 mb-1">{label}</div>
       {children}
     </div>
   );
 }
 
-function ModalDark({
-  children,
+function Modal({
   onClose,
+  title,
+  subtitle,
+  children,
   maxWidthClass = "max-w-lg",
 }: {
-  children: ReactNode;
   onClose: () => void;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
   maxWidthClass?: string;
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      style={{ background: "rgba(0,0,0,0.55)" }}
+      className="fixed inset-0 z-[70] flex items-center justify-center px-4"
+      style={{ background: "rgba(0,0,0,0.35)" }}
       onClick={onClose}
     >
       <div
-        className={cx("w-full rounded-3xl border border-white/10 bg-neutral-950/85 backdrop-blur p-6", maxWidthClass)}
-        style={{
-          boxShadow: "0 0 0 1px rgba(85,107,47,0.25), 0 30px 90px rgba(0,0,0,0.75)",
-        }}
+        className={cx("w-full rounded-3xl border bg-white p-6", maxWidthClass)}
+        style={{ boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 30px 90px rgba(0,0,0,0.18)", borderColor: "rgba(0,0,0,0.10)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {children}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold">{title}</div>
+            {subtitle ? <div className="text-xs text-neutral-500 mt-1">{subtitle}</div> : null}
+          </div>
+          <button
+            onClick={onClose}
+            className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+            style={surfaceSoftStyle}
+            title="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-4">{children}</div>
       </div>
     </div>
   );
