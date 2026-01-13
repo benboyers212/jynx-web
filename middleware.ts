@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher([
   "/login(.*)",
   "/signup(.*)",
-  "/",
 ]);
 
 const isApiRoute = createRouteMatcher(["/api(.*)"]);
@@ -12,12 +11,8 @@ const isOnboardingRoute = createRouteMatcher(["/onboarding(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
   // 1) Public pages are allowed for logged-out users.
-  // If signed in and path is "/", we still gate onboarding.
   if (isPublicRoute(req)) {
-    const { userId } = await auth();
-    if (!userId) return NextResponse.next();
-    if (req.nextUrl.pathname !== "/") return NextResponse.next();
-    // else: signed-in on "/" -> continue to onboarding gate
+    return NextResponse.next();
   }
 
   const { userId } = await auth();
@@ -25,7 +20,10 @@ export default clerkMiddleware(async (auth, req) => {
   // 2) Not signed in → redirect (or 401 for API)
   if (!userId) {
     if (isApiRoute(req)) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
     const loginUrl = new URL("/login", req.url);
