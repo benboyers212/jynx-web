@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, type CSSProperties } from "react";
 
 const OLIVE = "#556B2F";
 
@@ -74,22 +74,11 @@ function inferType(nameOrUrl: string): FileType {
   const n = nameOrUrl.toLowerCase();
   if (n.startsWith("http://") || n.startsWith("https://")) return "link";
   if (n.endsWith(".pdf")) return "pdf";
-  if (
-    n.endsWith(".doc") ||
-    n.endsWith(".docx") ||
-    n.endsWith(".txt") ||
-    n.endsWith(".md")
-  )
+  if (n.endsWith(".doc") || n.endsWith(".docx") || n.endsWith(".txt") || n.endsWith(".md"))
     return "doc";
-  if (
-    n.endsWith(".png") ||
-    n.endsWith(".jpg") ||
-    n.endsWith(".jpeg") ||
-    n.endsWith(".webp")
-  )
+  if (n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".webp"))
     return "image";
-  if (n.endsWith(".mp3") || n.endsWith(".m4a") || n.endsWith(".wav"))
-    return "audio";
+  if (n.endsWith(".mp3") || n.endsWith(".m4a") || n.endsWith(".wav")) return "audio";
   return "other";
 }
 
@@ -103,22 +92,34 @@ function prettySize(bytes: number) {
   return `${gb.toFixed(1)} GB`;
 }
 
+/** Light brand accent (matches My Time) */
+const BRAND_RGB = { r: 31, g: 138, b: 91 };
+function rgbaBrand(a: number) {
+  return `rgba(${BRAND_RGB.r},${BRAND_RGB.g},${BRAND_RGB.b},${a})`;
+}
+
+/* ---------- Shared light styles ---------- */
+
+const surfaceStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+};
+
+const surfaceSoftStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
+};
+
+const brandSoftStyle: CSSProperties = {
+  borderColor: rgbaBrand(0.22),
+  boxShadow: `0 0 0 1px ${rgbaBrand(0.06)}`,
+};
+
 export default function FilesPage() {
-  // === Styling tokens copied from ChatPage ===
-  const panelBase = "rounded-3xl border bg-white/6 backdrop-blur";
-  const panelInner = "rounded-2xl border bg-neutral-900/40";
-  const buttonBase =
-    "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
-
-  const oliveCardStyle: React.CSSProperties = {
-    borderColor: "rgba(85,107,47,0.60)",
-    boxShadow: "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.40)",
-  };
-
-  const oliveSoftStyle: React.CSSProperties = {
-    borderColor: "rgba(85,107,47,0.42)",
-    boxShadow: "0 0 0 1px rgba(85,107,47,0.28)",
-  };
+  // === Tokens (kept, but rethemed light) ===
+  const panelBase = "rounded-3xl border bg-white";
+  const panelInner = "rounded-2xl border bg-white";
+  const buttonBase = "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
 
   // Mock groups (for context filter + upload modal)
   const groups = useMemo(
@@ -202,13 +203,9 @@ export default function FilesPage() {
 
   // UI states
   const [query, setQuery] = useState("");
-  const [contextFilter, setContextFilter] = useState<
-    "all" | "personal" | "group"
-  >("all");
+  const [contextFilter, setContextFilter] = useState<"all" | "personal" | "group">("all");
   const [groupFilterId, setGroupFilterId] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<FileCategory | "all">(
-    "all"
-  );
+  const [categoryFilter, setCategoryFilter] = useState<FileCategory | "all">("all");
   const [typeFilter, setTypeFilter] = useState<FileType | "all">("all");
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [sort, setSort] = useState<"recent" | "name">("recent");
@@ -220,9 +217,7 @@ export default function FilesPage() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [addingLink, setAddingLink] = useState(false);
 
-  const [uContextKind, setUContextKind] = useState<"personal" | "group">(
-    "personal"
-  );
+  const [uContextKind, setUContextKind] = useState<"personal" | "group">("personal");
   const [uGroupId, setUGroupId] = useState<string>(groups[0]?.id ?? "g1");
   const [uCategory, setUCategory] = useState<FileCategory>("Other");
   const [uPinned, setUPinned] = useState(false);
@@ -248,16 +243,12 @@ export default function FilesPage() {
 
     if (contextFilter !== "all") {
       list = list.filter((f) =>
-        contextFilter === "personal"
-          ? f.context.kind === "personal"
-          : f.context.kind === "group"
+        contextFilter === "personal" ? f.context.kind === "personal" : f.context.kind === "group"
       );
     }
 
     if (groupFilterId !== "all") {
-      list = list.filter(
-        (f) => f.context.kind === "group" && f.context.groupId === groupFilterId
-      );
+      list = list.filter((f) => f.context.kind === "group" && f.context.groupId === groupFilterId);
     }
 
     if (categoryFilter !== "all") {
@@ -276,16 +267,7 @@ export default function FilesPage() {
     else list.sort((a, b) => a.name.localeCompare(b.name));
 
     return list;
-  }, [
-    files,
-    query,
-    contextFilter,
-    groupFilterId,
-    categoryFilter,
-    typeFilter,
-    pinnedOnly,
-    sort,
-  ]);
+  }, [files, query, contextFilter, groupFilterId, categoryFilter, typeFilter, pinnedOnly, sort]);
 
   function openPicker() {
     setAddingLink(false);
@@ -384,9 +366,7 @@ export default function FilesPage() {
   }
 
   function togglePin(id: string) {
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, pinned: !f.pinned } : f))
-    );
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, pinned: !f.pinned } : f)));
   }
 
   function deleteFile(id: string) {
@@ -402,34 +382,33 @@ export default function FilesPage() {
   }
 
   return (
-    <main className="h-screen bg-neutral-950 text-neutral-100 overflow-hidden min-h-0">
-      {/* Ambient background */}
+    <main className="h-screen bg-white text-neutral-950 overflow-hidden min-h-0">
+      {/* Ambient background (light) */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
           className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
           style={{
-            background:
-              "radial-gradient(circle at 30% 30%, rgba(85,107,47,0.90), rgba(17,17,17,0) 60%)",
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, rgba(255,255,255,0) 60%)`,
           }}
         />
-        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-white/20" />
+        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-black/10" />
       </div>
 
-      {/* Full-width content (no left tabs) */}
       <section className="relative flex flex-col h-full min-h-0">
         {/* Header */}
-        <header className="border-b border-white/10 bg-neutral-950/45 backdrop-blur shrink-0">
+        <header className="border-b bg-white/80 backdrop-blur shrink-0" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
           <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
-            {/* Brand (replaces left sidebar header) */}
+            {/* Brand */}
             <div className="flex items-center gap-3 min-w-0">
-              <div className="h-9 w-9 rounded-xl border border-white/12 bg-white/6 flex items-center justify-center text-xs font-semibold">
+              <div
+                className="h-9 w-9 rounded-xl border bg-white flex items-center justify-center text-[10px] font-semibold"
+                style={surfaceSoftStyle}
+              >
                 LOGO
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold tracking-wide truncate">
-                  Files
-                </div>
-                <div className="text-xs text-neutral-400 mt-0.5 truncate">
+                <div className="text-sm font-semibold tracking-wide truncate">Files</div>
+                <div className="text-xs text-neutral-500 mt-0.5 truncate">
                   One list • search + filters • light context on upload
                 </div>
               </div>
@@ -438,45 +417,31 @@ export default function FilesPage() {
             <div className="ml-auto flex items-center gap-2">
               <button
                 onClick={() => setShowRightPanel((v) => !v)}
-                className={cx(
-                  buttonBase,
-                  "bg-transparent hover:bg-white/6 border-white/12"
-                )}
+                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                style={surfaceSoftStyle}
               >
                 {showRightPanel ? "Hide filters" : "Show filters"}
               </button>
 
               <button
                 onClick={openLinkModal}
-                className={cx(
-                  buttonBase,
-                  "bg-transparent hover:bg-white/6 border-white/12"
-                )}
+                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                style={surfaceSoftStyle}
               >
                 Add link
               </button>
 
               <button
                 onClick={() => {
-                  // open modal even before picking (optional): we’ll still pick first for now
                   openPicker();
                 }}
-                className={cx(
-                  buttonBase,
-                  "bg-white/10 hover:bg-white/14 border-white/12"
-                )}
-                style={oliveSoftStyle}
+                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                style={brandSoftStyle}
               >
                 + Upload
               </button>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={onPicked}
-              />
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onPicked} />
             </div>
           </div>
         </header>
@@ -484,18 +449,11 @@ export default function FilesPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="w-full max-w-[1200px] 2xl:max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24">
-            <div
-              className={cx(
-                "grid gap-4",
-                showRightPanel ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1"
-              )}
-            >
+            <div className={cx("grid gap-4", showRightPanel ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1")}>
               {/* Main list */}
-              <div
-                className={showRightPanel ? "lg:col-span-8 space-y-4" : "space-y-4"}
-              >
+              <div className={showRightPanel ? "lg:col-span-8 space-y-4" : "space-y-4"}>
                 {/* Search + controls */}
-                <div className={panelBase} style={oliveCardStyle}>
+                <div className={panelBase} style={surfaceStyle}>
                   <div className="p-4">
                     <div className="flex flex-col md:flex-row gap-3 md:items-center">
                       <div className="flex-1">
@@ -503,19 +461,16 @@ export default function FilesPage() {
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
                           placeholder="Search by name, group, category…"
-                          className="w-full rounded-2xl border border-white/12 bg-white/6 px-4 py-3 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
+                          className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                          style={{ borderColor: "rgba(0,0,0,0.10)" }}
                         />
                       </div>
 
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() =>
-                            setSort((s) => (s === "recent" ? "name" : "recent"))
-                          }
-                          className={cx(
-                            buttonBase,
-                            "bg-transparent hover:bg-white/6 border-white/12"
-                          )}
+                          onClick={() => setSort((s) => (s === "recent" ? "name" : "recent"))}
+                          className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                          style={surfaceSoftStyle}
                         >
                           Sort: {sort === "recent" ? "Recent" : "Name"}
                         </button>
@@ -524,11 +479,9 @@ export default function FilesPage() {
                           onClick={() => setPinnedOnly((v) => !v)}
                           className={cx(
                             buttonBase,
-                            pinnedOnly
-                              ? "bg-white/12 border-white/18 text-neutral-100"
-                              : "bg-transparent hover:bg-white/6 border-white/12"
+                            pinnedOnly ? "bg-white hover:bg-black/[0.03] text-neutral-900" : "bg-white hover:bg-black/[0.03]"
                           )}
-                          style={pinnedOnly ? oliveSoftStyle : undefined}
+                          style={pinnedOnly ? brandSoftStyle : surfaceSoftStyle}
                         >
                           Pinned
                         </button>
@@ -543,10 +496,8 @@ export default function FilesPage() {
                             setPinnedOnly(false);
                             setSort("recent");
                           }}
-                          className={cx(
-                            buttonBase,
-                            "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
-                          )}
+                          className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                          style={surfaceSoftStyle}
                         >
                           Reset
                         </button>
@@ -555,8 +506,7 @@ export default function FilesPage() {
 
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <div className="text-[11px] text-neutral-500">
-                        {filtered.length} file{filtered.length === 1 ? "" : "s"}{" "}
-                        shown
+                        {filtered.length} file{filtered.length === 1 ? "" : "s"} shown
                       </div>
                       <div className="text-[11px] text-neutral-500">
                         Tip: Upload adds light context (personal/group + category)
@@ -565,42 +515,29 @@ export default function FilesPage() {
                   </div>
                 </div>
 
-                {/* One list (no Inbox / Pinned / Recent sections) */}
-                <div className="rounded-3xl border border-white/10 bg-neutral-950/35 backdrop-blur">
-                  <div className="px-4 py-4 border-b border-white/10">
+                {/* One list */}
+                <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                  <div className="px-4 py-4 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-semibold">All files</div>
-                      <div className="ml-auto text-[11px] text-neutral-400">
-                        {filtered.length}
-                      </div>
+                      <div className="ml-auto text-[11px] text-neutral-500">{filtered.length}</div>
                     </div>
-                    <div className="mt-1 text-xs text-neutral-400">
-                      One list. Use filters when it grows.
-                    </div>
+                    <div className="mt-1 text-xs text-neutral-500">One list. Use filters when it grows.</div>
                   </div>
 
                   <div className="p-4">
                     {filtered.length === 0 ? (
-                      <div
-                        className={cx(panelInner, "px-3 py-4")}
-                        style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                      >
-                        <div className="text-sm text-neutral-200">
-                          No matches. Try clearing filters.
-                        </div>
+                      <div className={cx(panelInner, "px-3 py-4")} style={surfaceSoftStyle}>
+                        <div className="text-sm text-neutral-700">No matches. Try clearing filters.</div>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {filtered.map((f) => (
-                          <div
-                            key={f.id}
-                            className={cx(panelInner, "px-3 py-3")}
-                            style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                          >
+                          <div key={f.id} className={cx(panelInner, "px-3 py-3")} style={surfaceSoftStyle}>
                             <div className="flex items-start gap-3">
                               <div
-                                className="h-10 w-10 rounded-2xl border border-white/12 bg-white/6 flex items-center justify-center text-[10px] font-semibold"
-                                style={f.pinned ? oliveSoftStyle : undefined}
+                                className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[10px] font-semibold"
+                                style={f.pinned ? brandSoftStyle : surfaceSoftStyle}
                               >
                                 {typeIcon(f.type)}
                               </div>
@@ -608,12 +545,9 @@ export default function FilesPage() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-neutral-100 truncate">
-                                      {f.name}
-                                    </div>
-                                    <div className="mt-0.5 text-xs text-neutral-400">
-                                      {contextLabel(f.context)} • {f.category} •{" "}
-                                      {formatDay(f.createdAt)}{" "}
+                                    <div className="text-sm font-semibold text-neutral-900 truncate">{f.name}</div>
+                                    <div className="mt-0.5 text-xs text-neutral-500">
+                                      {contextLabel(f.context)} • {f.category} • {formatDay(f.createdAt)}{" "}
                                       {formatTime(f.createdAt)}
                                     </div>
                                   </div>
@@ -624,50 +558,37 @@ export default function FilesPage() {
                                 </div>
 
                                 {f.notes ? (
-                                  <div className="mt-2 text-[11px] text-neutral-500">
-                                    {f.notes}
-                                  </div>
+                                  <div className="mt-2 text-[11px] text-neutral-600">{f.notes}</div>
                                 ) : null}
 
                                 <div className="mt-3 flex flex-wrap gap-2">
                                   <button
-                                    className={cx(
-                                      buttonBase,
-                                      "bg-white/10 hover:bg-white/14 border-white/12"
-                                    )}
-                                    style={oliveSoftStyle}
+                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                    style={brandSoftStyle}
                                     onClick={() => openFileUI(f)}
                                   >
                                     Open
                                   </button>
 
                                   <button
-                                    className={cx(
-                                      buttonBase,
-                                      "bg-transparent hover:bg-white/6 border-white/12"
-                                    )}
+                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                    style={surfaceSoftStyle}
                                     onClick={() => togglePin(f.id)}
                                   >
                                     {f.pinned ? "Unpin" : "Pin"}
                                   </button>
 
                                   <button
-                                    className={cx(
-                                      buttonBase,
-                                      "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
-                                    )}
-                                    onClick={() =>
-                                      alert("UI shell — move/tag modal later")
-                                    }
+                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                                    style={surfaceSoftStyle}
+                                    onClick={() => alert("UI shell — move/tag modal later")}
                                   >
                                     Move / Tag
                                   </button>
 
                                   <button
-                                    className={cx(
-                                      buttonBase,
-                                      "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
-                                    )}
+                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                                    style={surfaceSoftStyle}
                                     onClick={() => deleteFile(f.id)}
                                   >
                                     Delete
@@ -688,53 +609,41 @@ export default function FilesPage() {
               {/* Right panel: Filters */}
               {showRightPanel && (
                 <aside className="lg:col-span-4 space-y-4">
-                  <div className={panelBase} style={oliveCardStyle}>
+                  <div className={panelBase} style={surfaceStyle}>
                     <div className="p-4">
                       <div className="text-sm font-semibold">Filters</div>
-                      <div className="mt-1 text-xs text-neutral-400">
-                        Organize by{" "}
-                        <span className="font-semibold text-neutral-200">
-                          Context
-                        </span>{" "}
-                        first, then Category.
+                      <div className="mt-1 text-xs text-neutral-500">
+                        Organize by <span className="font-semibold text-neutral-900">Context</span> first, then Category.
                       </div>
 
                       <div className="mt-4 space-y-3">
                         {/* Context */}
-                        <div
-                          className={cx(panelInner, "p-3")}
-                          style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                        >
-                          <div className="text-xs font-semibold text-neutral-300">
-                            Context
-                          </div>
+                        <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
+                          <div className="text-xs font-semibold text-neutral-700">Context</div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {[
                               { id: "all", label: "All" },
                               { id: "personal", label: "Personal" },
                               { id: "group", label: "Groups" },
-                            ].map((o) => (
-                              <button
-                                key={o.id}
-                                onClick={() => {
-                                  setContextFilter(o.id as any);
-                                  if (o.id !== "group") setGroupFilterId("all");
-                                }}
-                                className={cx(
-                                  "rounded-full border px-3 py-1.5 text-[11px] transition",
-                                  contextFilter === (o.id as any)
-                                    ? "bg-white/12 border-white/18 text-neutral-100"
-                                    : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-                                )}
-                                style={
-                                  contextFilter === (o.id as any)
-                                    ? oliveSoftStyle
-                                    : undefined
-                                }
-                              >
-                                {o.label}
-                              </button>
-                            ))}
+                            ].map((o) => {
+                              const active = contextFilter === (o.id as any);
+                              return (
+                                <button
+                                  key={o.id}
+                                  onClick={() => {
+                                    setContextFilter(o.id as any);
+                                    if (o.id !== "group") setGroupFilterId("all");
+                                  }}
+                                  className={cx(
+                                    "rounded-full border px-3 py-1.5 text-[11px] transition",
+                                    active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
+                                  )}
+                                  style={active ? brandSoftStyle : surfaceSoftStyle}
+                                >
+                                  {o.label}
+                                </button>
+                              );
+                            })}
                           </div>
 
                           {contextFilter === "group" && (
@@ -742,7 +651,8 @@ export default function FilesPage() {
                               <select
                                 value={groupFilterId}
                                 onChange={(e) => setGroupFilterId(e.target.value)}
-                                className="w-full rounded-2xl border border-white/12 bg-white/6 px-3 py-2 text-sm outline-none"
+                                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                style={{ borderColor: "rgba(0,0,0,0.10)" }}
                               >
                                 <option value="all">All groups</option>
                                 {groups.map((g) => (
@@ -756,86 +666,57 @@ export default function FilesPage() {
                         </div>
 
                         {/* Category */}
-                        <div
-                          className={cx(panelInner, "p-3")}
-                          style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                        >
-                          <div className="text-xs font-semibold text-neutral-300">
-                            Category
-                          </div>
+                        <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
+                          <div className="text-xs font-semibold text-neutral-700">Category</div>
                           <div className="mt-2 grid grid-cols-2 gap-2">
                             {(
-                              [
-                                "all",
-                                "School",
-                                "Work",
-                                "Life",
-                                "Finance",
-                                "Health",
-                                "Fitness",
-                                "Other",
-                              ] as const
-                            ).map((c) => (
-                              <button
-                                key={c}
-                                onClick={() => setCategoryFilter(c as any)}
-                                className={cx(
-                                  "rounded-2xl border px-3 py-2 text-[11px] text-left transition",
-                                  categoryFilter === c
-                                    ? "bg-white/12 border-white/18 text-neutral-100"
-                                    : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-                                )}
-                                style={
-                                  categoryFilter === c ? oliveSoftStyle : undefined
-                                }
-                              >
-                                {c === "all" ? "All" : c}
-                              </button>
-                            ))}
+                              ["all", "School", "Work", "Life", "Finance", "Health", "Fitness", "Other"] as const
+                            ).map((c) => {
+                              const active = categoryFilter === c;
+                              return (
+                                <button
+                                  key={c}
+                                  onClick={() => setCategoryFilter(c as any)}
+                                  className={cx(
+                                    "rounded-2xl border px-3 py-2 text-[11px] text-left transition",
+                                    active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
+                                  )}
+                                  style={active ? brandSoftStyle : surfaceSoftStyle}
+                                >
+                                  {c === "all" ? "All" : c}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
                         {/* Type */}
-                        <div
-                          className={cx(panelInner, "p-3")}
-                          style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                        >
-                          <div className="text-xs font-semibold text-neutral-300">
-                            Type
-                          </div>
+                        <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
+                          <div className="text-xs font-semibold text-neutral-700">Type</div>
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {(
-                              [
-                                "all",
-                                "pdf",
-                                "doc",
-                                "image",
-                                "audio",
-                                "link",
-                                "other",
-                              ] as const
-                            ).map((t) => (
-                              <button
-                                key={t}
-                                onClick={() => setTypeFilter(t as any)}
-                                className={cx(
-                                  "rounded-full border px-3 py-1.5 text-[11px] transition",
-                                  typeFilter === t
-                                    ? "bg-white/12 border-white/18 text-neutral-100"
-                                    : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-                                )}
-                                style={typeFilter === t ? oliveSoftStyle : undefined}
-                              >
-                                {t === "all" ? "All" : typePill(t)}
-                              </button>
-                            ))}
+                            {(["all", "pdf", "doc", "image", "audio", "link", "other"] as const).map((t) => {
+                              const active = typeFilter === t;
+                              return (
+                                <button
+                                  key={t}
+                                  onClick={() => setTypeFilter(t as any)}
+                                  className={cx(
+                                    "rounded-full border px-3 py-1.5 text-[11px] transition",
+                                    active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
+                                  )}
+                                  style={active ? brandSoftStyle : surfaceSoftStyle}
+                                >
+                                  {t === "all" ? "All" : typePill(t)}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
                         {/* Summary */}
-                        <div className="rounded-2xl border border-white/12 bg-white/6 px-3 py-3">
-                          <div className="text-xs text-neutral-400">Showing</div>
-                          <div className="mt-1 text-sm font-semibold text-neutral-100">
+                        <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                          <div className="text-xs text-neutral-500">Showing</div>
+                          <div className="mt-1 text-sm font-semibold text-neutral-900">
                             {filtered.length} file{filtered.length === 1 ? "" : "s"}
                           </div>
                           <div className="mt-2 text-[11px] text-neutral-500">
@@ -847,14 +728,14 @@ export default function FilesPage() {
                   </div>
 
                   {/* Philosophy */}
-                  <div className={panelBase} style={oliveCardStyle}>
+                  <div className={panelBase} style={surfaceStyle}>
                     <div className="p-4">
                       <div className="text-sm font-semibold">How this stays simple</div>
-                      <div className="mt-2 text-sm text-neutral-200 leading-relaxed">
+                      <div className="mt-2 text-sm text-neutral-700 leading-relaxed">
                         One list. Light context on upload. Search when you don’t feel like organizing.
                       </div>
-                      <div className="mt-3 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
-                        <div className="text-xs text-neutral-400">
+                      <div className="mt-3 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                        <div className="text-xs text-neutral-500">
                           Upload asks for just enough: personal/group + category. Everything else is optional.
                         </div>
                       </div>
@@ -870,7 +751,7 @@ export default function FilesPage() {
         {uploadOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
             <div
-              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/30"
               onClick={() => {
                 setUploadOpen(false);
                 setPendingFiles([]);
@@ -878,29 +759,26 @@ export default function FilesPage() {
               }}
             />
             <div
-              className="relative w-full max-w-[720px] rounded-3xl border border-white/10 bg-neutral-950/85 backdrop-blur p-4"
-              style={oliveCardStyle}
+              className="relative w-full max-w-[720px] rounded-3xl border bg-white p-4"
+              style={{
+                borderColor: "rgba(0,0,0,0.10)",
+                boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 28px 90px rgba(0,0,0,0.10)",
+              }}
             >
               <div className="flex items-start gap-3">
                 <div
-                  className="h-10 w-10 rounded-2xl border border-white/12 bg-white/6 flex items-center justify-center text-xs font-semibold shrink-0"
-                  style={oliveSoftStyle}
+                  className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[10px] font-semibold shrink-0"
+                  style={addingLink ? brandSoftStyle : surfaceSoftStyle}
                 >
                   {addingLink ? "LNK" : "FILE"}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold">
-                    {addingLink ? "Add link" : "Add file"}
-                  </div>
-                  <div className="mt-1 text-xs text-neutral-400">
-                    Add a little context so you can find this later.
-                  </div>
+                  <div className="text-sm font-semibold">{addingLink ? "Add link" : "Add file"}</div>
+                  <div className="mt-1 text-xs text-neutral-500">Add a little context so you can find this later.</div>
                 </div>
                 <button
-                  className={cx(
-                    buttonBase,
-                    "bg-transparent hover:bg-white/6 border-white/12"
-                  )}
+                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                  style={surfaceSoftStyle}
                   onClick={() => {
                     setUploadOpen(false);
                     setPendingFiles([]);
@@ -914,40 +792,40 @@ export default function FilesPage() {
               {/* Selected items */}
               <div className="mt-4 space-y-2">
                 {!addingLink ? (
-                  <div className="rounded-2xl border border-white/12 bg-white/6 px-3 py-3">
-                    <div className="text-xs text-neutral-400">Selected</div>
-                    <div className="mt-1 text-sm text-neutral-100">
+                  <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                    <div className="text-xs text-neutral-500">Selected</div>
+                    <div className="mt-1 text-sm text-neutral-900">
                       {pendingFiles.length} file{pendingFiles.length === 1 ? "" : "s"}
                     </div>
                     {pendingFiles.slice(0, 4).map((f) => (
-                      <div key={f.name} className="mt-2 text-[12px] text-neutral-300 truncate">
+                      <div key={f.name} className="mt-2 text-[12px] text-neutral-700 truncate">
                         {f.name}
                       </div>
                     ))}
                     {pendingFiles.length > 4 && (
-                      <div className="mt-2 text-[11px] text-neutral-500">
-                        + {pendingFiles.length - 4} more…
-                      </div>
+                      <div className="mt-2 text-[11px] text-neutral-500">+ {pendingFiles.length - 4} more…</div>
                     )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="rounded-2xl border border-white/12 bg-white/6 px-3 py-3">
-                      <div className="text-xs text-neutral-400">URL</div>
+                    <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                      <div className="text-xs text-neutral-500">URL</div>
                       <input
                         value={uLinkUrl}
                         onChange={(e) => setULinkUrl(e.target.value)}
                         placeholder="https://…"
-                        className="mt-2 w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
+                        className="mt-2 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                        style={{ borderColor: "rgba(0,0,0,0.10)" }}
                       />
                     </div>
-                    <div className="rounded-2xl border border-white/12 bg-white/6 px-3 py-3">
-                      <div className="text-xs text-neutral-400">Name (optional)</div>
+                    <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+                      <div className="text-xs text-neutral-500">Name (optional)</div>
                       <input
                         value={uLinkName}
                         onChange={(e) => setULinkName(e.target.value)}
                         placeholder="Useful article — scheduling psychology"
-                        className="mt-2 w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
+                        className="mt-2 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                        style={{ borderColor: "rgba(0,0,0,0.10)" }}
                       />
                     </div>
                   </div>
@@ -956,27 +834,28 @@ export default function FilesPage() {
 
               {/* Context + Category */}
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className={cx(panelInner, "p-3")} style={{ borderColor: "rgba(255,255,255,0.12)" }}>
-                  <div className="text-xs font-semibold text-neutral-300">Context</div>
+                <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
+                  <div className="text-xs font-semibold text-neutral-700">Context</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {[
                       { id: "personal", label: "Personal" },
                       { id: "group", label: "Group" },
-                    ].map((o) => (
-                      <button
-                        key={o.id}
-                        onClick={() => setUContextKind(o.id as any)}
-                        className={cx(
-                          "rounded-full border px-3 py-1.5 text-[11px] transition",
-                          uContextKind === (o.id as any)
-                            ? "bg-white/12 border-white/18 text-neutral-100"
-                            : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-                        )}
-                        style={uContextKind === (o.id as any) ? oliveSoftStyle : undefined}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
+                    ].map((o) => {
+                      const active = uContextKind === (o.id as any);
+                      return (
+                        <button
+                          key={o.id}
+                          onClick={() => setUContextKind(o.id as any)}
+                          className={cx(
+                            "rounded-full border px-3 py-1.5 text-[11px] transition",
+                            active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
+                          )}
+                          style={active ? brandSoftStyle : surfaceSoftStyle}
+                        >
+                          {o.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {uContextKind === "group" && (
@@ -984,7 +863,8 @@ export default function FilesPage() {
                       <select
                         value={uGroupId}
                         onChange={(e) => setUGroupId(e.target.value)}
-                        className="w-full rounded-2xl border border-white/12 bg-white/6 px-3 py-2 text-sm outline-none"
+                        className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                        style={{ borderColor: "rgba(0,0,0,0.10)" }}
                       >
                         {groups.map((g) => (
                           <option key={g.id} value={g.id}>
@@ -996,48 +876,40 @@ export default function FilesPage() {
                   )}
                 </div>
 
-                <div className={cx(panelInner, "p-3")} style={{ borderColor: "rgba(255,255,255,0.12)" }}>
-                  <div className="text-xs font-semibold text-neutral-300">Category</div>
+                <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
+                  <div className="text-xs font-semibold text-neutral-700">Category</div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    {(
-                      ["School", "Work", "Life", "Finance", "Health", "Fitness", "Other"] as const
-                    ).map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setUCategory(c)}
-                        className={cx(
-                          "rounded-2xl border px-3 py-2 text-[11px] text-left transition",
-                          uCategory === c
-                            ? "bg-white/12 border-white/18 text-neutral-100"
-                            : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-                        )}
-                        style={uCategory === c ? oliveSoftStyle : undefined}
-                      >
-                        {c}
-                      </button>
-                    ))}
+                    {(["School", "Work", "Life", "Finance", "Health", "Fitness", "Other"] as const).map((c) => {
+                      const active = uCategory === c;
+                      return (
+                        <button
+                          key={c}
+                          onClick={() => setUCategory(c)}
+                          className={cx(
+                            "rounded-2xl border px-3 py-2 text-[11px] text-left transition",
+                            active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
+                          )}
+                          style={active ? brandSoftStyle : surfaceSoftStyle}
+                        >
+                          {c}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
 
               {/* Optional */}
-              <div className="mt-3 rounded-2xl border border-white/12 bg-white/6 px-3 py-3">
+              <div className="mt-3 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <div className="text-xs font-semibold text-neutral-300">Optional</div>
-                    <div className="mt-0.5 text-[11px] text-neutral-500">
-                      Pin for quick access, add a short note.
-                    </div>
+                    <div className="text-xs font-semibold text-neutral-700">Optional</div>
+                    <div className="mt-0.5 text-[11px] text-neutral-500">Pin for quick access, add a short note.</div>
                   </div>
                   <button
                     onClick={() => setUPinned((v) => !v)}
-                    className={cx(
-                      buttonBase,
-                      uPinned
-                        ? "bg-white/12 border-white/18 text-neutral-100"
-                        : "bg-transparent hover:bg-white/6 border-white/12"
-                    )}
-                    style={uPinned ? oliveSoftStyle : undefined}
+                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                    style={uPinned ? brandSoftStyle : surfaceSoftStyle}
                   >
                     {uPinned ? "Pinned" : "Pin"}
                   </button>
@@ -1047,17 +919,16 @@ export default function FilesPage() {
                   value={uNotes}
                   onChange={(e) => setUNotes(e.target.value)}
                   placeholder="Note (optional)…"
-                  className="mt-3 w-full min-h-[64px] rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
+                  className="mt-3 w-full min-h-[64px] rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
                 />
               </div>
 
               {/* Footer */}
               <div className="mt-4 flex items-center justify-between gap-2">
                 <button
-                  className={cx(
-                    buttonBase,
-                    "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
-                  )}
+                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                  style={surfaceSoftStyle}
                   onClick={() => {
                     setUploadOpen(false);
                     setPendingFiles([]);
@@ -1070,10 +941,8 @@ export default function FilesPage() {
                 <div className="flex items-center gap-2">
                   {!addingLink && (
                     <button
-                      className={cx(
-                        buttonBase,
-                        "bg-transparent hover:bg-white/6 border-white/12"
-                      )}
+                      className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                      style={surfaceSoftStyle}
                       onClick={openPicker}
                     >
                       Pick more
@@ -1081,11 +950,8 @@ export default function FilesPage() {
                   )}
 
                   <button
-                    className={cx(
-                      buttonBase,
-                      "bg-white/10 hover:bg-white/14 border-white/12"
-                    )}
-                    style={oliveSoftStyle}
+                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                    style={brandSoftStyle}
                     onClick={() => (addingLink ? addLinkNow() : addFilesNow())}
                     disabled={!addingLink && pendingFiles.length === 0}
                   >

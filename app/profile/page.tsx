@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { SignOutButton } from "@clerk/nextjs";
 import AccountPanel from "./AccountPanel";
 
@@ -86,7 +86,9 @@ function parseDays(daysOfWeek: string | null): number[] {
   if (!daysOfWeek) return [];
   try {
     const v = JSON.parse(daysOfWeek);
-    return Array.isArray(v) ? v.filter((x) => Number.isFinite(Number(x))).map((x) => Number(x)) : [];
+    return Array.isArray(v)
+      ? v.filter((x) => Number.isFinite(Number(x))).map((x) => Number(x))
+      : [];
   } catch {
     return [];
   }
@@ -102,26 +104,40 @@ function formatDays(days: number[]) {
     .join(", ");
 }
 
+/** Light brand accent (matches My Time) */
+const BRAND_RGB = { r: 31, g: 138, b: 91 };
+function rgbaBrand(a: number) {
+  return `rgba(${BRAND_RGB.r},${BRAND_RGB.g},${BRAND_RGB.b},${a})`;
+}
+
+const surfaceStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+};
+
+const surfaceSoftStyle: CSSProperties = {
+  borderColor: "rgba(0,0,0,0.08)",
+  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
+};
+
+/** ✅ FIXED: no stray `s = {}` — this is the style object */
+const brandSoftStyle: CSSProperties = {
+  borderColor: rgbaBrand(0.22),
+  boxShadow: `0 0 0 1px ${rgbaBrand(0.06)}`,
+};
+
 export default function ProfilePage() {
-  // === style tokens aligned to your shell ===
-  const panelBase = "rounded-3xl border bg-white/6 backdrop-blur";
-  const panelInner = "rounded-2xl border bg-neutral-900/40";
-  const buttonBase = "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
-
-  const oliveCardStyle: CSSProperties = {
-    borderColor: "rgba(85,107,47,0.60)",
-    boxShadow: "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.40)",
-  };
-
-  const oliveSoftStyle: CSSProperties = {
-    borderColor: "rgba(85,107,47,0.42)",
-    boxShadow: "0 0 0 1px rgba(85,107,47,0.28)",
-  };
+  // === style tokens aligned to your NEW shell (light) ===
+  const panelBase = "rounded-3xl border bg-white";
+  const panelInner = "rounded-2xl border bg-white";
+  const buttonBase =
+    "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
 
   // ✅ Progressive disclosure state:
   const [topTab, setTopTab] = useState<TopTab | null>(null);
   const [prefSection, setPrefSection] = useState<PrefSection | null>(null);
-  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection | null>(null);
 
   const stage = useMemo(() => {
     if (!topTab) return 1;
@@ -200,7 +216,6 @@ export default function ProfilePage() {
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || "Failed to create med");
       }
-      // safest: refresh list so UI matches DB
       await loadMeds();
     } catch (e: any) {
       setMedsError(e?.message || "Failed to create med");
@@ -210,7 +225,6 @@ export default function ProfilePage() {
   }
 
   async function deleteMed(id: string) {
-    // optimistic remove
     const prev = meds;
     setMeds((m) => m.filter((x) => x.id !== id));
     setMedsError(null);
@@ -222,7 +236,7 @@ export default function ProfilePage() {
         throw new Error(data?.error || "Failed to delete med");
       }
     } catch (e: any) {
-      setMeds(prev); // revert
+      setMeds(prev);
       setMedsError(e?.message || "Failed to delete med");
     }
   }
@@ -254,7 +268,6 @@ export default function ProfilePage() {
 
     await createMed(payload);
 
-    // clear inputs after successful-ish create attempt
     setMName("");
     setMDosage("");
     setMRecurrence("Daily");
@@ -292,11 +305,9 @@ export default function ProfilePage() {
   const [rDays, setRDays] = useState<number[]>([1, 2, 3, 4, 5]); // for custom
 
   useEffect(() => {
-    // sensible defaults when schedule changes
     if (rSchedule === "weekdays") setRDays([1, 2, 3, 4, 5]);
     if (rSchedule === "daily") setRDays([]);
     if (rSchedule === "once") setRDays([]);
-    // custom keeps user selection
   }, [rSchedule]);
 
   async function loadReminders() {
@@ -327,7 +338,6 @@ export default function ProfilePage() {
     const title = rTitle.trim();
     if (!title) return;
 
-    // Once requires a date
     if (rSchedule === "once" && !rDate) {
       setRemError("Date is required for one-time reminders.");
       return;
@@ -370,7 +380,6 @@ export default function ProfilePage() {
 
       await loadReminders();
 
-      // reset
       setRTitle("");
       setRNotes("");
       setRSchedule("daily");
@@ -390,7 +399,6 @@ export default function ProfilePage() {
   async function toggleReminder(id: string, enabled: boolean) {
     setRemError(null);
 
-    // optimistic
     const prev = reminders;
     setReminders((xs) => xs.map((r) => (r.id === id ? { ...r, enabled } : r)));
 
@@ -414,7 +422,6 @@ export default function ProfilePage() {
   async function deleteReminder(id: string) {
     setRemError(null);
 
-    // optimistic
     const prev = reminders;
     setReminders((xs) => xs.filter((r) => r.id !== id));
 
@@ -431,7 +438,9 @@ export default function ProfilePage() {
   }
 
   const crumbs = useMemo(() => {
-    const out: Array<{ label: string; onClick: () => void }> = [{ label: "Profile", onClick: goStage1 }];
+    const out: Array<{ label: string; onClick: () => void }> = [
+      { label: "Profile", onClick: goStage1 },
+    ];
 
     if (!topTab) return out;
 
@@ -454,47 +463,77 @@ export default function ProfilePage() {
     return out;
   }, [topTab, prefSection, settingsSection]);
 
-  // Layout widths per stage
   const gridCols =
-    stage === 1 ? "grid-cols-1" : stage === 2 ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1 lg:grid-cols-12";
+    stage === 1
+      ? "grid-cols-1"
+      : stage === 2
+      ? "grid-cols-1 lg:grid-cols-12"
+      : "grid-cols-1 lg:grid-cols-12";
 
-  const col1Span = stage === 1 ? "lg:col-span-12" : stage === 2 ? "lg:col-span-4" : "lg:col-span-3";
+  const col1Span =
+    stage === 1 ? "lg:col-span-12" : stage === 2 ? "lg:col-span-4" : "lg:col-span-3";
 
   const col2Span = stage === 2 ? "lg:col-span-8" : "lg:col-span-3";
   const col3Span = "lg:col-span-6";
 
+  const sectionCardStyle: CSSProperties = surfaceStyle;
+  const innerCardStyle: CSSProperties = surfaceSoftStyle;
+  const activeChipStyle: CSSProperties = brandSoftStyle;
+
   return (
-    <main className="bg-neutral-950 text-neutral-100">
+    <main className="h-screen bg-white text-neutral-950 overflow-hidden min-h-0">
+      {/* Ambient background (light) */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div
+          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
+          style={{
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(
+              0.22
+            )}, rgba(255,255,255,0) 60%)`,
+          }}
+        />
+        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-black/10" />
+      </div>
+
       {/* Header */}
-      <div className="border-b border-white/10 bg-neutral-950/55 backdrop-blur">
-        <div className="px-5 py-4 flex items-start gap-3">
+      <div
+        className="border-b bg-white/80 backdrop-blur shrink-0"
+        style={{ borderColor: "rgba(0,0,0,0.08)" }}
+      >
+        <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-start gap-3">
           <div
-            className="h-11 w-11 rounded-2xl border border-white/12 bg-white/6 flex items-center justify-center text-sm font-semibold shrink-0"
-            style={{ boxShadow: "0 0 0 1px rgba(85,107,47,0.18)" }}
+            className="h-11 w-11 rounded-2xl border bg-white flex items-center justify-center text-sm font-semibold shrink-0"
+            style={surfaceSoftStyle}
           >
             {userInitial}
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold">Profile</div>
-            <div className="mt-0.5 text-xs text-neutral-400">Preferences, settings, reminders & privacy.</div>
+            <div className="mt-0.5 text-xs text-neutral-500">
+              Preferences, settings, reminders & privacy.
+            </div>
 
             {/* Breadcrumbs */}
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-400">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
               {crumbs.map((c, idx) => (
                 <span key={c.label} className="flex items-center gap-2">
                   <button
                     onClick={c.onClick}
                     className={cx(
                       "font-semibold",
-                      idx === crumbs.length - 1 ? "text-neutral-200 cursor-default" : "text-neutral-300 hover:text-white"
+                      idx === crumbs.length - 1
+                        ? "text-neutral-900 cursor-default"
+                        : "text-neutral-700 hover:text-neutral-900"
                     )}
                     disabled={idx === crumbs.length - 1}
                     title={idx === crumbs.length - 1 ? undefined : "Back"}
                   >
                     {c.label}
                   </button>
-                  {idx !== crumbs.length - 1 ? <span className="text-neutral-600">›</span> : null}
+                  {idx !== crumbs.length - 1 ? (
+                    <span className="text-neutral-400">›</span>
+                  ) : null}
                 </span>
               ))}
             </div>
@@ -505,670 +544,660 @@ export default function ProfilePage() {
       </div>
 
       {/* Body */}
-      <div className="p-5">
-        <div className={cx("grid gap-4", gridCols)}>
-          {/* Column 1 */}
-          <aside className={cx(col1Span, "space-y-4")}>
-            <div className={panelBase} style={oliveCardStyle}>
-              <div className="p-4">
-                <div className="text-xs font-semibold text-neutral-300">Tabs</div>
-
-                <div className="mt-3 space-y-2">
-                  <TopButton
-                    active={topTab === "preferences"}
-                    label="Preferences"
-                    sub="Things Jynx learns + uses"
-                    onClick={() => chooseTop("preferences")}
-                    oliveSoftStyle={oliveSoftStyle}
-                  />
-
-                  <TopButton
-                    active={topTab === "settings"}
-                    label="Settings"
-                    sub="Account, privacy, app"
-                    onClick={() => chooseTop("settings")}
-                    oliveSoftStyle={oliveSoftStyle}
-                  />
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-white/12 bg-white/6 px-3 py-3">
-                  <div className="text-[11px] text-neutral-400">Click a tab to open the next menu.</div>
-                </div>
-              </div>
-            </div>
-          </aside>
-
-          {/* Column 2 */}
-          {stage >= 2 && (
-            <aside className={cx(col2Span, "space-y-4")}>
-              <div className={panelBase} style={oliveCardStyle}>
+      <div className="h-[calc(100vh-72px)] overflow-y-auto">
+        <div className="w-full max-w-[1200px] 2xl:max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24">
+          <div className={cx("grid gap-4", gridCols)}>
+            {/* Column 1 */}
+            <aside className={cx(col1Span, "space-y-4")}>
+              <div className={panelBase} style={sectionCardStyle}>
                 <div className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold text-neutral-300">
-                      {topTab === "preferences" ? "Preferences" : "Settings"}
-                    </div>
-
-                    <button
-                      onClick={goStage1}
-                      className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300")}
-                      title="Back"
-                    >
-                      ← Back
-                    </button>
-                  </div>
+                  <div className="text-xs font-semibold text-neutral-700">Tabs</div>
 
                   <div className="mt-3 space-y-2">
-                    {topTab === "preferences" ? (
-                      <>
-                        <SubButton
-                          active={prefSection === "medication"}
-                          label="Medication"
-                          sub="Reminders + refill/pickup logic"
-                          onClick={() => choosePref("medication")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                        <SubButton
-                          active={prefSection === "reminders"}
-                          label="Reminders"
-                          sub="Recurring tasks & nudges"
-                          onClick={() => choosePref("reminders")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                        <SubButton
-                          active={prefSection === "health"}
-                          label="Health"
-                          sub="Injuries, allergies, basics"
-                          onClick={() => choosePref("health")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                        <SubButton
-                          active={prefSection === "study"}
-                          label="Study"
-                          sub="Class load, exam windows"
-                          onClick={() => choosePref("study")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                        <SubButton
-                          active={prefSection === "scheduling"}
-                          label="Scheduling"
-                          sub="Deep work rules, focus style"
-                          onClick={() => choosePref("scheduling")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <SubButton
-                          active={settingsSection === "account"}
-                          label="Account"
-                          sub="Profile + sign-in"
-                          onClick={() => chooseSettings("account")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                        <SubButton
-                          active={settingsSection === "privacy"}
-                          label="Privacy"
-                          sub="Data controls + sharing"
-                          onClick={() => chooseSettings("privacy")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                        <SubButton
-                          active={settingsSection === "notifications"}
-                          label="Notifications"
-                          sub="Push, email, SMS"
-                          onClick={() => chooseSettings("notifications")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                        <SubButton
-                          active={settingsSection === "appearance"}
-                          label="Appearance"
-                          sub="Theme + density"
-                          onClick={() => chooseSettings("appearance")}
-                          oliveSoftStyle={oliveSoftStyle}
-                        />
-                      </>
-                    )}
+                    <TopButton
+                      active={topTab === "preferences"}
+                      label="Preferences"
+                      sub="Things Jynx learns + uses"
+                      onClick={() => chooseTop("preferences")}
+                      activeStyle={activeChipStyle}
+                    />
+
+                    <TopButton
+                      active={topTab === "settings"}
+                      label="Settings"
+                      sub="Account, privacy, app"
+                      onClick={() => chooseTop("settings")}
+                      activeStyle={activeChipStyle}
+                    />
                   </div>
 
-                  {stage === 2 && (
-                    <div className="mt-4 rounded-2xl border border-white/12 bg-white/6 px-3 py-3">
-                      <div className="text-[11px] text-neutral-400">Now pick a section to open details.</div>
+                  <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={innerCardStyle}>
+                    <div className="text-[11px] text-neutral-500">
+                      Click a tab to open the next menu.
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </aside>
-          )}
 
-          {/* Column 3 */}
-          {stage === 3 && (
-            <section className={cx(col3Span, "space-y-4")}>
-              {topTab === "preferences" && prefSection === "medication" && (
-                <div className={panelBase} style={oliveCardStyle}>
+            {/* Column 2 */}
+            {stage >= 2 && (
+              <aside className={cx(col2Span, "space-y-4")}>
+                <div className={panelBase} style={sectionCardStyle}>
                   <div className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">Medication</div>
-                      <div className="ml-auto text-[11px] text-neutral-500">reminders + refill/pickup logic</div>
-                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-semibold text-neutral-700">
+                        {topTab === "preferences" ? "Preferences" : "Settings"}
+                      </div>
 
-                    <div className="mt-1 text-xs text-neutral-400">
-                      Store meds so Jynx can remind you to take them, track refills, and prompt pickups.
-                    </div>
-
-                    {/* status line */}
-                    <div className="mt-3 text-[11px] text-neutral-500 flex items-center gap-3">
-                      {medsLoading ? <span>Loading…</span> : <span>Loaded</span>}
-                      {medsError ? <span className="text-red-300">{medsError}</span> : null}
                       <button
-                        className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300")}
-                        onClick={loadMeds}
-                        disabled={medsLoading}
-                        title="Refresh"
+                        onClick={goStage1}
+                        className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                        style={surfaceSoftStyle}
+                        title="Back"
                       >
-                        Refresh
+                        ← Back
                       </button>
                     </div>
 
-                    {/* Current meds */}
-                    <div className="mt-4 space-y-2">
-                      {meds.length === 0 && !medsLoading ? (
-                        <div className="text-xs text-neutral-400">No medications yet.</div>
-                      ) : null}
-
-                      {meds.map((m) => (
-                        <div
-                          key={m.id}
-                          className={cx(panelInner, "px-3 py-3")}
-                          style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className="h-10 w-10 rounded-2xl border border-white/12 bg-white/6 flex items-center justify-center text-[11px] font-semibold shrink-0"
-                              style={oliveSoftStyle}
-                            >
-                              Rx
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <div className="text-sm font-semibold text-neutral-100">{m.name}</div>
-                                <Pill>{m.dosage}</Pill>
-                                <Pill>{m.recurrence}</Pill>
-                              </div>
-
-                              <div className="mt-1 text-xs text-neutral-400">
-                                {m.times ? `Times: ${m.times}` : "Times: —"} •{" "}
-                                {m.pharmacy ? `Pharmacy: ${m.pharmacy}` : "Pharmacy: —"} • Qty: {m.qty ?? "—"} •
-                                Refills: {m.refills ?? "—"}
-                              </div>
-
-                              {m.notes ? <div className="mt-1 text-xs text-neutral-300">{m.notes}</div> : null}
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                              <button
-                                className={cx(buttonBase, "bg-white/10 hover:bg-white/14 border-white/12")}
-                                style={oliveSoftStyle}
-                                onClick={() => alert("UI shell — remind")}
-                              >
-                                Remind
-                              </button>
-
-                              <button
-                                className={cx(
-                                  buttonBase,
-                                  "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
-                                )}
-                                onClick={() => removeMedication(m.id)}
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="mt-3 space-y-2">
+                      {topTab === "preferences" ? (
+                        <>
+                          <SubButton
+                            active={prefSection === "medication"}
+                            label="Medication"
+                            sub="Reminders + refill/pickup logic"
+                            onClick={() => choosePref("medication")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={prefSection === "reminders"}
+                            label="Reminders"
+                            sub="Recurring tasks & nudges"
+                            onClick={() => choosePref("reminders")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={prefSection === "health"}
+                            label="Health"
+                            sub="Injuries, allergies, basics"
+                            onClick={() => choosePref("health")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={prefSection === "study"}
+                            label="Study"
+                            sub="Class load, exam windows"
+                            onClick={() => choosePref("study")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={prefSection === "scheduling"}
+                            label="Scheduling"
+                            sub="Deep work rules, focus style"
+                            onClick={() => choosePref("scheduling")}
+                            activeStyle={activeChipStyle}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <SubButton
+                            active={settingsSection === "account"}
+                            label="Account"
+                            sub="Profile + sign-in"
+                            onClick={() => chooseSettings("account")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={settingsSection === "privacy"}
+                            label="Privacy"
+                            sub="Data controls + sharing"
+                            onClick={() => chooseSettings("privacy")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={settingsSection === "notifications"}
+                            label="Notifications"
+                            sub="Push, email, SMS"
+                            onClick={() => chooseSettings("notifications")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={settingsSection === "appearance"}
+                            label="Appearance"
+                            sub="Theme + density"
+                            onClick={() => chooseSettings("appearance")}
+                            activeStyle={activeChipStyle}
+                          />
+                        </>
+                      )}
                     </div>
 
-                    {/* Add medication */}
-                    <div className="mt-4 rounded-3xl border border-white/10 bg-white/6">
-                      <div className="p-4">
-                        <div className="text-sm font-semibold">Add medication</div>
-
-                        <div className="mt-3 space-y-3">
-                          <Field label="Name">
-                            <input
-                              value={mName}
-                              onChange={(e) => setMName(e.target.value)}
-                              placeholder="e.g., Lamotrigine"
-                              className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                            />
-                          </Field>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <Field label="Dosage">
-                              <input
-                                value={mDosage}
-                                onChange={(e) => setMDosage(e.target.value)}
-                                placeholder="e.g., 150mg"
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                              />
-                            </Field>
-
-                            <Field label="Recurrence">
-                              <select
-                                value={mRecurrence}
-                                onChange={(e) => setMRecurrence(e.target.value as MedRecurrence)}
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none"
-                              >
-                                <option>Daily</option>
-                                <option>Weekdays</option>
-                                <option>Custom</option>
-                              </select>
-                            </Field>
-                          </div>
-
-                          <Field label="Times (optional)">
-                            <input
-                              value={mTimes}
-                              onChange={(e) => setMTimes(e.target.value)}
-                              placeholder="e.g., 8:00 AM, 10:00 PM"
-                              className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                            />
-                          </Field>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <Field label="Pharmacy (optional)">
-                              <input
-                                value={mPharmacy}
-                                onChange={(e) => setMPharmacy(e.target.value)}
-                                placeholder="e.g., CVS"
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                              />
-                            </Field>
-
-                            <Field label="Qty">
-                              <input
-                                value={mQty}
-                                onChange={(e) => setMQty(e.target.value)}
-                                placeholder="0"
-                                inputMode="numeric"
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                              />
-                            </Field>
-
-                            <Field label="Refills">
-                              <input
-                                value={mRefills}
-                                onChange={(e) => setMRefills(e.target.value)}
-                                placeholder="0"
-                                inputMode="numeric"
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                              />
-                            </Field>
-                          </div>
-
-                          <Field label="Notes (optional)">
-                            <input
-                              value={mNotes}
-                              onChange={(e) => setMNotes(e.target.value)}
-                              placeholder="e.g., take with food"
-                              className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                            />
-                          </Field>
-
-                          <div className="flex items-center justify-between">
-                            <button
-                              className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300")}
-                              onClick={() => alert("UI shell — reminders")}
-                            >
-                              Reminders
-                            </button>
-
-                            <button
-                              className={cx(buttonBase, "bg-white/10 hover:bg-white/14 border-white/12")}
-                              style={oliveSoftStyle}
-                              onClick={addMedication}
-                              disabled={saving || !mName.trim()}
-                              title={!mName.trim() ? "Enter a name first" : saving ? "Saving…" : "Save"}
-                            >
-                              {saving ? "Saving…" : "Save"}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 text-[11px] text-neutral-500 flex items-center justify-between">
-                          <span>Now connected to DB via /api/medications.</span>
-                          <span style={{ color: "rgba(85,107,47,0.9)" }}>Jynx learns quietly</span>
+                    {stage === 2 && (
+                      <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={innerCardStyle}>
+                        <div className="text-[11px] text-neutral-500">
+                          Now pick a section to open details.
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
-              )}
+              </aside>
+            )}
 
-              {/* ✅ Reminders (full UI) */}
-              {topTab === "preferences" && prefSection === "reminders" && (
-                <div className={panelBase} style={oliveCardStyle}>
-                  <div className="p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">Reminders</div>
-                      <div className="ml-auto text-[11px] text-neutral-500">recurring tasks & nudges</div>
-                    </div>
-
-                    <div className="mt-1 text-xs text-neutral-400">
-                      Date, time (AM/PM), recurrence, location — plus Custom day picking.
-                    </div>
-
-                    {/* status line */}
-                    <div className="mt-3 text-[11px] text-neutral-500 flex items-center gap-3">
-                      {remLoading ? <span>Loading…</span> : <span>Loaded</span>}
-                      {remError ? <span className="text-red-300">{remError}</span> : null}
-                      <button
-                        className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300")}
-                        onClick={loadReminders}
-                        disabled={remLoading}
-                        title="Refresh"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-
-                    {/* Add reminder */}
-                    <div className="mt-4 rounded-3xl border border-white/10 bg-white/6">
-                      <div className="p-4">
-                        <div className="text-sm font-semibold">New reminder</div>
-
-                        <div className="mt-3 space-y-3">
-                          <Field label="Title">
-                            <input
-                              value={rTitle}
-                              onChange={(e) => setRTitle(e.target.value)}
-                              placeholder="e.g., Pay rent, Stretch, Call mom"
-                              className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                            />
-                          </Field>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <Field label="Recurrence">
-                              <select
-                                value={rSchedule}
-                                onChange={(e) => setRSchedule(e.target.value as ReminderSchedule)}
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none"
-                              >
-                                <option value="daily">Daily</option>
-                                <option value="weekdays">Weekdays</option>
-                                <option value="custom">Custom</option>
-                                <option value="once">Once</option>
-                              </select>
-                            </Field>
-
-                            <Field label="Location">
-                              <input
-                                value={rLocation}
-                                onChange={(e) => setRLocation(e.target.value)}
-                                placeholder="e.g., Library, Gym, Home"
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                              />
-                            </Field>
-                          </div>
-
-                          {rSchedule === "once" ? (
-                            <Field label="Date">
-                              <input
-                                type="date"
-                                value={rDate}
-                                onChange={(e) => setRDate(e.target.value)}
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none"
-                              />
-                            </Field>
-                          ) : null}
-
-                          {/* Time + AM/PM */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <Field label="Hour">
-                              <select
-                                value={rHour}
-                                onChange={(e) => setRHour(Number(e.target.value))}
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none"
-                              >
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                                  <option key={h} value={h}>
-                                    {h}
-                                  </option>
-                                ))}
-                              </select>
-                            </Field>
-
-                            <Field label="Minute">
-                              <select
-                                value={rMinute}
-                                onChange={(e) => setRMinute(Number(e.target.value))}
-                                className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none"
-                              >
-                                {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
-                                  <option key={m} value={m}>
-                                    {pad2(m)}
-                                  </option>
-                                ))}
-                              </select>
-                            </Field>
-
-                            <Field label="AM / PM">
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setRAmPm("AM")}
-                                  className={cx(
-                                    "flex-1 rounded-2xl border px-3 py-2 text-sm font-semibold transition",
-                                    rAmPm === "AM"
-                                      ? "bg-white/12 border-white/18 text-neutral-100"
-                                      : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-                                  )}
-                                  style={rAmPm === "AM" ? oliveSoftStyle : undefined}
-                                >
-                                  AM
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setRAmPm("PM")}
-                                  className={cx(
-                                    "flex-1 rounded-2xl border px-3 py-2 text-sm font-semibold transition",
-                                    rAmPm === "PM"
-                                      ? "bg-white/12 border-white/18 text-neutral-100"
-                                      : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-                                  )}
-                                  style={rAmPm === "PM" ? oliveSoftStyle : undefined}
-                                >
-                                  PM
-                                </button>
-                              </div>
-                            </Field>
-                          </div>
-
-                          {/* Custom day picker */}
-                          {rSchedule === "custom" ? (
-                            <div>
-                              <div className="text-[11px] text-neutral-400">Days of week</div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {DOW.map((d) => {
-                                  const on = rDays.includes(d.n);
-                                  return (
-                                    <button
-                                      key={d.n}
-                                      type="button"
-                                      onClick={() => {
-                                        setRDays((prev) =>
-                                          prev.includes(d.n) ? prev.filter((x) => x !== d.n) : [...prev, d.n]
-                                        );
-                                      }}
-                                      className={cx(
-                                        "rounded-full border px-3 py-1.5 text-[12px] font-semibold transition",
-                                        on
-                                          ? "bg-white/12 border-white/18 text-neutral-100"
-                                          : "bg-white/6 border-white/12 text-neutral-300 hover:bg-white/10"
-                                      )}
-                                      style={on ? oliveSoftStyle : undefined}
-                                    >
-                                      {d.label}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : null}
-
-                          <Field label="Notes (optional)">
-                            <input
-                              value={rNotes}
-                              onChange={(e) => setRNotes(e.target.value)}
-                              placeholder="e.g., do it before 11am"
-                              className="w-full rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 text-sm outline-none placeholder:text-neutral-600 focus:ring-2 focus:ring-white/10"
-                            />
-                          </Field>
-
-                          <div className="flex items-center justify-end">
-                            <button
-                              className={cx(buttonBase, "bg-white/10 hover:bg-white/14 border-white/12")}
-                              style={oliveSoftStyle}
-                              onClick={createReminder}
-                              disabled={remSaving || !rTitle.trim()}
-                              title={!rTitle.trim() ? "Enter a title first" : remSaving ? "Saving…" : "Save"}
-                            >
-                              {remSaving ? "Saving…" : "Save"}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 text-[11px] text-neutral-500 flex items-center justify-between">
-                          <span>Now connected to DB via /api/reminders.</span>
-                          <span style={{ color: "rgba(85,107,47,0.9)" }}>Jynx nudges quietly</span>
+            {/* Column 3 */}
+            {stage === 3 && (
+              <section className={cx(col3Span, "space-y-4")}>
+                {topTab === "preferences" && prefSection === "medication" && (
+                  <div className={panelBase} style={sectionCardStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-semibold">Medication</div>
+                        <div className="ml-auto text-[11px] text-neutral-500">
+                          reminders + refill/pickup logic
                         </div>
                       </div>
-                    </div>
 
-                    {/* List */}
-                    <div className="mt-4 space-y-2">
-                      {reminders.length === 0 && !remLoading ? (
-                        <div className="text-xs text-neutral-400">No reminders yet.</div>
-                      ) : null}
+                      <div className="mt-1 text-xs text-neutral-500">
+                        Store meds so Jynx can remind you to take them, track refills, and prompt pickups.
+                      </div>
 
-                      {reminders.map((r) => {
-                        const days = parseDays(r.daysOfWeek);
-                        const dayLabel =
-                          r.schedule === "daily"
-                            ? "Every day"
-                            : r.schedule === "weekdays"
-                            ? "Mon–Fri"
-                            : r.schedule === "custom"
-                            ? formatDays(days)
-                            : r.date
-                            ? r.date
-                            : "—";
+                      <div className="mt-3 text-[11px] text-neutral-500 flex items-center gap-3">
+                        {medsLoading ? <span>Loading…</span> : <span>Loaded</span>}
+                        {medsError ? <span className="text-red-600">{medsError}</span> : null}
+                        <button
+                          className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                          style={surfaceSoftStyle}
+                          onClick={loadMeds}
+                          disabled={medsLoading}
+                          title="Refresh"
+                        >
+                          Refresh
+                        </button>
+                      </div>
 
-                        return (
-                          <div
-                            key={r.id}
-                            className={cx(panelInner, "px-3 py-3")}
-                            style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                          >
+                      <div className="mt-4 space-y-2">
+                        {meds.length === 0 && !medsLoading ? (
+                          <div className="text-xs text-neutral-500">No medications yet.</div>
+                        ) : null}
+
+                        {meds.map((m) => (
+                          <div key={m.id} className={cx(panelInner, "px-3 py-3")} style={innerCardStyle}>
                             <div className="flex items-start gap-3">
                               <div
-                                className="h-10 w-10 rounded-2xl border border-white/12 bg-white/6 flex items-center justify-center text-[11px] font-semibold shrink-0"
-                                style={oliveSoftStyle}
+                                className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[11px] font-semibold shrink-0"
+                                style={brandSoftStyle}
                               >
-                                ⏰
+                                Rx
                               </div>
 
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <div
-                                    className={cx(
-                                      "text-sm font-semibold",
-                                      r.enabled ? "text-neutral-100" : "text-neutral-400 line-through"
-                                    )}
-                                  >
-                                    {r.title}
-                                  </div>
-                                  <Pill>{r.schedule}</Pill>
-                                  <Pill>{formatTime12(r.timeOfDay)}</Pill>
-                                  {r.location ? <Pill>{r.location}</Pill> : null}
-                                  <Pill>{dayLabel}</Pill>
-                                  <Pill>{r.enabled ? "On" : "Off"}</Pill>
+                                  <div className="text-sm font-semibold text-neutral-900">{m.name}</div>
+                                  <Pill style={brandSoftStyle}>{m.dosage}</Pill>
+                                  <Pill style={surfaceSoftStyle}>{m.recurrence}</Pill>
                                 </div>
 
-                                <div className="mt-1 text-xs text-neutral-400">{r.notes ? r.notes : "Notes: —"}</div>
+                                <div className="mt-1 text-xs text-neutral-600">
+                                  {m.times ? `Times: ${m.times}` : "Times: —"} •{" "}
+                                  {m.pharmacy ? `Pharmacy: ${m.pharmacy}` : "Pharmacy: —"} • Qty:{" "}
+                                  {m.qty ?? "—"} • Refills: {m.refills ?? "—"}
+                                </div>
+
+                                {m.notes ? (
+                                  <div className="mt-1 text-xs text-neutral-700">{m.notes}</div>
+                                ) : null}
                               </div>
 
-                              <div className="flex flex-col gap-2 items-end">
-                                <label className="text-[11px] text-neutral-300 flex items-center gap-2 select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={r.enabled}
-                                    onChange={(e) => toggleReminder(r.id, e.target.checked)}
-                                  />
-                                  Enabled
-                                </label>
+                              <div className="flex flex-col gap-2">
+                                <button
+                                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                  style={brandSoftStyle}
+                                  onClick={() => alert("UI shell — remind")}
+                                >
+                                  Remind
+                                </button>
 
                                 <button
-                                  className={cx(
-                                    buttonBase,
-                                    "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300"
-                                  )}
-                                  onClick={() => deleteReminder(r.id)}
+                                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                                  style={surfaceSoftStyle}
+                                  onClick={() => removeMedication(m.id)}
                                 >
                                   Remove
                                 </button>
                               </div>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Other details shells */}
-              {topTab === "preferences" && prefSection !== "medication" && prefSection !== "reminders" && (
-                <ShellPanel
-                  title={prettyPref(prefSection as PrefSection)}
-                  subtitle="UI shell — add fields later"
-                  oliveCardStyle={oliveCardStyle}
-                />
-              )}
-
-              {topTab === "settings" && settingsSection === "account" ? (
-                <div className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold">Account</div>
-                        <div className="mt-1 text-xs text-neutral-400">Live Clerk session + DB user record</div>
+                        ))}
                       </div>
 
-                      <SignOutButton redirectUrl="/login">
-                        <button
-                          className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12 text-neutral-300")}
-                        >
-                          Sign out
-                        </button>
-                      </SignOutButton>
-                    </div>
+                      <div className="mt-4 rounded-3xl border bg-white" style={surfaceSoftStyle}>
+                        <div className="p-4">
+                          <div className="text-sm font-semibold">Add medication</div>
 
-                    <div className="mt-4">
-                      <AccountPanel />
+                          <div className="mt-3 space-y-3">
+                            <Field label="Name">
+                              <input
+                                value={mName}
+                                onChange={(e) => setMName(e.target.value)}
+                                placeholder="e.g., Lamotrigine"
+                                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                              />
+                            </Field>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Field label="Dosage">
+                                <input
+                                  value={mDosage}
+                                  onChange={(e) => setMDosage(e.target.value)}
+                                  placeholder="e.g., 150mg"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+
+                              <Field label="Recurrence">
+                                <select
+                                  value={mRecurrence}
+                                  onChange={(e) => setMRecurrence(e.target.value as MedRecurrence)}
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                >
+                                  <option>Daily</option>
+                                  <option>Weekdays</option>
+                                  <option>Custom</option>
+                                </select>
+                              </Field>
+                            </div>
+
+                            <Field label="Times (optional)">
+                              <input
+                                value={mTimes}
+                                onChange={(e) => setMTimes(e.target.value)}
+                                placeholder="e.g., 8:00 AM, 10:00 PM"
+                                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                              />
+                            </Field>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <Field label="Pharmacy (optional)">
+                                <input
+                                  value={mPharmacy}
+                                  onChange={(e) => setMPharmacy(e.target.value)}
+                                  placeholder="e.g., CVS"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+
+                              <Field label="Qty">
+                                <input
+                                  value={mQty}
+                                  onChange={(e) => setMQty(e.target.value)}
+                                  placeholder="0"
+                                  inputMode="numeric"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+
+                              <Field label="Refills">
+                                <input
+                                  value={mRefills}
+                                  onChange={(e) => setMRefills(e.target.value)}
+                                  placeholder="0"
+                                  inputMode="numeric"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+                            </div>
+
+                            <Field label="Notes (optional)">
+                              <input
+                                value={mNotes}
+                                onChange={(e) => setMNotes(e.target.value)}
+                                placeholder="e.g., take with food"
+                                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                              />
+                            </Field>
+
+                            <div className="flex items-center justify-between">
+                              <button
+                                className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                                style={surfaceSoftStyle}
+                                onClick={() => alert("UI shell — reminders")}
+                              >
+                                Reminders
+                              </button>
+
+                              <button
+                                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                style={brandSoftStyle}
+                                onClick={addMedication}
+                                disabled={saving || !mName.trim()}
+                                title={!mName.trim() ? "Enter a name first" : saving ? "Saving…" : "Save"}
+                              >
+                                {saving ? "Saving…" : "Save"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 text-[11px] text-neutral-500 flex items-center justify-between">
+                            <span>Now connected to DB via /api/medications.</span>
+                            <span style={{ color: rgbaBrand(0.9) }}>Jynx learns quietly</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : topTab === "settings" ? (
-                <ShellPanel
-                  title={prettySettings(settingsSection as SettingsSection)}
-                  subtitle="UI shell — add options later"
-                  oliveCardStyle={oliveCardStyle}
-                />
-              ) : null}
-            </section>
-          )}
+                )}
+
+                {/* ✅ Reminders (full UI) */}
+                {topTab === "preferences" && prefSection === "reminders" && (
+                  <div className={panelBase} style={sectionCardStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-semibold">Reminders</div>
+                        <div className="ml-auto text-[11px] text-neutral-500">recurring tasks & nudges</div>
+                      </div>
+
+                      <div className="mt-1 text-xs text-neutral-500">
+                        Date, time (AM/PM), recurrence, location — plus Custom day picking.
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-neutral-500 flex items-center gap-3">
+                        {remLoading ? <span>Loading…</span> : <span>Loaded</span>}
+                        {remError ? <span className="text-red-600">{remError}</span> : null}
+                        <button
+                          className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                          style={surfaceSoftStyle}
+                          onClick={loadReminders}
+                          disabled={remLoading}
+                          title="Refresh"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+
+                      <div className="mt-4 rounded-3xl border bg-white" style={surfaceSoftStyle}>
+                        <div className="p-4">
+                          <div className="text-sm font-semibold">New reminder</div>
+
+                          <div className="mt-3 space-y-3">
+                            <Field label="Title">
+                              <input
+                                value={rTitle}
+                                onChange={(e) => setRTitle(e.target.value)}
+                                placeholder="e.g., Pay rent, Stretch, Call mom"
+                                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                              />
+                            </Field>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Field label="Recurrence">
+                                <select
+                                  value={rSchedule}
+                                  onChange={(e) => setRSchedule(e.target.value as ReminderSchedule)}
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                >
+                                  <option value="daily">Daily</option>
+                                  <option value="weekdays">Weekdays</option>
+                                  <option value="custom">Custom</option>
+                                  <option value="once">Once</option>
+                                </select>
+                              </Field>
+
+                              <Field label="Location">
+                                <input
+                                  value={rLocation}
+                                  onChange={(e) => setRLocation(e.target.value)}
+                                  placeholder="e.g., Library, Gym, Home"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+                            </div>
+
+                            {rSchedule === "once" ? (
+                              <Field label="Date">
+                                <input
+                                  type="date"
+                                  value={rDate}
+                                  onChange={(e) => setRDate(e.target.value)}
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+                            ) : null}
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <Field label="Hour">
+                                <select
+                                  value={rHour}
+                                  onChange={(e) => setRHour(Number(e.target.value))}
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                >
+                                  {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                                    <option key={h} value={h}>
+                                      {h}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+
+                              <Field label="Minute">
+                                <select
+                                  value={rMinute}
+                                  onChange={(e) => setRMinute(Number(e.target.value))}
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                >
+                                  {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
+                                    <option key={m} value={m}>
+                                      {pad2(m)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+
+                              <Field label="AM / PM">
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setRAmPm("AM")}
+                                    className="flex-1 rounded-2xl border px-3 py-2 text-sm font-semibold transition bg-white hover:bg-black/[0.03]"
+                                    style={rAmPm === "AM" ? brandSoftStyle : surfaceSoftStyle}
+                                  >
+                                    AM
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRAmPm("PM")}
+                                    className="flex-1 rounded-2xl border px-3 py-2 text-sm font-semibold transition bg-white hover:bg-black/[0.03]"
+                                    style={rAmPm === "PM" ? brandSoftStyle : surfaceSoftStyle}
+                                  >
+                                    PM
+                                  </button>
+                                </div>
+                              </Field>
+                            </div>
+
+                            {rSchedule === "custom" ? (
+                              <div>
+                                <div className="text-[11px] text-neutral-500">Days of week</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {DOW.map((d) => {
+                                    const on = rDays.includes(d.n);
+                                    return (
+                                      <button
+                                        key={d.n}
+                                        type="button"
+                                        onClick={() => {
+                                          setRDays((prev) =>
+                                            prev.includes(d.n)
+                                              ? prev.filter((x) => x !== d.n)
+                                              : [...prev, d.n]
+                                          );
+                                        }}
+                                        className="rounded-full border px-3 py-1.5 text-[12px] font-semibold transition bg-white hover:bg-black/[0.03]"
+                                        style={on ? brandSoftStyle : surfaceSoftStyle}
+                                      >
+                                        {d.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <Field label="Notes (optional)">
+                              <input
+                                value={rNotes}
+                                onChange={(e) => setRNotes(e.target.value)}
+                                placeholder="e.g., do it before 11am"
+                                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                              />
+                            </Field>
+
+                            <div className="flex items-center justify-end">
+                              <button
+                                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                style={brandSoftStyle}
+                                onClick={createReminder}
+                                disabled={remSaving || !rTitle.trim()}
+                                title={!rTitle.trim() ? "Enter a title first" : remSaving ? "Saving…" : "Save"}
+                              >
+                                {remSaving ? "Saving…" : "Save"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 text-[11px] text-neutral-500 flex items-center justify-between">
+                            <span>Now connected to DB via /api/reminders.</span>
+                            <span style={{ color: rgbaBrand(0.9) }}>Jynx nudges quietly</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        {reminders.length === 0 && !remLoading ? (
+                          <div className="text-xs text-neutral-500">No reminders yet.</div>
+                        ) : null}
+
+                        {reminders.map((r) => {
+                          const days = parseDays(r.daysOfWeek);
+                          const dayLabel =
+                            r.schedule === "daily"
+                              ? "Every day"
+                              : r.schedule === "weekdays"
+                              ? "Mon–Fri"
+                              : r.schedule === "custom"
+                              ? formatDays(days)
+                              : r.date
+                              ? r.date
+                              : "—";
+
+                          return (
+                            <div key={r.id} className={cx("rounded-2xl border bg-white px-3 py-3")} style={innerCardStyle}>
+                              <div className="flex items-start gap-3">
+                                <div className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[11px] font-semibold shrink-0" style={brandSoftStyle}>
+                                  ⏰
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <div className={cx("text-sm font-semibold", r.enabled ? "text-neutral-900" : "text-neutral-400 line-through")}>
+                                      {r.title}
+                                    </div>
+                                    <Pill style={surfaceSoftStyle}>{r.schedule}</Pill>
+                                    <Pill style={surfaceSoftStyle}>{formatTime12(r.timeOfDay)}</Pill>
+                                    {r.location ? <Pill style={surfaceSoftStyle}>{r.location}</Pill> : null}
+                                    <Pill style={surfaceSoftStyle}>{dayLabel}</Pill>
+                                    <Pill style={r.enabled ? brandSoftStyle : surfaceSoftStyle}>{r.enabled ? "On" : "Off"}</Pill>
+                                  </div>
+
+                                  <div className="mt-1 text-xs text-neutral-600">{r.notes ? r.notes : "Notes: —"}</div>
+                                </div>
+
+                                <div className="flex flex-col gap-2 items-end">
+                                  <label className="text-[11px] text-neutral-700 flex items-center gap-2 select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={r.enabled}
+                                      onChange={(e) => toggleReminder(r.id, e.target.checked)}
+                                    />
+                                    Enabled
+                                  </label>
+
+                                  <button
+                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                                    style={surfaceSoftStyle}
+                                    onClick={() => deleteReminder(r.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {topTab === "preferences" && prefSection !== "medication" && prefSection !== "reminders" && (
+                  <ShellPanel
+                    title={prettyPref(prefSection as PrefSection)}
+                    subtitle="UI shell — add fields later"
+                    surfaceStyle={surfaceStyle}
+                    surfaceSoftStyle={surfaceSoftStyle}
+                  />
+                )}
+
+                {topTab === "settings" && settingsSection === "account" ? (
+                  <div className={panelBase} style={surfaceStyle}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold">Account</div>
+                          <div className="mt-1 text-xs text-neutral-500">Live Clerk session + DB user record</div>
+                        </div>
+
+                        <SignOutButton redirectUrl="/login">
+                          <button
+                            className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                            style={surfaceSoftStyle}
+                          >
+                            Sign out
+                          </button>
+                        </SignOutButton>
+                      </div>
+
+                      <div className="mt-4">
+                        <AccountPanel />
+                      </div>
+                    </div>
+                  </div>
+                ) : topTab === "settings" ? (
+                  <ShellPanel
+                    title={prettySettings(settingsSection as SettingsSection)}
+                    subtitle="UI shell — add options later"
+                    surfaceStyle={surfaceStyle}
+                    surfaceSoftStyle={surfaceSoftStyle}
+                  />
+                ) : null}
+              </section>
+            )}
+          </div>
         </div>
       </div>
     </main>
@@ -1178,17 +1207,23 @@ export default function ProfilePage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11px] text-neutral-400">{label}</div>
+      <div className="text-[11px] text-neutral-500">{label}</div>
       <div className="mt-2">{children}</div>
     </div>
   );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
+function Pill({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
   return (
     <span
-      className="inline-flex items-center rounded-full border border-white/12 bg-white/6 px-2.5 py-1 text-[11px] text-neutral-200"
-      style={{ boxShadow: "0 0 0 1px rgba(85,107,47,0.18)" }}
+      className="inline-flex items-center rounded-full border bg-white px-2.5 py-1 text-[11px] text-neutral-700"
+      style={style ?? { borderColor: "rgba(0,0,0,0.08)", boxShadow: "0 0 0 1px rgba(0,0,0,0.04)" }}
     >
       {children}
     </span>
@@ -1200,25 +1235,22 @@ function TopButton({
   label,
   sub,
   onClick,
-  oliveSoftStyle,
+  activeStyle,
 }: {
   active: boolean;
   label: string;
   sub: string;
   onClick: () => void;
-  oliveSoftStyle: React.CSSProperties;
+  activeStyle: React.CSSProperties;
 }) {
   return (
     <button
       onClick={onClick}
-      className={cx(
-        "w-full text-left rounded-2xl border px-4 py-3 transition",
-        active ? "bg-white/12 border-white/18 text-neutral-100" : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-      )}
-      style={active ? oliveSoftStyle : undefined}
+      className="w-full text-left rounded-2xl border px-4 py-3 transition bg-white hover:bg-black/[0.03]"
+      style={active ? activeStyle : { borderColor: "rgba(0,0,0,0.08)", boxShadow: "0 0 0 1px rgba(0,0,0,0.04)" }}
     >
-      <div className="text-sm font-semibold">{label}</div>
-      <div className="mt-0.5 text-xs text-neutral-400">{sub}</div>
+      <div className="text-sm font-semibold text-neutral-900">{label}</div>
+      <div className="mt-0.5 text-xs text-neutral-500">{sub}</div>
     </button>
   );
 }
@@ -1228,25 +1260,22 @@ function SubButton({
   label,
   sub,
   onClick,
-  oliveSoftStyle,
+  activeStyle,
 }: {
   active: boolean;
   label: string;
   sub: string;
   onClick: () => void;
-  oliveSoftStyle: React.CSSProperties;
+  activeStyle: React.CSSProperties;
 }) {
   return (
     <button
       onClick={onClick}
-      className={cx(
-        "w-full text-left rounded-2xl border px-4 py-3 transition",
-        active ? "bg-white/12 border-white/18 text-neutral-100" : "bg-white/6 border-white/12 text-neutral-200 hover:bg-white/10"
-      )}
-      style={active ? oliveSoftStyle : undefined}
+      className="w-full text-left rounded-2xl border px-4 py-3 transition bg-white hover:bg-black/[0.03]"
+      style={active ? activeStyle : { borderColor: "rgba(0,0,0,0.08)", boxShadow: "0 0 0 1px rgba(0,0,0,0.04)" }}
     >
-      <div className="text-sm font-semibold">{label}</div>
-      <div className="mt-0.5 text-xs text-neutral-400">{sub}</div>
+      <div className="text-sm font-semibold text-neutral-900">{label}</div>
+      <div className="mt-0.5 text-xs text-neutral-500">{sub}</div>
     </button>
   );
 }
@@ -1254,20 +1283,22 @@ function SubButton({
 function ShellPanel({
   title,
   subtitle,
-  oliveCardStyle,
+  surfaceStyle,
+  surfaceSoftStyle,
 }: {
   title: string;
   subtitle: string;
-  oliveCardStyle: React.CSSProperties;
+  surfaceStyle: React.CSSProperties;
+  surfaceSoftStyle: React.CSSProperties;
 }) {
   return (
-    <div className="rounded-3xl border bg-white/6 backdrop-blur" style={oliveCardStyle}>
+    <div className="rounded-3xl border bg-white" style={surfaceStyle}>
       <div className="p-4">
-        <div className="text-sm font-semibold">{title}</div>
-        <div className="mt-1 text-xs text-neutral-400">{subtitle}</div>
+        <div className="text-sm font-semibold text-neutral-900">{title}</div>
+        <div className="mt-1 text-xs text-neutral-500">{subtitle}</div>
 
-        <div className="mt-4 rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-3">
-          <div className="text-sm text-neutral-200">Coming soon.</div>
+        <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+          <div className="text-sm text-neutral-800">Coming soon.</div>
           <div className="mt-1 text-[11px] text-neutral-500">Keep this PS-style: list → subsection → details.</div>
         </div>
       </div>
