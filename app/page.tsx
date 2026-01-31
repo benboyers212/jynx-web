@@ -16,6 +16,39 @@ function rgbaBrand(a: number) {
   return `rgba(${BRAND_RGB.r},${BRAND_RGB.g},${BRAND_RGB.b},${a})`;
 }
 
+const QUOTES = [
+  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+  { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+  { text: "Plan your work for today and every day, then work your plan.", author: "Leonid Brezhnev" },
+  { text: "Focus is the new intelligence.", author: "Cal Newport" },
+  { text: "What gets measured gets managed.", author: "Peter Drucker" },
+  { text: "The art of progress is to preserve order amid change.", author: "Francis Bacon" },
+  { text: "Clarity is not the absence of busyness — it's knowing your priorities.", author: "Unknown" },
+  { text: "Small daily improvements are the key to staggering long-term results.", author: "Unknown" },
+  { text: "A goal without a plan is just a wish.", author: "Antoine de Saint-Exupéry" },
+  { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
+];
+
+const PIE_COLORS: Record<string, string> = {
+  class: "#1F8A5B",
+  work: "#3B82F6",
+  health: "#EF4444",
+  prep: "#8B5CF6",
+  study: "#F59E0B",
+  life: "#14B8A6",
+  free: "#E5E7EB",
+};
+
+const PIE_LABELS: Record<string, string> = {
+  class: "Class",
+  work: "Work",
+  health: "Health",
+  prep: "Prep",
+  study: "Study",
+  life: "Life",
+  free: "Free time",
+};
+
 type EventType = "class" | "work" | "health" | "prep" | "study" | "life" | "free";
 
 type BaseEvent = {
@@ -169,7 +202,7 @@ function uid() {
 }
 
 type ViewSpan = "Day" | "Week";
-type ViewFormat = "Schedule" | "List";
+type ViewFormat = "Timeline" | "List";
 
 type Reminder = {
   id: string;
@@ -402,7 +435,7 @@ export default function Home() {
   // Views
   // ---------------------------
   const [viewSpan, setViewSpan] = useState<ViewSpan>("Day");
-  const [viewFormat, setViewFormat] = useState<ViewFormat>("Schedule");
+  const [viewFormat, setViewFormat] = useState<ViewFormat>("Timeline");
 
   // Left sidebar (collapsible)
   const [leftOpen, setLeftOpen] = useState(true);
@@ -427,6 +460,9 @@ export default function Home() {
   // Thoughts mini card
   const [thoughtsOpen, setThoughtsOpen] = useState(false);
   const [thoughtsText, setThoughtsText] = useState("");
+
+  // Today overview modal
+  const [todayOpen, setTodayOpen] = useState(false);
 
   // Adjust modal (schedule controls)
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -508,6 +544,7 @@ export default function Home() {
       if (e.key === "Escape") {
         if (addGoalOpen) { setAddGoalOpen(false); return; }
         if (goalsModalWindow) { setGoalsModalWindow(null); return; }
+        if (todayOpen) { setTodayOpen(false); return; }
         if (adjustOpen) setAdjustOpen(false);
         if (drawerOpen) closeDrawer();
       }
@@ -515,7 +552,7 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawerOpen, adjustOpen, addGoalOpen, goalsModalWindow]);
+  }, [drawerOpen, adjustOpen, addGoalOpen, goalsModalWindow, todayOpen]);
 
   function setImportance(id: string, importance: 1 | 2 | 3 | 4 | 5) {
     // Only demo days have data
@@ -580,6 +617,40 @@ export default function Home() {
 
   // NO FREE TIME BLOCKS: just sorted events
   const activeBlocks = useMemo(() => buildBlocksWithFreeTime(activeEvents), [activeEvents]);
+
+  // Today modal data
+  const todayQuote = useMemo(() => {
+    const n = selectedDate.getDate() + selectedDate.getMonth() * 31;
+    return QUOTES[n % QUOTES.length];
+  }, [selectedDate]);
+
+  const topEvents = useMemo(() =>
+    [...activeEvents].sort((a, b) => (b.importance ?? 3) - (a.importance ?? 3)).slice(0, 3),
+    [activeEvents]
+  );
+
+  const bottomEvents = useMemo(() =>
+    [...activeEvents].sort((a, b) => (a.importance ?? 3) - (b.importance ?? 3)).slice(0, 3),
+    [activeEvents]
+  );
+
+  const todayPieData = useMemo(() => {
+    const buckets: Record<string, number> = {};
+    let totalScheduled = 0;
+    activeEvents.forEach((e) => {
+      if (!e.endTime) return;
+      const dur = timeSort(e.endTime) - timeSort(e.time);
+      if (dur <= 0) return;
+      buckets[e.type] = (buckets[e.type] || 0) + dur;
+      totalScheduled += dur;
+    });
+    const freeTime = Math.max(0, 960 - totalScheduled); // 16 waking hours
+    if (freeTime > 0) buckets["free"] = freeTime;
+    const total = totalScheduled + freeTime;
+    return Object.entries(buckets)
+      .map(([type, mins]) => ({ type, mins, pct: total > 0 ? mins / total : 0 }))
+      .sort((a, b) => b.pct - a.pct);
+  }, [activeEvents]);
 
   // Mini month calendar (every day clickable)
   const miniCal = useMemo(() => {
@@ -815,7 +886,7 @@ export default function Home() {
 
                   {/* 3) Goals */}
                   <div>
-                    <div className="p-4">
+                    <div className="px-4 pb-4 pt-2">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">Goals</div>
                       </div>
@@ -861,7 +932,7 @@ export default function Home() {
 
                   {/* 4) Reminders */}
                   <div>
-                    <div className="p-4">
+                    <div className="px-4 pb-4 pt-2">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">Reminders</div>
                         <span
@@ -1002,7 +1073,7 @@ export default function Home() {
                 {/* View toggles */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <Segment value={viewSpan} options={["Day", "Week"]} onChange={(v) => setViewSpan(v as ViewSpan)} />
-                  <Segment value={viewFormat} options={["Schedule", "List"]} onChange={(v) => setViewFormat(v as ViewFormat)} />
+                  <Segment value={viewFormat} options={["Timeline", "List"]} onChange={(v) => setViewFormat(v as ViewFormat)} />
 
                   <button
                     onClick={() => setAdjustOpen(true)}
@@ -1033,13 +1104,19 @@ export default function Home() {
               <section>
                 {viewSpan === "Day" ? (
                   <>
-                    {viewFormat === "Schedule" ? (
+                    {viewFormat === "Timeline" ? (
                       <div>
                         <div className="p-5">
                           <div className="flex items-center justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-semibold">Schedule</div>
-                              <div className="text-xs text-neutral-500">One day at a time · timeline view</div>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => setTodayOpen(true)}
+                                className="rounded-2xl px-3 py-1.5 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                                style={surfaceSoftStyle}
+                              >
+                                Today
+                              </button>
+                              <div className="text-xs text-neutral-500">Your plan for today</div>
                             </div>
                             <div className="text-[11px] text-neutral-500">{activeEvents.length} items</div>
                           </div>
@@ -1458,6 +1535,166 @@ export default function Home() {
         </div>
 
         <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes fadeScaleIn { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }`}</style>
+
+        {/* Today overview modal */}
+        {todayOpen && (
+          <>
+            <button
+              className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-[60]"
+              style={{ animation: "fadeIn 180ms ease-out" }}
+              onClick={() => setTodayOpen(false)}
+              aria-label="Close today overview"
+            />
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
+              <div
+                className="relative rounded-3xl border bg-white/92 backdrop-blur overflow-hidden"
+                style={{
+                  width: adjustW,
+                  height: adjustH,
+                  borderColor: "rgba(0,0,0,0.10)",
+                  boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                  animation: "fadeScaleIn 220ms ease-out",
+                }}
+              >
+                {/* Header */}
+                <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                  <div>
+                    <div className="text-sm font-semibold">Today</div>
+                    <div className="text-xs text-neutral-500 mt-0.5">Your day at a glance.</div>
+                  </div>
+                  <button
+                    onClick={() => setTodayOpen(false)}
+                    className="ml-auto rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
+                    style={surfaceSoftStyle}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-5 overflow-y-auto" style={{ height: "calc(100% - 56px)" }}>
+                  {/* Quote */}
+                  <div
+                    className="rounded-2xl p-4 mb-5"
+                    style={{ background: rgbaBrand(0.06), borderLeft: `3px solid ${JYNX_GREEN}` }}
+                  >
+                    <div className="text-sm" style={{ color: "rgba(0,0,0,0.72)", fontStyle: "italic" }}>
+                      "{todayQuote.text}"
+                    </div>
+                    <div className="text-[11px] mt-1.5" style={{ color: "rgba(0,0,0,0.42)" }}>
+                      — {todayQuote.author}
+                    </div>
+                  </div>
+
+                  {/* Two-column layout */}
+                  <div className="grid grid-cols-[1fr_200px] gap-6">
+                    {/* Left: Focus + Don't stress */}
+                    <div className="space-y-5">
+                      {/* Focus on */}
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: JYNX_GREEN }}>
+                          Focus on
+                        </div>
+                        <div className="space-y-2">
+                          {topEvents.map((e) => (
+                            <div
+                              key={e.id}
+                              className="flex items-start gap-2.5 rounded-xl px-3 py-2"
+                              style={{ background: "rgba(0,0,0,0.02)" }}
+                            >
+                              <div
+                                className="mt-1 h-2 w-2 rounded-full shrink-0"
+                                style={{ background: JYNX_GREEN }}
+                              />
+                              <div className="min-w-0">
+                                <div className="text-[13px] font-medium truncate" style={{ color: "rgba(0,0,0,0.88)" }}>
+                                  {e.title}
+                                </div>
+                                <div className="text-[11px] truncate" style={{ color: "rgba(0,0,0,0.45)" }}>
+                                  {formatRange(e.time, e.endTime)}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Don't stress on */}
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(0,0,0,0.40)" }}>
+                          Don't stress on
+                        </div>
+                        <div className="space-y-1.5">
+                          {bottomEvents.map((e) => (
+                            <div key={e.id} className="flex items-center gap-2 px-1">
+                              <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "rgba(0,0,0,0.20)" }} />
+                              <div className="text-[12px] truncate" style={{ color: "rgba(0,0,0,0.50)" }}>
+                                {e.title}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Pie chart */}
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(0,0,0,0.40)" }}>
+                        Time breakdown
+                      </div>
+                      <div className="flex justify-center">
+                        <svg width="140" height="140" viewBox="0 0 140 140">
+                          {(() => {
+                            let angle = -Math.PI / 2;
+                            return todayPieData.map((seg) => {
+                              const sweep = seg.pct * 2 * Math.PI;
+                              const startAngle = angle;
+                              const endAngle = angle + sweep;
+                              angle += sweep;
+                              const x1 = 70 + 60 * Math.cos(startAngle);
+                              const y1 = 70 + 60 * Math.sin(startAngle);
+                              const x2 = 70 + 60 * Math.cos(endAngle);
+                              const y2 = 70 + 60 * Math.sin(endAngle);
+                              const largeArc = sweep > Math.PI ? 1 : 0;
+                              return (
+                                <path
+                                  key={seg.type}
+                                  d={`M 70 70 L ${x1} ${y1} A 60 60 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                                  fill={PIE_COLORS[seg.type] || "#ccc"}
+                                />
+                              );
+                            });
+                          })()}
+                          {/* Donut hole */}
+                          <circle cx="70" cy="70" r="36" fill="white" />
+                        </svg>
+                      </div>
+                      {/* Legend */}
+                      <div className="mt-3 space-y-1.5">
+                        {todayPieData.map((seg) => {
+                          const hrs = Math.floor(seg.mins / 60);
+                          const mins = seg.mins % 60;
+                          const label = hrs > 0 ? (mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`) : `${mins}m`;
+                          return (
+                            <div key={seg.type} className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: PIE_COLORS[seg.type] || "#ccc" }} />
+                                <div className="text-[11px]" style={{ color: "rgba(0,0,0,0.65)" }}>
+                                  {PIE_LABELS[seg.type] || seg.type}
+                                </div>
+                              </div>
+                              <div className="text-[11px] font-medium" style={{ color: "rgba(0,0,0,0.45)" }}>{label}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Adjust overlay */}
         {adjustOpen && (
