@@ -20,6 +20,7 @@ const dmSans = DM_Sans({
 // Keep brand olive, but use it subtly (accents only)
 const OLIVE = "#4b5e3c";
 
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
@@ -44,8 +45,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   const navItems = [
-    { label: "My Time", href: "/my-time" },
     { label: "Schedule", href: "/" },
+    { label: "My Time", href: "/my-time" },
     { label: "Groups", href: "/groups" },
   ];
 
@@ -80,6 +81,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider signInUrl="/login">
       <html lang="en" className={dmSans.variable}>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+        </head>
         {/* Light shell is now driven by globals.css tokens */}
         <body className="font-sans bg-[var(--background)] text-[var(--foreground)]">
           {!hideShell && (

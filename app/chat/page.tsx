@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const OLIVE = "#556B2F";
+const OLIVE = "#4b5e3c";
 
 type Role = "user" | "assistant";
 
@@ -50,8 +50,8 @@ function uid() {
 async function apiGet<T>(url: string): Promise<T> {
   const res = await fetch(url, { method: "GET" });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data?.ok === false) {
-    throw new Error(data?.error || `Request failed: ${res.status}`);
+  if (!res.ok || (data as any)?.ok === false) {
+    throw new Error((data as any)?.error || `Request failed: ${res.status}`);
   }
   return data as T;
 }
@@ -63,14 +63,14 @@ async function apiPost<T>(url: string, body: any): Promise<T> {
     body: JSON.stringify(body ?? {}),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data?.ok === false) {
-    throw new Error(data?.error || `Request failed: ${res.status}`);
+  if (!res.ok || (data as any)?.ok === false) {
+    throw new Error((data as any)?.error || `Request failed: ${res.status}`);
   }
   return data as T;
 }
 
 export default function ChatPage() {
-  // ✅ FIX: avoid hydration mismatch from rendering time on server vs client
+  // avoid hydration mismatch for timestamps
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -79,7 +79,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [historyQuery, setHistoryQuery] = useState("");
-  const [cardsOpen, setCardsOpen] = useState(true);
 
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -93,11 +92,6 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const hasChatted = messages.length > 0;
-
-  // When first message appears, collapse overview by default
-  useEffect(() => {
-    if (hasChatted) setCardsOpen(false);
-  }, [hasChatted]);
 
   // Autosize textarea
   useEffect(() => {
@@ -126,13 +120,11 @@ export default function ChatPage() {
         const list = Array.isArray(data.threads) ? data.threads : [];
         setThreads(list);
 
-        // pick first thread if exists
         if (list.length > 0) {
           setActiveThreadId(list[0].id);
         } else {
           setActiveThreadId("");
           setMessages([]);
-          setCardsOpen(true);
         }
       } catch (e: any) {
         if (!alive) return;
@@ -156,7 +148,6 @@ export default function ChatPage() {
     async function loadThread() {
       if (!activeThreadId) {
         setMessages([]);
-        setCardsOpen(true);
         return;
       }
 
@@ -172,7 +163,6 @@ export default function ChatPage() {
         if (!alive) return;
         setMessages(Array.isArray(data.messages) ? data.messages : []);
 
-        // keep local thread title in sync (if API set it)
         setThreads((prev) =>
           prev.map((t) =>
             t.id === activeThreadId
@@ -222,18 +212,15 @@ export default function ChatPage() {
   async function newChat() {
     setError(null);
     try {
-      const data = await apiPost<{
-        ok: true;
-        conversation: Thread;
-      }>("/api/conversations", { title: null });
+      const data = await apiPost<{ ok: true; conversation: Thread }>("/api/conversations", {
+        title: null,
+      });
 
       const t = data.conversation;
-
       setThreads((prev) => [t, ...prev]);
       setActiveThreadId(t.id);
       setMessages([]);
       setInput("");
-      setCardsOpen(true);
       setAttachedFiles([]);
     } catch (e: any) {
       setError(e?.message || "Failed to create a new chat");
@@ -248,7 +235,6 @@ export default function ChatPage() {
     const list = Array.from(e.target.files ?? []);
     if (!list.length) return;
 
-    // simple de-dupe by name+size+lastModified
     setAttachedFiles((prev) => {
       const seen = new Set(prev.map((f) => `${f.name}|${f.size}|${f.lastModified}`));
       const next = [...prev];
@@ -259,7 +245,6 @@ export default function ChatPage() {
       return next;
     });
 
-    // allow re-picking same file later
     e.target.value = "";
   }
 
@@ -269,15 +254,12 @@ export default function ChatPage() {
 
   async function appendMessageToDB(role: Role, content: string) {
     if (!activeThreadId) {
-      // If no active thread exists, create one first
-      const created = await apiPost<{ ok: true; conversation: Thread }>(
-        "/api/conversations",
-        { title: null }
-      );
+      const created = await apiPost<{ ok: true; conversation: Thread }>("/api/conversations", {
+        title: null,
+      });
       const t = created.conversation;
       setThreads((prev) => [t, ...prev]);
       setActiveThreadId(t.id);
-      // NOTE: we return the created id for the caller
       return apiPost<{ ok: true; message: Message }>(`/api/conversations/${t.id}`, {
         role,
         content,
@@ -303,7 +285,6 @@ export default function ChatPage() {
 
     const userContent = (text || "(sent files)") + filesLine;
 
-    // optimistic UI
     const tempUser: Message = {
       id: `temp_${uid()}`,
       role: "user",
@@ -312,7 +293,6 @@ export default function ChatPage() {
     };
     setMessages((prev) => [...prev, tempUser]);
 
-    // update thread preview optimistically
     setThreads((prev) =>
       prev.map((t) => {
         if (t.id !== activeThreadId) return t;
@@ -337,23 +317,16 @@ export default function ChatPage() {
     setAttachedFiles([]);
 
     try {
-      // write user message
       const savedUser = await appendMessageToDB("user", userContent);
+      setMessages((prev) => prev.map((m) => (m.id === tempUser.id ? savedUser.message : m)));
 
-      // replace temp with saved
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempUser.id ? savedUser.message : m))
-      );
-
-      // UI shell assistant response (also persist, so threads load correctly later)
+      // UI shell assistant response (persisted)
       const assistantText =
         "Got it. (UI shell) — files are attached in the UI for now. Once wired, this will upload + reference them in the thread.";
 
       const savedAssistant = await appendMessageToDB("assistant", assistantText);
       setMessages((prev) => [...prev, savedAssistant.message]);
 
-      // refresh threads ordering/title/preview from server-ish behavior:
-      // simplest: bump this thread updatedAt locally
       setThreads((prev) =>
         prev.map((t) =>
           t.id === (activeThreadId || t.id)
@@ -373,46 +346,44 @@ export default function ChatPage() {
     }
   }
 
-  // === Styling tokens ===
-  const panelBase = "rounded-3xl border bg-white/6 backdrop-blur";
-  const panelInner = "rounded-2xl border bg-neutral-900/40";
-  const buttonBase = "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
+  // --- Light UI tokens (match the rest of the app) ---
+  const border = "rgba(0,0,0,0.10)";
+  const borderStrong = "rgba(0,0,0,0.14)";
+  const surface = "var(--surface)";
+  const bg = "var(--background)";
+  const fg = "var(--foreground)";
+  const muted = "var(--muted-foreground)";
 
-  const oliveCardStyle: React.CSSProperties = {
-    borderColor: "rgba(85,107,47,0.60)",
-    boxShadow: "0 0 0 1px rgba(85,107,47,0.55), 0 18px 50px rgba(0,0,0,0.40)",
+  const pillStyle: React.CSSProperties = {
+    borderColor: "rgba(0,0,0,0.10)",
+    background: "rgba(0,0,0,0.02)",
   };
 
-  const oliveSoftStyle: React.CSSProperties = {
-    borderColor: "rgba(85,107,47,0.42)",
-    boxShadow: "0 0 0 1px rgba(85,107,47,0.28)",
+  const activeRowStyle: React.CSSProperties = {
+    borderColor: "rgba(75,94,60,0.30)",
+    boxShadow: "0 0 0 1px rgba(75,94,60,0.16)",
+    background: "rgba(75,94,60,0.06)",
   };
 
   return (
-    <main className="h-full bg-neutral-950 text-neutral-100 overflow-hidden">
-      {/* Ambient background */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div
-          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
-          style={{
-            background:
-              "radial-gradient(circle at 30% 30%, rgba(85,107,47,0.90), rgba(17,17,17,0) 60%)",
-          }}
-        />
-        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-white/20" />
-      </div>
-
+    <main className="h-full overflow-hidden" style={{ background: bg, color: fg }}>
       <div className="relative flex h-full">
         {/* History */}
-        <aside className="w-[320px] border-r border-white/10 bg-neutral-950/45 backdrop-blur hidden md:flex flex-col">
-          <div className="p-4 border-b border-white/10">
+        <aside
+          className="w-[320px] hidden md:flex flex-col border-r"
+          style={{ borderColor: border, background: surface }}
+        >
+          <div className="p-4 border-b" style={{ borderColor: border }}>
             <div className="flex items-center gap-2">
               <div className="text-sm font-semibold tracking-wide">History</div>
               <div className="ml-auto" />
               <button
                 onClick={newChat}
-                className="rounded-xl px-3 py-2 text-xs font-semibold border border-white/12 bg-white/6 hover:bg-white/10 transition"
-                style={oliveSoftStyle}
+                className="rounded-xl px-3 py-2 text-xs font-semibold border transition hover:bg-black/[0.04]"
+                style={{
+                  borderColor: "rgba(75,94,60,0.26)",
+                  background: "rgba(75,94,60,0.06)",
+                }}
               >
                 + New Chat
               </button>
@@ -423,42 +394,53 @@ export default function ChatPage() {
                 value={historyQuery}
                 onChange={(e) => setHistoryQuery(e.target.value)}
                 placeholder="Search chats…"
-                className="w-full rounded-xl border border-white/12 bg-white/6 px-3 py-2 text-sm outline-none placeholder:text-neutral-500 focus:ring-2 focus:ring-white/10"
+                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{
+                  borderColor: border,
+                  background: "rgba(0,0,0,0.02)",
+                  color: fg,
+                }}
               />
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3">
             {loadingThreads ? (
-              <div className="p-3 text-sm text-neutral-400">Loading…</div>
+              <div className="p-3 text-sm" style={{ color: muted }}>
+                Loading…
+              </div>
             ) : groupedThreads.length === 0 ? (
-              <div className="p-3 text-sm text-neutral-400">No chats found.</div>
+              <div className="p-3 text-sm" style={{ color: muted }}>
+                No chats found.
+              </div>
             ) : (
               <div className="space-y-4">
                 {groupedThreads.map((g) => (
                   <div key={g.day}>
-                    <div className="px-2 mb-2 text-[11px] uppercase tracking-wider text-neutral-500">
+                    <div className="px-2 mb-2 text-[11px] uppercase tracking-wider" style={{ color: muted }}>
                       {g.day}
                     </div>
 
                     <div className="space-y-1">
                       {g.items.map((t) => {
                         const active = t.id === activeThreadId;
+
                         return (
                           <button
                             key={t.id}
                             onClick={() => {
                               setActiveThreadId(t.id);
-                              setCardsOpen(true);
                               setInput("");
                               setAttachedFiles([]);
                             }}
                             className={cx(
-                              "w-full text-left rounded-2xl px-3 py-3 border transition relative",
-                              active
-                                ? "border-white/18 bg-white/12"
-                                : "border-white/12 bg-white/6 hover:bg-white/10 hover:border-white/18"
+                              "w-full text-left rounded-2xl px-3 py-3 border transition relative hover:bg-black/[0.03]"
                             )}
+                            style={{
+                              borderColor: border,
+                              background: "rgba(255,255,255,0.65)",
+                              ...(active ? activeRowStyle : null),
+                            }}
                           >
                             {active && (
                               <span
@@ -470,12 +452,12 @@ export default function ChatPage() {
                             <div className="flex items-start gap-2">
                               <div className="min-w-0 flex-1">
                                 <div className="text-sm font-semibold truncate">{t.title}</div>
-                                <div className="mt-1 text-xs text-neutral-300/80 truncate">
+                                <div className="mt-1 text-xs truncate" style={{ color: muted }}>
                                   {t.lastMessagePreview || "—"}
                                 </div>
                               </div>
 
-                              <div className="text-[11px] text-neutral-500 whitespace-nowrap">
+                              <div className="text-[11px] whitespace-nowrap" style={{ color: muted }}>
                                 <span suppressHydrationWarning>
                                   {mounted ? formatTime(t.createdAt) : ""}
                                 </span>
@@ -492,264 +474,161 @@ export default function ChatPage() {
           </div>
         </aside>
 
-        {/* Main column */}
+        {/* Main */}
         <section className="flex-1 flex flex-col h-full min-w-0">
           {/* Header */}
-          <header className="border-b border-white/10 bg-neutral-950/45 backdrop-blur shrink-0">
+          <header className="shrink-0 border-b" style={{ borderColor: border, background: surface }}>
             <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold tracking-wide truncate">
                   {threads.find((t) => t.id === activeThreadId)?.title || "Chat"}
                 </div>
-                <div className="text-xs text-neutral-400 mt-0.5">
-                  Ask, plan, adjust — your workspace stays focused.
+                <div className="text-xs mt-0.5" style={{ color: muted }}>
+                  Simple thread view — left history, right conversation.
                 </div>
               </div>
 
-              <div className="ml-auto">
-                <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] text-neutral-200">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400/80" />
-                  UI shell
-                </div>
+              <div className="ml-auto hidden sm:flex items-center gap-2 rounded-full border px-3 py-1 text-[11px]"
+                   style={{ borderColor: border, background: "rgba(0,0,0,0.02)", color: "rgba(17,17,17,0.70)" }}>
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: "rgba(16,185,129,0.85)" }} />
+                UI shell
               </div>
             </div>
           </header>
 
-          {/* Scrollable content area */}
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-6xl mx-auto px-6 py-5 pb-48">
+            <div className="max-w-6xl mx-auto px-6 py-6 pb-48">
               {error && (
-                <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                <div
+                  className="mb-4 rounded-2xl border px-4 py-3 text-sm"
+                  style={{
+                    borderColor: "rgba(239,68,68,0.25)",
+                    background: "rgba(239,68,68,0.08)",
+                    color: "rgba(127,29,29,0.95)",
+                  }}
+                >
                   {error}
                 </div>
               )}
 
-              {/* PRE-CHAT: compact dashboard ONLY (2 cards) */}
-              {!hasChatted ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Today’s Priorities */}
-                  <div className={panelBase} style={oliveCardStyle}>
-                    <div className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-7 w-7 rounded-2xl flex items-center justify-center border border-white/12 bg-white/6 text-xs"
-                          style={oliveSoftStyle}
-                        >
-                          ✓
-                        </div>
-                        <div className="text-sm font-semibold">Today’s Priorities</div>
-                        <div className="ml-auto text-[11px] text-neutral-400">quick summary</div>
-                      </div>
-
-                      <div className="mt-3 space-y-2">
-                        {[
-                          { label: "Finish chat UI layout + styling", meta: "45m" },
-                          { label: "Implement message persistence later", meta: "30m" },
-                          { label: "Plan tomorrow’s schedule blocks", meta: "10m" },
-                        ].map((it) => (
-                          <div
-                            key={it.label}
-                            className={cx(panelInner, "px-3 py-2")}
-                            style={{ borderColor: "rgba(255,255,255,0.12)" }}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="h-4 w-4 rounded-md border border-white/15 bg-white/6" />
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm text-neutral-100 truncate">{it.label}</div>
-                                <div className="text-xs text-neutral-400">{it.meta}</div>
-                              </div>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/12 text-neutral-200">
-                                focus
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          className={cx(buttonBase, "bg-white/10 hover:bg-white/14")}
-                          style={oliveSoftStyle}
-                          onClick={() => alert("UI shell")}
-                        >
-                          Build my schedule
-                        </button>
-                        <button
-                          className={cx(buttonBase, "bg-transparent hover:bg-white/6 border-white/12")}
-                          onClick={() => alert("UI shell")}
-                        >
-                          Edit
-                        </button>
-                      </div>
+              {/* Empty-state overlay (fades away after you start chatting) */}
+              <div
+                className={cx(
+                  "relative transition-opacity duration-300",
+                  hasChatted ? "opacity-0 pointer-events-none" : "opacity-100"
+                )}
+              >
+                <div
+                  className="rounded-3xl border px-6 py-6"
+                  style={{
+                    borderColor: border,
+                    background: "rgba(255,255,255,0.70)",
+                    boxShadow: "0 18px 55px rgba(0,0,0,0.08)",
+                  }}
+                >
+                  <div className="flex items-start gap-4">
+                    <div
+                      className="h-11 w-11 rounded-2xl border flex items-center justify-center text-xs font-semibold"
+                      style={{
+                        borderColor: "rgba(75,94,60,0.22)",
+                        background: "rgba(75,94,60,0.08)",
+                        color: "rgba(17,17,17,0.85)",
+                      }}
+                    >
+                      J
                     </div>
-                  </div>
-
-                  {/* Suggested Actions */}
-                  <div className={panelBase} style={oliveCardStyle}>
-                    <div className="p-4">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="h-7 w-7 rounded-2xl flex items-center justify-center border border-white/12 bg-white/6 text-xs"
-                          style={oliveSoftStyle}
-                        >
-                          ✦
-                        </div>
-                        <div className="text-sm font-semibold">Suggested Actions</div>
-                        <div className="ml-auto text-[11px] text-neutral-400">AI nudges</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-base font-semibold">Start a thread</div>
+                      <div className="text-sm mt-1" style={{ color: muted }}>
+                        Ask anything — planning, focus blocks, priorities. This panel disappears once you send your first message.
                       </div>
 
-                      <div className="mt-3 space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                      <div className="mt-4 flex flex-wrap gap-2">
                         {[
-                          "You have a big gap midday — want a 60–90m focus block inserted?",
-                          "If you move gym 30m earlier, you’ll avoid a late-night crush.",
-                          "Want me to turn today’s priorities into time blocks automatically?",
-                          "Do you want a 2-hour deep work block before your first meeting?",
-                        ].map((s) => (
+                          "Build my schedule today",
+                          "What should I prioritize next?",
+                          "Optimize my day into time blocks",
+                        ].map((q) => (
                           <button
-                            key={s}
-                            className="w-full text-left rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 hover:bg-white/6 transition"
-                            onClick={() => setInput(s)}
+                            key={q}
+                            onClick={() => setInput(q)}
+                            className="rounded-full border px-3 py-1.5 text-[11px] font-semibold hover:bg-black/[0.04] transition"
+                            style={pillStyle}
                           >
-                            <div className="text-sm text-neutral-100">{s}</div>
-                            <div className="mt-1 text-xs text-neutral-400">Click to send/edit</div>
+                            {q}
                           </button>
                         ))}
                       </div>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <>
-                  {/* Chat mode: overview bar */}
-                  <button
-                    onClick={() => setCardsOpen((v) => !v)}
-                    className={cx(
-                      panelBase,
-                      "w-full px-4 py-3 flex items-center gap-3 hover:bg-white/8 transition"
-                    )}
-                    style={oliveCardStyle}
-                  >
-                    <div
-                      className="h-8 w-8 rounded-2xl border border-white/12 bg-white/6 flex items-center justify-center"
-                      style={oliveSoftStyle}
-                    >
-                      ≡
-                    </div>
-                    <div className="min-w-0 flex-1 text-left">
-                      <div className="text-sm font-semibold">Today Overview</div>
-                      <div className="text-xs text-neutral-400 truncate">
-                        Priorities • Suggested actions
-                      </div>
-                    </div>
-                    <div className="text-xs text-neutral-200">{cardsOpen ? "Hide" : "Show"}</div>
-                  </button>
+              </div>
 
-                  {cardsOpen && (
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className={panelBase} style={oliveCardStyle}>
-                        <div className="p-4">
-                          <div className="text-sm font-semibold">Today’s Priorities</div>
-                          <div className="mt-3 space-y-2 text-sm text-neutral-200">
-                            <div className="rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2">
-                              Finish chat UI layout + styling
-                            </div>
-                            <div className="rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2">
-                              Implement message persistence later
-                            </div>
-                            <div className="rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2">
-                              Plan tomorrow’s schedule blocks
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className={panelBase} style={oliveCardStyle}>
-                        <div className="p-4">
-                          <div className="text-sm font-semibold">Suggested Actions</div>
-                          <div className="mt-3 space-y-2 text-sm text-neutral-200">
-                            <button
-                              onClick={() =>
-                                setInput(
-                                  "Insert a 60–90m focus block in my midday gap and adjust my schedule."
-                                )
-                              }
-                              className="w-full text-left rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 hover:bg-white/6 transition"
-                            >
-                              Insert a focus block midday
-                            </button>
-                            <button
-                              onClick={() =>
-                                setInput(
-                                  "Move gym 30 minutes earlier and re-balance the rest of my evening."
-                                )
-                              }
-                              className="w-full text-left rounded-2xl border border-white/12 bg-neutral-900/40 px-3 py-2 hover:bg-white/6 transition"
-                            >
-                              Move gym earlier
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+              {/* Conversation */}
+              <div className={cx("mt-6", !hasChatted && "mt-8")}>
+                <div className="space-y-4">
+                  {loadingThread ? (
+                    <div className="text-sm" style={{ color: muted }}>
+                      Loading…
                     </div>
-                  )}
-
-                  {/* Thread */}
-                  <div className={cx(panelBase, "mt-4")} style={oliveCardStyle}>
-                    <div className="px-5 py-4 border-b border-white/10 flex items-center gap-2">
-                      <div className="text-sm font-semibold">Thread</div>
-                      <div className="ml-auto text-xs text-neutral-400">
-                        {loadingThread
-                          ? "Loading…"
-                          : messages.length
-                          ? `${messages.length} messages`
-                          : "No messages yet"}
-                      </div>
+                  ) : messages.length === 0 ? (
+                    <div className="text-sm" style={{ color: muted }}>
+                      {/* keep space calm; empty-state above handles guidance */}
                     </div>
-
-                    <div className="px-5 py-5 space-y-4">
-                      {messages.map((m) => (
+                  ) : (
+                    messages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={cx("flex", m.role === "user" ? "justify-end" : "justify-start")}
+                      >
                         <div
-                          key={m.id}
-                          className={cx("flex", m.role === "user" ? "justify-end" : "justify-start")}
+                          className="max-w-[760px] rounded-3xl px-4 py-3 border"
+                          style={{
+                            borderColor: borderStrong,
+                            background:
+                              m.role === "user"
+                                ? "rgba(75,94,60,0.08)"
+                                : "rgba(255,255,255,0.80)",
+                            boxShadow:
+                              m.role === "user" ? "0 0 0 1px rgba(75,94,60,0.14)" : "none",
+                          }}
                         >
                           <div
-                            className={cx(
-                              "max-w-[720px] rounded-3xl px-4 py-3 border",
-                              m.role === "user"
-                                ? "border-white/12 bg-neutral-900/40"
-                                : "border-white/12 bg-white/6"
-                            )}
-                            style={
-                              m.role === "user"
-                                ? { boxShadow: "0 0 0 1px rgba(85,107,47,0.35)" }
-                                : undefined
-                            }
+                            className="text-sm leading-relaxed whitespace-pre-wrap"
+                            style={{ color: "rgba(17,17,17,0.92)" }}
                           >
-                            <div className="text-sm leading-relaxed text-neutral-100 whitespace-pre-wrap">
-                              {m.content}
-                            </div>
+                            {m.content}
+                          </div>
 
-                            <div className="mt-2 text-[11px] text-neutral-500">
-                              <span suppressHydrationWarning>
-                                {mounted ? formatTime(m.createdAt) : ""}
-                              </span>
-                            </div>
+                          <div className="mt-2 text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
+                            <span suppressHydrationWarning>
+                              {mounted ? formatTime(m.createdAt) : ""}
+                            </span>
                           </div>
                         </div>
-                      ))}
-                      <div ref={bottomRef} />
-                    </div>
-                  </div>
-                </>
-              )}
+                      </div>
+                    ))
+                  )}
+
+                  <div ref={bottomRef} />
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* ✅ Composer */}
-          <div className="sticky bottom-0 z-50 border-t border-white/10 bg-neutral-950/80 backdrop-blur shrink-0">
+          {/* Composer */}
+          <div className="sticky bottom-0 z-50 shrink-0 border-t" style={{ borderColor: border, background: surface }}>
             <div className="max-w-6xl mx-auto px-6 py-4">
               <div className="mx-auto max-w-4xl">
-                <div className="rounded-3xl border bg-white/6 px-4 py-4" style={oliveCardStyle}>
+                <div
+                  className="rounded-3xl border px-4 py-4"
+                  style={{
+                    borderColor: border,
+                    background: "rgba(255,255,255,0.80)",
+                    boxShadow: "0 18px 55px rgba(0,0,0,0.08)",
+                  }}
+                >
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -764,15 +643,19 @@ export default function ChatPage() {
                         {attachedFiles.map((f, idx) => (
                           <div
                             key={`${f.name}-${f.size}-${f.lastModified}-${idx}`}
-                            className="flex items-center gap-2 rounded-full border border-white/12 bg-neutral-900/40 px-3 py-1.5"
-                            style={oliveSoftStyle}
+                            className="flex items-center gap-2 rounded-full border px-3 py-1.5"
+                            style={{
+                              borderColor: border,
+                              background: "rgba(0,0,0,0.02)",
+                            }}
                           >
-                            <span className="text-[11px] text-neutral-200 max-w-[260px] truncate">
+                            <span className="text-[11px] max-w-[260px] truncate" style={{ color: "rgba(17,17,17,0.78)" }}>
                               {f.name}
                             </span>
                             <button
                               onClick={() => removeFileAt(idx)}
-                              className="text-[11px] text-neutral-400 hover:text-neutral-200 transition"
+                              className="text-[11px] transition hover:opacity-80"
+                              style={{ color: "rgba(17,17,17,0.55)" }}
                               aria-label={`Remove ${f.name}`}
                               title="Remove"
                             >
@@ -787,8 +670,12 @@ export default function ChatPage() {
                   <div className="flex items-end gap-3">
                     <button
                       onClick={openFilePicker}
-                      className="shrink-0 h-11 w-11 rounded-2xl border border-white/12 bg-white/6 hover:bg-white/10 transition flex items-center justify-center"
-                      style={oliveSoftStyle}
+                      className="shrink-0 h-11 w-11 rounded-2xl border transition flex items-center justify-center hover:bg-black/[0.04]"
+                      style={{
+                        borderColor: border,
+                        background: "rgba(0,0,0,0.02)",
+                        color: "rgba(17,17,17,0.85)",
+                      }}
                       title="Add file"
                       aria-label="Add file"
                     >
@@ -802,26 +689,33 @@ export default function ChatPage() {
                       onKeyDown={onKeyDown}
                       placeholder="Message Jynx…"
                       rows={1}
-                      className="w-full resize-none bg-transparent outline-none text-sm text-neutral-100 placeholder:text-neutral-500 leading-relaxed px-2"
-                      style={{ height: 0 }}
+                      className="w-full resize-none bg-transparent outline-none text-sm leading-relaxed px-2"
+                      style={{
+                        height: 0,
+                        color: "rgba(17,17,17,0.92)",
+                      }}
                     />
 
                     <button
                       onClick={onSend}
                       disabled={(!input.trim() && attachedFiles.length === 0) || loadingThread}
                       className={cx(
-                        "shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold transition border",
-                        input.trim() || attachedFiles.length
-                          ? "border-white/12 bg-white/12 hover:bg-white/16"
-                          : "border-white/5 bg-white/5 text-neutral-500 cursor-not-allowed"
+                        "shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold transition border"
                       )}
                       style={
                         input.trim() || attachedFiles.length
                           ? {
-                              boxShadow:
-                                "0 0 0 2px rgba(85,107,47,0.40), 0 12px 30px rgba(0,0,0,0.35)",
+                              borderColor: "rgba(75,94,60,0.30)",
+                              background: "rgba(75,94,60,0.10)",
+                              color: "rgba(17,17,17,0.92)",
+                              boxShadow: "0 0 0 1px rgba(75,94,60,0.14)",
                             }
-                          : undefined
+                          : {
+                              borderColor: "rgba(0,0,0,0.08)",
+                              background: "rgba(0,0,0,0.03)",
+                              color: "rgba(17,17,17,0.45)",
+                              cursor: "not-allowed",
+                            }
                       }
                     >
                       Send
@@ -829,28 +723,13 @@ export default function ChatPage() {
                   </div>
 
                   <div className="mt-2 flex items-center gap-2 px-1">
-                    <span className="text-[11px] text-neutral-500">
+                    <span className="text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
                       Enter to send • Shift+Enter for a new line
                     </span>
-                    <span className="ml-auto text-[11px] text-neutral-500">
+                    <span className="ml-auto text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
                       Saved to DB • threads won’t overwrite
                     </span>
                   </div>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {["Build my schedule today", "What should I prioritize next?", "Optimize my day into time blocks"].map(
-                    (q) => (
-                      <button
-                        key={q}
-                        onClick={() => setInput(q)}
-                        className="rounded-full border border-white/12 bg-white/6 px-3 py-1.5 text-[11px] text-neutral-200 hover:bg-white/10 transition"
-                        style={oliveSoftStyle}
-                      >
-                        {q}
-                      </button>
-                    )
-                  )}
                 </div>
               </div>
             </div>

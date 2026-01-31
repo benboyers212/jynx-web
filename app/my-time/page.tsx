@@ -734,7 +734,7 @@ export default function MyTimePage() {
 
   // Page background
   return (
-    <main className="h-screen bg-white text-neutral-950 overflow-hidden">
+    <main className="h-screen bg-[#f8f9fa] text-neutral-950 overflow-hidden">
       {/* Ambient */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
@@ -748,16 +748,20 @@ export default function MyTimePage() {
 
       <div className="relative flex h-full">
         {/* LEFT RAIL (Quick check-in + Latest insights live here now) */}
-        <div
+       <div
           className={cx(
-            "h-full border-r bg-white/70 backdrop-blur-sm transition-[width] duration-200",
+            "h-full transition-[width] duration-200 rounded-r-[28px]",
             leftOpen ? "w-[320px]" : "w-[56px]"
           )}
-          style={{ borderColor: "rgba(0,0,0,0.08)" }}
+          style={{
+            background: "rgba(255,255,255,0.84)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+          }}
         >
           <div className="h-full flex flex-col">
-            <div className="px-3 py-3 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-              <div className="flex items-center gap-2">
+            <div className={cx("px-3 pt-4", leftOpen ? "pb-3" : "pb-2 flex justify-center")}>
+              <div className={cx("flex items-center", leftOpen ? "justify-start" : "justify-center")}>
                 <button
                   onClick={() => setLeftOpen((v) => !v)}
                   className="h-10 w-10 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
@@ -767,28 +771,20 @@ export default function MyTimePage() {
                 >
                   <SlidersHorizontal size={18} />
                 </button>
-
-                {leftOpen && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">My Time</div>
-                    <div className="text-xs text-neutral-500">Check-ins, opt-ins, pins</div>
-                  </div>
-                )}
               </div>
             </div>
 
-            {leftOpen ? (
-              <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-                {/* Quick check-in */}
-                <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-neutral-900">Quick check-in (optional)</div>
-                        <div className="text-[11px] text-neutral-500 mt-0.5">One question max — only when it helps.</div>
-                      </div>
+            {leftOpen && (
+              <>
+                <div className="flex-1 overflow-y-auto px-4 py-4">
+                <div className="space-y-7">
+                  {/* Quick check-in */}
+                  <section>
+                    <div className="flex items-start justify-between">
+                      <div className="text-sm font-semibold text-neutral-900">Quick check-in (optional)</div>
                       <Pill active>{tierLabel(tier)}</Pill>
                     </div>
+                    <div className="text-[11px] text-neutral-500 mt-0.5">One question max — only when it helps.</div>
 
                     <div className="mt-3">
                       {!showCheckIn ? (
@@ -833,18 +829,16 @@ export default function MyTimePage() {
                             </div>
 
                             <div className="mt-2 text-[11px] text-neutral-500">
-                              This adjusts defaults (timing/pacing). It’s not a score.
+                              This adjusts defaults (timing/pacing). It's not a score.
                             </div>
                           </div>
                         ))
                       )}
                     </div>
-                  </div>
-                </div>
+                  </section>
 
-                {/* Latest insights */}
-                <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                  <div className="p-4">
+                  {/* Latest insights */}
+                  <section>
                     <div className="text-sm font-semibold text-neutral-900">Insights (latest)</div>
                     <div className="text-[11px] text-neutral-500 mt-0.5">Small decisions you can opt into.</div>
 
@@ -914,12 +908,10 @@ export default function MyTimePage() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                </div>
+                  </section>
 
-                {/* Pinned insights (compact in rail) */}
-                <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                  <div className="p-4">
+                  {/* Pinned insights */}
+                  <section>
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold text-neutral-900">Pinned</div>
                       <span className="text-[11px] text-neutral-500">{pinnedReliable.length}</span>
@@ -951,14 +943,27 @@ export default function MyTimePage() {
                         ))
                       )}
                     </div>
+                  </section>
+
+                  <div className="text-[11px] text-neutral-500">
+                    Design rule: no feeds, no noise — just confidence + clarity.
                   </div>
                 </div>
-
-                <div className="text-[11px] text-neutral-500 px-1">
-                  Design rule: no feeds, no noise — just confidence + clarity.
                 </div>
-              </div>
-            ) : (
+
+                <div className="px-3 py-3">
+                  <button
+                    className="w-full block rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-center"
+                    style={surfaceSoftStyle}
+                    onClick={() => alert("Optional footer action")}
+                  >
+                    Settings
+                  </button>
+                </div>
+              </>
+            )}
+            
+            {!leftOpen && (
               <div className="flex-1" />
             )}
           </div>
@@ -966,32 +971,30 @@ export default function MyTimePage() {
 
         {/* MAIN */}
         <div className="flex-1 flex flex-col h-full">
-          {/* Top header row (unified, not “card-y”) */}
-          <div className="border-b bg-white/80 backdrop-blur-sm" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-            <div className={cx(maxW, "mx-auto px-6 py-4 flex flex-wrap items-center gap-3")}>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold">My Time</div>
-                <div className="text-xs text-neutral-500">
-                  Insights only when they’re likely to be true — and everything opens into details.
-                </div>
-              </div>
-
-              <div className="flex-1" />
-
-              <div className="flex items-center gap-2">
-                <Pill active>{tierLabel(tier)}</Pill>
-                <Pill>{formatNumber(intentionalMinutes)} min</Pill>
-                <Pill>{formatNumber(tasksCompleted)} tasks</Pill>
-              </div>
-            </div>
-          </div>
-
           {/* Content scroll */}
           <div className="flex-1 overflow-y-auto">
             <div className={cx(maxW, "mx-auto px-6 pt-6 pb-10")}>
-              {/* Main “one page” surface */}
+              {/* In-canvas header row */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">My Time</div>
+                  <div className="text-xs text-neutral-500">
+                    Insights only when they're likely to be true — and everything opens into details.
+                  </div>
+                </div>
+
+                <div className="flex-1" />
+
+                <div className="flex items-center gap-2">
+                  <Pill active>{tierLabel(tier)}</Pill>
+                  <Pill>{formatNumber(intentionalMinutes)} min</Pill>
+                  <Pill>{formatNumber(tasksCompleted)} tasks</Pill>
+                </div>
+              </div>
+
+              {/* Main "one page" surface */}
               <div
-                className="rounded-[28px] border bg-white/70 backdrop-blur-sm"
+                className="rounded-[28px] border bg-white/70 backdrop-blur-sm mt-4"
                 style={{
                   borderColor: "rgba(0,0,0,0.08)",
                   boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 28px 90px rgba(0,0,0,0.08)",

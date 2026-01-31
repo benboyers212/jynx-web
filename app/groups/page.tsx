@@ -122,9 +122,7 @@ function pillStyleBase(active?: boolean): CSSProperties {
   };
 }
 
-function badgeStyle(
-  kind: "Verified" | "Private" | "Public" | "Active" | "Chat" | "Quiet"
-): CSSProperties {
+function badgeStyle(kind: "Verified" | "Private" | "Public" | "Active" | "Chat" | "Quiet"): CSSProperties {
   const base: CSSProperties = {
     borderColor: "rgba(0,0,0,0.10)",
     background: "rgba(0,0,0,0.03)",
@@ -243,7 +241,12 @@ export default function GroupsPage() {
       unread: 0,
       lastActivity: "1h ago",
       lastActivityText: "New assignment posted: Problem Set 3",
-      classStats: { avgTimePerWeek: "4.2 hrs", exam1Avg: "7.1 hrs", exam2Avg: "8.0 hrs", difficulty: "Hard" },
+      classStats: {
+        avgTimePerWeek: "4.2 hrs",
+        exam1Avg: "7.1 hrs",
+        exam2Avg: "8.0 hrs",
+        difficulty: "Hard",
+      },
       upcomingAssignments: [
         { title: "HW 3 — Time Value of Money", due: "Thu 11:59 PM", estTime: "~45–60 min" },
         { title: "Quiz — WACC Concepts", due: "Mon 9:00 AM", estTime: "~15 min" },
@@ -395,7 +398,12 @@ export default function GroupsPage() {
       unread: 0,
       lastActivity: "5h ago",
       lastActivityText: "New homework posted",
-      classStats: { avgTimePerWeek: "3.7 hrs", exam1Avg: "6.4 hrs", exam2Avg: "7.6 hrs", difficulty: "Hard" },
+      classStats: {
+        avgTimePerWeek: "3.7 hrs",
+        exam1Avg: "6.4 hrs",
+        exam2Avg: "7.6 hrs",
+        difficulty: "Hard",
+      },
       upcomingAssignments: [
         { title: "Problem Set 5", due: "Fri 5:00 PM", estTime: "~60–90 min" },
         { title: "Quiz — Sequences", due: "Tue 9:00 AM", estTime: "~15 min" },
@@ -489,9 +497,7 @@ export default function GroupsPage() {
   }
 
   function togglePin(groupId: string) {
-    setMyGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, pinned: !g.pinned } : g))
-    );
+    setMyGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, pinned: !g.pinned } : g)));
   }
 
   function createGroupNow() {
@@ -605,15 +611,13 @@ export default function GroupsPage() {
   }, [myGroups]);
 
   return (
-    <main className="h-screen bg-white text-neutral-950 overflow-hidden">
+   <main className="h-screen bg-neutral-50 text-neutral-950 overflow-hidden">
       {/* Subtle ambient — match Schedule */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
           className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
           style={{
-            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(
-              0.22
-            )}, rgba(255,255,255,0) 60%)`,
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, rgba(255,255,255,0) 60%)`,
           }}
         />
         <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-20 bg-black/10" />
@@ -635,17 +639,23 @@ export default function GroupsPage() {
       )}
 
       <div className="relative flex h-full">
-        {/* LEFT RAIL */}
+        {/* LEFT SIDEBAR */}
         <div
           className={cx(
-            "h-full border-r bg-white/70 backdrop-blur-sm transition-[width] duration-200",
+            "h-full transition-[width] duration-200 rounded-r-[28px]",
             leftOpen ? "w-[320px]" : "w-[56px]"
           )}
-          style={{ borderColor: "rgba(0,0,0,0.08)" }}
+          style={{
+            background: "rgba(255,255,255,0.84)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+          }}
         >
           <div className="h-full flex flex-col">
-            <div className="px-3 py-3 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-              <div className="flex items-center gap-2">
+            {/* Rail top control — same “Control center” pattern */}
+            <div className={cx("px-3 pt-4", leftOpen ? "pb-3" : "pb-2 flex justify-center")}>
+  <div className={cx("flex items-center", leftOpen ? "justify-start" : "justify-center")}>
+
                 <button
                   onClick={() => setLeftOpen((v) => !v)}
                   className="h-10 w-10 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
@@ -656,172 +666,157 @@ export default function GroupsPage() {
                   <SlidersHorizontal size={18} />
                 </button>
 
-                {leftOpen && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Groups</div>
-                    <div className="text-xs text-neutral-500">Activity, pins, quick actions</div>
-                  </div>
-                )}
+                {/* (match Schedule) no header text here */}
               </div>
             </div>
 
             {leftOpen ? (
               <>
-                <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-                  {/* Recent activity */}
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">Recent activity</div>
-                        <span
-                          className="inline-flex items-center justify-center h-7 px-2.5 rounded-full border text-[11px] font-semibold"
-                          style={{
-                            borderColor: "rgba(0,0,0,0.10)",
-                            background: "rgba(0,0,0,0.03)",
-                            color: "rgba(0,0,0,0.70)",
-                          }}
-                        >
-                          {activity.length}
-                        </span>
-                      </div>
+                <div className="flex-1 overflow-y-auto px-4 py-4">
+  <div className="space-y-7">
+    {/* Recent activity — flat (Schedule-style) */}
+    <section>
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-neutral-900">Recent activity</div>
+        <span
+          className="inline-flex items-center justify-center h-7 px-2.5 rounded-full border text-[11px] font-semibold"
+          style={{
+            borderColor: "rgba(0,0,0,0.10)",
+            background: "rgba(0,0,0,0.03)",
+            color: "rgba(0,0,0,0.70)",
+          }}
+        >
+          {activity.length}
+        </span>
+      </div>
 
-                      <div className="mt-3 space-y-2">
-                        {activity.map((a) => (
-                          <button
-                            key={a.id}
-                            onClick={() => {
-                              const g = myGroups.find((x) => x.id === a.groupId);
-                              if (g) openGroupModal(g);
-                              else showToast("That group isn’t in My groups");
-                            }}
-                            className="w-full text-left rounded-2xl border bg-white px-3 py-2 hover:bg-black/[0.03] transition"
-                            style={surfaceSoftStyle}
-                          >
-                            <div className="flex items-start gap-2">
-                              <div
-                                className="mt-0.5 h-8 w-8 rounded-2xl border bg-white flex items-center justify-center"
-                                style={{
-                                  ...surfaceSoftStyle,
-                                  borderColor: rgbaBrand(0.16),
-                                }}
-                              >
-                                {a.kind === "chat" ? (
-                                  <MessageSquare size={16} />
-                                ) : a.kind === "update" ? (
-                                  <Bell size={16} />
-                                ) : (
-                                  <Users size={16} />
-                                )}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs font-semibold text-neutral-900 truncate">{a.groupName}</div>
-                                <div className="text-[11px] text-neutral-500 leading-relaxed">{a.text}</div>
-                              </div>
-
-                              <div className="text-[11px] text-neutral-400 shrink-0">{a.when}</div>
-                            </div>
-                          </button>
-                        ))}
-
-                        <button
-                          onClick={() => showToast("Activity inbox (UI shell)")}
-                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
-                        >
-                          Open activity
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pinned (actually your groups + pin toggles) */}
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">Pinned</div>
-                        <div className="text-[11px] text-neutral-500">
-                          {myGroups.filter((g) => g.pinned).length}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 space-y-2">
-                        {leftPinnedList.map((g) => (
-                          <div
-                            key={g.id}
-                            className="w-full rounded-2xl border bg-white px-3 py-2"
-                            style={surfaceSoftStyle}
-                          >
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="min-w-0 flex-1 text-left"
-                                onClick={() => openGroupModal(g)}
-                              >
-                                <div className="text-sm font-semibold text-neutral-900 truncate">{g.name}</div>
-                                <div className="text-[11px] text-neutral-500 truncate">
-                                  {g.lastActivityText}
-                                </div>
-                              </button>
-
-                              <button
-                                className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-                                style={surfaceSoftStyle}
-                                title={g.pinned ? "Unpin" : "Pin"}
-                                onClick={() => {
-                                  togglePin(g.id);
-                                  showToast(g.pinned ? "Unpinned" : "Pinned");
-                                }}
-                              >
-                                <Pin size={14} className={g.pinned ? "text-neutral-900" : "text-neutral-500"} />
-                              </button>
-
-                              <ChevronRight size={16} className="text-neutral-400" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quick actions */}
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                    <div className="p-4">
-                      <div className="text-sm font-semibold">Quick actions</div>
-                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
-                        Keep groups lightweight: structure + expectations, not feeds.
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
-                          onClick={() => setShowCreate(true)}
-                        >
-                          Create group
-                        </button>
-                        <button
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
-                          onClick={() => {
-                            setTab("Discover");
-                            setShowFind(true);
-                          }}
-                        >
-                          Find group
-                        </button>
-                        <button
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition col-span-2"
-                          style={surfaceSoftStyle}
-                          onClick={() => setShowInvites(true)}
-                        >
-                          Invites / requests
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+      <div className="mt-3 space-y-2">
+        {activity.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => {
+              const g = myGroups.find((x) => x.id === a.groupId);
+              if (g) openGroupModal(g);
+              else showToast("That group isn’t in My groups");
+            }}
+            className="w-full text-left rounded-2xl border bg-white hover:bg-black/[0.03] transition"
+            style={surfaceSoftStyle}
+          >
+            <div className="px-3 py-2">
+              <div className="flex items-start gap-2">
+                <div
+                  className="mt-0.5 h-8 w-8 rounded-2xl border bg-white flex items-center justify-center"
+                  style={{
+                    ...surfaceSoftStyle,
+                    borderColor: rgbaBrand(0.16),
+                  }}
+                >
+                  {a.kind === "chat" ? (
+                    <MessageSquare size={16} />
+                  ) : a.kind === "update" ? (
+                    <Bell size={16} />
+                  ) : (
+                    <Users size={16} />
+                  )}
                 </div>
 
-                <div className="px-3 py-3 border-t" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-neutral-900 truncate">{a.groupName}</div>
+                  <div className="text-[11px] text-neutral-500 leading-relaxed">{a.text}</div>
+                </div>
+
+                <div className="text-[11px] text-neutral-400 shrink-0">{a.when}</div>
+              </div>
+            </div>
+          </button>
+        ))}
+
+        <button
+          onClick={() => showToast("Activity inbox (UI shell)")}
+          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+          style={surfaceSoftStyle}
+        >
+          Open activity
+        </button>
+      </div>
+    </section>
+
+    {/* Pinned — flat */}
+    <section>
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-neutral-900">Pinned</div>
+        <div className="text-[11px] text-neutral-500">{myGroups.filter((g) => g.pinned).length}</div>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {leftPinnedList.map((g) => (
+          <div key={g.id} className="w-full rounded-2xl border bg-white" style={surfaceSoftStyle}>
+            <div className="px-3 py-2">
+              <div className="flex items-center gap-2">
+                <button className="min-w-0 flex-1 text-left" onClick={() => openGroupModal(g)}>
+                  <div className="text-sm font-semibold text-neutral-900 truncate">{g.name}</div>
+                  <div className="text-[11px] text-neutral-500 truncate">{g.lastActivityText}</div>
+                </button>
+
+                <button
+                  className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                  style={surfaceSoftStyle}
+                  title={g.pinned ? "Unpin" : "Pin"}
+                  onClick={() => {
+                    togglePin(g.id);
+                    showToast(g.pinned ? "Unpinned" : "Pinned");
+                  }}
+                >
+                  <Pin size={14} className={g.pinned ? "text-neutral-900" : "text-neutral-500"} />
+                </button>
+
+                <ChevronRight size={16} className="text-neutral-400" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* Quick actions — flat */}
+    <section>
+      <div className="text-sm font-semibold text-neutral-900">Quick actions</div>
+      <div className="mt-2 text-sm text-neutral-700 leading-relaxed">
+        Keep groups lightweight: structure + expectations, not feeds.
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+          style={surfaceSoftStyle}
+          onClick={() => setShowCreate(true)}
+        >
+          Create group
+        </button>
+        <button
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+          style={surfaceSoftStyle}
+          onClick={() => {
+            setTab("Discover");
+            setShowFind(true);
+          }}
+        >
+          Find group
+        </button>
+        <button
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition col-span-2"
+          style={surfaceSoftStyle}
+          onClick={() => setShowInvites(true)}
+        >
+          Invites / requests
+        </button>
+      </div>
+    </section>
+  </div>
+</div>
+
+
+                <div className="px-3 py-3">
                   <Link
                     href="/chat"
                     className="w-full block rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-center"
@@ -839,49 +834,47 @@ export default function GroupsPage() {
 
         {/* MAIN */}
         <div className="flex-1 flex flex-col h-full">
-          {/* Top controls */}
-          <div className="border-b bg-white/80 backdrop-blur-sm" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-            <div className={cx(maxW, "mx-auto px-6 py-4 flex flex-wrap items-center gap-3")}>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold">Groups</div>
-                <div className="text-xs text-neutral-500">Structure + expectations. No feed. No noise.</div>
-              </div>
 
-              <div className="flex-1" />
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition flex items-center gap-2"
-                  style={{
-                    ...surfaceSoftStyle,
-                    borderColor: rgbaBrand(0.22),
-                    boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
-                  }}
-                >
-                  <Plus size={16} />
-                  Create group
-                </button>
-
-                <button
-                  onClick={() => {
-                    setTab("Discover");
-                    setShowFind(true);
-                  }}
-                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                  style={surfaceSoftStyle}
-                >
-                  Find group
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Content */}
           <div className="flex-1 overflow-y-auto">
             <div className={cx(maxW, "mx-auto px-6 pt-6 pb-10")}>
-              {/* Toolbar row */}
+              {/* In-canvas header row */}
               <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">Groups</div>
+                  <div className="text-xs text-neutral-500">Structure + expectations. No feed. No noise.</div>
+                </div>
+
+                <div className="flex-1" />
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition flex items-center gap-2"
+                    style={{
+                      ...surfaceSoftStyle,
+                      borderColor: rgbaBrand(0.22),
+                      boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
+                    }}
+                  >
+                    <Plus size={16} />
+                    Create group
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setTab("Discover");
+                      setShowFind(true);
+                    }}
+                    className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                    style={surfaceSoftStyle}
+                  >
+                    Find group
+                  </button>
+                </div>
+              </div>
+
+              {/* Toolbar row */}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
                 {/* Search */}
                 <div
                   className="flex items-center gap-2 rounded-2xl border bg-white px-3 h-10 min-w-[280px] flex-1"
@@ -1035,8 +1028,8 @@ export default function GroupsPage() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
+          </div>
+  </div>
 
       {/* Create modal */}
       {showCreate && (
@@ -1181,7 +1174,7 @@ export default function GroupsPage() {
 
           <div className="mt-4 space-y-3 max-h-[62vh] overflow-y-auto pr-1">
             {filtered
-              .filter((g) => tab === "Discover") // ensure discover list
+              .filter(() => tab === "Discover")
               .map((g) => (
                 <button
                   key={g.id}
@@ -1255,7 +1248,11 @@ export default function GroupsPage() {
 
       {/* Invites / Requests modal */}
       {showInvites && (
-        <Modal onClose={() => setShowInvites(false)} title="Invites / requests" subtitle="UI shell — this becomes your group invites inbox.">
+        <Modal
+          onClose={() => setShowInvites(false)}
+          title="Invites / requests"
+          subtitle="UI shell — this becomes your group invites inbox."
+        >
           <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
             <div className="text-sm font-semibold">Nothing pending</div>
             <div className="mt-1 text-sm text-neutral-600">
@@ -1282,7 +1279,6 @@ export default function GroupsPage() {
         <>
           <div className="fixed inset-0 z-50 bg-black/40" onClick={closeGroupModal} />
 
-          {/* FIX: anchor from top + allow scroll so it never clips */}
           <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-6 pb-6 px-4">
             <div
               className={cx(
@@ -1290,7 +1286,6 @@ export default function GroupsPage() {
                 groupExpanded
                   ? "w-full min-h-[calc(100vh-3.5rem)] rounded-none"
                   : "w-[92vw] max-w-[1200px] mt-2 rounded-3xl h-[calc(100vh-3.5rem)]"
-
               )}
               style={{
                 borderColor: "rgba(0,0,0,0.10)",
@@ -1300,9 +1295,12 @@ export default function GroupsPage() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="min-h-[64px] px-6 py-3 flex items-center border-b shrink-0" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+              <div
+                className="min-h-[64px] px-6 py-3 flex items-center border-b shrink-0"
+                style={{ borderColor: "rgba(0,0,0,0.08)" }}
+              >
                 <div className="min-w-0 leading-tight">
-                    <div className="text-[15px] font-semibold text-neutral-900 truncate">{openGroup.name}</div>
+                  <div className="text-[15px] font-semibold text-neutral-900 truncate">{openGroup.name}</div>
                   <div className="text-[11px] text-neutral-500 truncate">{openGroup.description}</div>
                 </div>
 
@@ -1334,7 +1332,6 @@ export default function GroupsPage() {
 
                       <button
                         onClick={() => {
-                          // Mobile / quick invite prompt
                           const email = window.prompt("Invite email:");
                           if (!email) return;
                           setInviteEmail(email);
@@ -1446,7 +1443,7 @@ export default function GroupsPage() {
                       )}
                     </div>
 
-                    {/* Tabs (no Assistant tab) */}
+                    {/* Tabs */}
                     <div className="mt-4 flex flex-wrap gap-2">
                       {getGroupTabs(openGroup).map((t) => (
                         <button
@@ -1454,7 +1451,9 @@ export default function GroupsPage() {
                           onClick={() => setGroupTab(t)}
                           className={cx(
                             "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                            groupTab === t ? "bg-neutral-900 text-white border-neutral-900" : "bg-white border-neutral-200 hover:bg-neutral-50"
+                            groupTab === t
+                              ? "bg-neutral-900 text-white border-neutral-900"
+                              : "bg-white border-neutral-200 hover:bg-neutral-50"
                           )}
                         >
                           {t}
@@ -1557,7 +1556,7 @@ export default function GroupsPage() {
                         </div>
                       )}
 
-                      {/* People (org + private) */}
+                      {/* People */}
                       {groupTab === "People" && (
                         <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
                           <div className="flex items-start justify-between gap-3">
@@ -1593,12 +1592,9 @@ export default function GroupsPage() {
                                   >
                                     <div className="min-w-0">
                                       <div className="text-sm font-semibold text-neutral-900 truncate">{m.name}</div>
-                                      {m.email ? (
-                                        <div className="text-[11px] text-neutral-500 truncate">{m.email}</div>
-                                      ) : null}
+                                      {m.email ? <div className="text-[11px] text-neutral-500 truncate">{m.email}</div> : null}
                                     </div>
 
-                                    {/* DM only for Organizations (your request) */}
                                     {openGroup.type === "Organization" ? (
                                       <button
                                         onClick={() => showToast(`DM to ${m.name} (UI shell)`)}
@@ -1626,8 +1622,7 @@ export default function GroupsPage() {
                           <div className="mt-2 text-sm text-neutral-700 leading-relaxed">
                             {openGroup.type === "Class hub" ? (
                               <>
-                                This is a <b>verified class hub</b>. You’ll see assignments + pacing insights,
-                                but not member lists.
+                                This is a <b>verified class hub</b>. You’ll see assignments + pacing insights, but not member lists.
                               </>
                             ) : openGroup.type === "Organization" ? (
                               <>
@@ -1638,14 +1633,14 @@ export default function GroupsPage() {
                                 This is a <b>private group</b>. Chat is enabled (max 20). Keep it coordination-only.
                               </>
                             ) : (
-                              <>This is a <b>public group</b>. No chat in MVP — join for structure + expectations.</>
+                              <>
+                                This is a <b>public group</b>. No chat in MVP — join for structure + expectations.
+                              </>
                             )}
                           </div>
 
                           <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                            <div className="text-xs text-neutral-600">
-                              UI shell: schedule suggestions + files attach later.
-                            </div>
+                            <div className="text-xs text-neutral-600">UI shell: schedule suggestions + files attach later.</div>
                           </div>
                         </div>
                       )}
@@ -1684,7 +1679,7 @@ export default function GroupsPage() {
                     <div className="h-6" />
                   </div>
 
-                  {/* Right column (NO assistant block) */}
+                  {/* Right column */}
                   <div className="lg:col-span-4 p-5 border-l bg-neutral-50" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
                     <div className="rounded-3xl border bg-white p-4" style={surfaceSoftStyle}>
                       <div className="flex items-center justify-between">
@@ -1707,9 +1702,7 @@ export default function GroupsPage() {
                       </div>
 
                       <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                        <div className="text-xs text-neutral-600">
-                          Design rule: no feeds, no streak pressure, no noise.
-                        </div>
+                        <div className="text-xs text-neutral-600">Design rule: no feeds, no streak pressure, no noise.</div>
                       </div>
                     </div>
 
@@ -1756,11 +1749,9 @@ function GroupRow({
   onNotify: (txt: string) => void;
 }) {
   const leftDot = group.verified ? rgbaBrand(0.9) : "rgba(0,0,0,0.22)";
-  const visibilityBadge =
-    group.visibility === "Verified" ? "Verified" : group.visibility === "Private" ? "Private" : "Public";
+  const visibilityBadge = group.visibility === "Verified" ? "Verified" : group.visibility === "Private" ? "Private" : "Public";
   const hasUnread = !!group.unread && group.unread > 0 && group.chatEnabled;
 
-  // FIX: Make the whole card clickable WITHOUT nesting buttons.
   return (
     <div
       role="button"
@@ -1781,7 +1772,6 @@ function GroupRow({
         boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
       }}
     >
-      {/* subtle left accent */}
       <div
         className="absolute left-0 top-0 bottom-0 w-[6px]"
         style={{
@@ -1835,24 +1825,15 @@ function GroupRow({
               {group.active ? "Active" : "Quiet"}
             </span>
 
-            <span
-              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
-              style={badgeStyle("Chat")}
-            >
+            <span className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold" style={badgeStyle("Chat")}>
               {group.chatEnabled ? "Chat · max 20" : "No chat"}
             </span>
 
-            <span
-              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
-              style={pillStyleBase(false)}
-            >
+            <span className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold" style={pillStyleBase(false)}>
               {group.category}
             </span>
 
-            <span
-              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
-              style={pillStyleBase(false)}
-            >
+            <span className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold" style={pillStyleBase(false)}>
               {group.memberCount} members
             </span>
           </div>
@@ -1862,7 +1843,6 @@ function GroupRow({
           </div>
         </div>
 
-        {/* Right column */}
         <div className="shrink-0 text-right">
           <div className="text-[11px] text-neutral-500">{group.lastActivity}</div>
           <div className="mt-1 text-sm text-neutral-800 max-w-[260px] leading-snug">{group.lastActivityText}</div>
@@ -1870,12 +1850,7 @@ function GroupRow({
           <div className="mt-3 flex items-center justify-end gap-2">
             {group.chatEnabled ? (
               <div className="relative">
-                <span
-                  className="inline-flex items-center justify-center h-9 w-9 rounded-2xl border bg-white"
-                  style={surfaceSoftStyle}
-                  aria-label="Chat"
-                  title="Chat"
-                >
+                <span className="inline-flex items-center justify-center h-9 w-9 rounded-2xl border bg-white" style={surfaceSoftStyle} aria-label="Chat" title="Chat">
                   <MessageSquare size={16} />
                 </span>
 
@@ -1898,10 +1873,7 @@ function GroupRow({
 
             <span
               className="inline-flex items-center justify-center h-9 w-9 rounded-2xl border bg-white"
-              style={{
-                ...surfaceSoftStyle,
-                borderColor: rgbaBrand(0.18),
-              }}
+              style={{ ...surfaceSoftStyle, borderColor: rgbaBrand(0.18) }}
               aria-label="Members"
               title="Members"
             >
@@ -1964,7 +1936,10 @@ function Modal({
     >
       <div
         className={cx("w-full rounded-3xl border bg-white p-6", maxWidthClass)}
-        style={{ boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 30px 90px rgba(0,0,0,0.18)", borderColor: "rgba(0,0,0,0.10)" }}
+        style={{
+          boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 30px 90px rgba(0,0,0,0.18)",
+          borderColor: "rgba(0,0,0,0.10)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">

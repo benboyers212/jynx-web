@@ -85,7 +85,7 @@ function getTagStyleLight(tag: string) {
 
   const map: Record<string, { backgroundColor: string; color: string; borderColor: string }> = {
     Class: {
-      backgroundColor: rgbaBrand(0.10),
+      backgroundColor: rgbaBrand(0.1),
       color: "rgba(25,25,25,0.90)",
       borderColor: rgbaBrand(0.22),
     },
@@ -176,6 +176,7 @@ type Reminder = {
   title: string;
   due: string; // UI shell
   severity?: "High" | "Medium" | "Low";
+  completed?: boolean;
 };
 
 export default function Home() {
@@ -319,7 +320,7 @@ export default function Home() {
   ]);
 
   // Reminders (UI shell)
-  const [reminders] = useState<Reminder[]>([
+  const [reminders, setReminders] = useState<Reminder[]>([
     { id: "r1", title: "Submit PS3", due: "Tonight", severity: "High" },
     { id: "r2", title: "Email Prof. Kim", due: "Tomorrow", severity: "Medium" },
     { id: "r3", title: "Order protein", due: "This week", severity: "Low" },
@@ -365,7 +366,6 @@ export default function Home() {
     const label = selectedDate.toLocaleString(undefined, { weekday: "short" });
     const month = selectedDate.toLocaleString(undefined, { month: "short" });
     return {
-      top: selectedDate.toLocaleString(undefined, { day: "2-digit" }) ? "Day" : "Day",
       line1: selectedDate.toLocaleString(undefined, { weekday: "long" }),
       line2: `${label}, ${month} ${selectedDate.getDate()}`,
     };
@@ -407,6 +407,14 @@ export default function Home() {
   // Left sidebar (collapsible)
   const [leftOpen, setLeftOpen] = useState(true);
 
+  // Auto-collapse sidebar on small viewports
+  useEffect(() => {
+    const check = () => { if (window.innerWidth < 768) setLeftOpen(false); };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   // Drawer state
   const [selected, setSelected] = useState<EventRecord | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -447,18 +455,29 @@ export default function Home() {
     importance: 3,
   });
 
-  // Focus (control center)
-  const [focusMode, setFocusMode] = useState<"Auto" | "Morning" | "Afternoon" | "Evening">("Auto");
+  // Goals (control center)
+  const [goals, setGoals] = useState<Array<{
+    id: string;
+    title: string;
+    description: string;
+    targetDate: string;
+    timeWindow: "Week" | "Month" | "Year";
+  }>>([
+    { id: "g3", title: "Submit assignment before Friday", description: "Upload PS3 before the deadline.", targetDate: "2026-01-16", timeWindow: "Week" },
+    { id: "g4", title: "Study for midterm prep", description: "Cover Ch. 6–8 and work through practice problems.", targetDate: "2026-01-17", timeWindow: "Week" },
+    { id: "g5", title: "Raise GPA to 3.8", description: "Stay on track with assignments and exams this semester.", targetDate: "2026-04-30", timeWindow: "Month" },
+    { id: "g6", title: "Land a summer internship", description: "Apply to at least 10 positions and prepare for interviews.", targetDate: "2026-12-31", timeWindow: "Year" },
+    { id: "g7", title: "Graduate with honors", description: "Maintain a 3.7+ GPA through the end of the program.", targetDate: "2027-05-15", timeWindow: "Year" },
+  ]);
 
-  const focusCopy = useMemo(() => {
-    const map: Record<typeof focusMode, string> = {
-      Auto: "Auto: Jynx chooses the focus based on what’s scheduled next.",
-      Morning: "Protect your early block. Keep distractions low and stay on rails.",
-      Afternoon: "Use the mid-day gap well. Keep transitions clean and don’t drift.",
-      Evening: "Close loops. Light prep, reset, and set up tomorrow so your morning starts clean.",
-    };
-    return map[focusMode];
-  }, [focusMode]);
+  const [goalsModalWindow, setGoalsModalWindow] = useState<"Week" | "Month" | "Year" | null>(null);
+  const [addGoalOpen, setAddGoalOpen] = useState(false);
+  const [addGoalForm, setAddGoalForm] = useState<{
+    title: string;
+    description: string;
+    targetDate: string;
+    timeWindow: "Week" | "Month" | "Year";
+  }>({ title: "", description: "", targetDate: "", timeWindow: "Week" });
 
   // Autosize assistant textarea
   useEffect(() => {
@@ -487,6 +506,8 @@ export default function Home() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        if (addGoalOpen) { setAddGoalOpen(false); return; }
+        if (goalsModalWindow) { setGoalsModalWindow(null); return; }
         if (adjustOpen) setAdjustOpen(false);
         if (drawerOpen) closeDrawer();
       }
@@ -494,7 +515,7 @@ export default function Home() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawerOpen, adjustOpen]);
+  }, [drawerOpen, adjustOpen, addGoalOpen, goalsModalWindow]);
 
   function setImportance(id: string, importance: 1 | 2 | 3 | 4 | 5) {
     // Only demo days have data
@@ -613,7 +634,7 @@ export default function Home() {
   }
 
   return (
-    <main className="h-screen bg-white text-neutral-950 overflow-hidden">
+    <main className="h-screen bg-[#f8f9fa] text-neutral-950 overflow-hidden">
       {/* very subtle ambient */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
@@ -628,17 +649,19 @@ export default function Home() {
       <div className="relative flex h-full">
         {/* LEFT SIDEBAR */}
         <div
-          className={cx(
-            "h-full border-r bg-white/70 backdrop-blur-sm transition-[width] duration-200",
-            leftOpen ? "w-[320px]" : "w-[56px]"
-          )}
-          style={{ borderColor: "rgba(0,0,0,0.08)" }}
-        >
+  className="h-full transition-[width] duration-200 rounded-r-[28px]"
+  style={{
+    width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
+    background: "rgba(255,255,255,0.84)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+  }}
+>
+
           <div className="h-full flex flex-col">
-            {/* sidebar header */}
-            <div className="px-3 py-3 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-              <div className="flex items-center gap-2">
-                {/* CHANGED: Control Center icon button (not arrow) */}
+            {/* sidebar top (blends with global header strip) */}
+            <div className={cx("px-3 pt-4", leftOpen ? "pb-3" : "pb-2 flex justify-center")}>
+              <div className={cx("flex items-center", leftOpen ? "justify-start" : "justify-center")}>
                 <button
                   onClick={() => setLeftOpen((v) => !v)}
                   className="h-10 w-10 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
@@ -648,73 +671,84 @@ export default function Home() {
                 >
                   <SlidersHorizontal size={18} />
                 </button>
-
-                {leftOpen && (
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">Control Center</div>
-                    <div className="text-xs text-neutral-500">Focus, calendar, reminders, assistant</div>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* ONLY render content when open (collapsed = icon only) */}
             {leftOpen ? (
               <>
-                <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
-                  {/* 1) Focus */}
+                <div
+  className="flex-1 overflow-y-auto px-3 py-4 space-y-4"
+  style={{
+    borderBottomRightRadius: leftOpen ? 24 : 999,
+  }}
+>
+
+                  {/* 1) AI Chat */}
                   <div className="rounded-3xl border bg-white" style={surfaceStyle}>
                     <div className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">Focus</div>
-                        <div className="text-[11px] text-neutral-500">{focusMode === "Auto" ? "auto" : "manual"}</div>
+                        <div className="text-sm font-semibold">Schedule assistant</div>
+                        <div className="text-[11px] text-neutral-500">quick</div>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(["Auto", "Morning", "Afternoon", "Evening"] as const).map((k) => {
-                          const active = focusMode === k;
-                          return (
-                            <button
-                              key={k}
-                              onClick={() => setFocusMode(k)}
-                              className={cx(
-                                "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                                active ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
-                              )}
-                              style={{
-                                borderColor: active ? rgbaBrand(0.22) : "rgba(0,0,0,0.08)",
-                                boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
-                              }}
-                            >
-                              {k}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">Conflicts, swaps, or rebalancing your day.</div>
 
-                      <div className="mt-3 text-sm text-neutral-800 leading-relaxed">{focusCopy}</div>
+                      <div className="mt-3 rounded-2xl border px-3 py-3 bg-white" style={surfaceSoftStyle}>
+                        <textarea
+                          ref={quickChatRef}
+                          value={quickChat}
+                          onChange={(e) => setQuickChat(e.target.value)}
+                          placeholder='Example: "Move gym to 5pm and add 30min deep work after class."'
+                          rows={1}
+                          className="w-full resize-none bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400 leading-relaxed"
+                          style={{ height: 0 }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              sendQuickChat();
+                            }
+                          }}
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className="text-[11px] text-neutral-500">Enter to send • Shift+Enter for new line</span>
+                          <button
+                            onClick={sendQuickChat}
+                            disabled={!quickChat.trim()}
+                            className={cx(
+                              "ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold border transition",
+                              quickChat.trim()
+                                ? "bg-white hover:bg-black/[0.03]"
+                                : "bg-white text-neutral-400 cursor-not-allowed"
+                            )}
+                            style={surfaceSoftStyle}
+                          >
+                            Send
+                          </button>
+                        </div>
+                      </div>
 
                       <div className="mt-3 flex gap-2">
+                        <Link
+                          href="/chat"
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          style={surfaceSoftStyle}
+                        >
+                          Open Chat
+                        </Link>
                         <button
                           className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
                           style={surfaceSoftStyle}
-                          onClick={() => alert("UI shell")}
+                          onClick={() => setQuickChat("")}
                         >
-                          Build blocks
-                        </button>
-                        <button
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
-                          onClick={() => alert("UI shell")}
-                        >
-                          Edit
+                          Clear
                         </button>
                       </div>
                     </div>
                   </div>
 
                   {/* 2) Calendar */}
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                  <div>
                     <div className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">{miniCal.monthLabel}</div>
@@ -761,10 +795,10 @@ export default function Home() {
                                 active ? "font-semibold" : "font-medium"
                               )}
                               style={{
-                                borderColor: active ? rgbaBrand(0.30) : "rgba(0,0,0,0.06)",
-                                background: active ? rgbaBrand(0.10) : "white",
+                                borderColor: active ? rgbaBrand(0.3) : "rgba(0,0,0,0.06)",
+                                background: active ? rgbaBrand(0.1) : "white",
                                 color: isEmpty ? "transparent" : "rgba(0,0,0,0.84)",
-                                boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.10)}` : undefined,
+                                boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.1)}` : undefined,
                               }}
                               disabled={isEmpty}
                               aria-label={c.day ? `Day ${c.day}` : "Empty"}
@@ -776,14 +810,57 @@ export default function Home() {
                         })}
                       </div>
 
-                      <div className="mt-3 text-[11px] text-neutral-500">
-                        Any day is selectable. Only 12–13 have demo events (others are blank for now).
+                    </div>
+                  </div>
+
+                  {/* 3) Goals */}
+                  <div>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold">Goals</div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(["Week", "Month", "Year"] as const).map((window) => {
+                          const count = goals.filter((g) => g.timeWindow === window).length;
+                          return (
+                            <button
+                              key={window}
+                              onClick={() => setGoalsModalWindow(window)}
+                              className="rounded-full px-3 py-1.5 text-[11px] font-semibold border bg-white hover:bg-black/[0.03] transition"
+                              style={surfaceSoftStyle}
+                            >
+                              {window}
+                              {count > 0 && (
+                                <span
+                                  className="ml-1.5 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[9px] font-semibold"
+                                  style={{
+                                    background: rgbaBrand(0.12),
+                                    color: JYNX_GREEN,
+                                  }}
+                                >
+                                  {count}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-3">
+                        <button
+                          onClick={() => setAddGoalOpen(true)}
+                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-left flex items-center gap-2"
+                          style={surfaceSoftStyle}
+                        >
+                          <span className="text-neutral-500">+</span> Add goal
+                        </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* 3) Reminders */}
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                  {/* 4) Reminders */}
+                  <div>
                     <div className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">Reminders</div>
@@ -795,101 +872,74 @@ export default function Home() {
                             color: "rgba(0,0,0,0.70)",
                           }}
                         >
-                          {reminders.length}
+                          {reminders.filter((r) => !r.completed).length}
                         </span>
                       </div>
 
-                      <div className="mt-3 space-y-2">
-                        {reminders.slice(0, 4).map((r) => (
-                          <button
-                            key={r.id}
-                            onClick={() => alert("UI shell — open reminders inbox")}
-                            className="w-full text-left rounded-2xl border bg-white px-3 py-2 hover:bg-black/[0.03] transition"
-                            style={surfaceSoftStyle}
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="text-sm font-semibold truncate">{r.title}</div>
-                              <span className="text-[11px] text-neutral-500 shrink-0">{r.due}</span>
+                      <div className="mt-3 space-y-0.5">
+                        {reminders.map((r) => (
+                          <div key={r.id} className="flex items-center gap-3 py-1.5">
+                            <button
+                              onClick={() =>
+                                setReminders((prev) =>
+                                  prev.map((rem) => (rem.id === r.id ? { ...rem, completed: !rem.completed } : rem))
+                                )
+                              }
+                              className={cx(
+                                "h-5 w-5 rounded-full border flex items-center justify-center shrink-0 transition",
+                                r.completed ? "" : "hover:border-neutral-400"
+                              )}
+                              style={{
+                                borderColor: r.completed ? JYNX_GREEN : "rgba(0,0,0,0.22)",
+                                background: r.completed ? JYNX_GREEN : "white",
+                              }}
+                              aria-label={r.completed ? "Mark incomplete" : "Mark complete"}
+                            >
+                              {r.completed && (
+                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                  <path d="M2 5L4.5 7.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </button>
+                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                              <div
+                                className={cx(
+                                  "text-[13px] truncate transition",
+                                  r.completed ? "line-through text-neutral-400" : "text-neutral-800"
+                                )}
+                              >
+                                {r.title}
+                              </div>
+                              <div
+                                className={cx(
+                                  "text-[11px] shrink-0 transition",
+                                  r.completed ? "text-neutral-300" : "text-neutral-400"
+                                )}
+                              >
+                                by {r.due}
+                              </div>
                             </div>
-                            <div className="mt-1 text-[11px] text-neutral-500">{r.severity ?? "Medium"}</div>
-                          </button>
+                          </div>
                         ))}
+                      </div>
 
+                      <div className="mt-3">
                         <button
-                          onClick={() => alert("UI shell — open reminders inbox")}
-                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                          onClick={() => alert("UI shell")}
+                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-left flex items-center gap-2"
                           style={surfaceSoftStyle}
                         >
-                          Open inbox
+                          <span className="text-neutral-500">+</span> Add reminder
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* 4) Schedule assistant */}
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">Schedule assistant</div>
-                        <div className="text-[11px] text-neutral-500">quick</div>
-                      </div>
-
-                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">Conflicts, swaps, or rebalancing your day.</div>
-
-                      <div className="mt-3 rounded-2xl border px-3 py-3 bg-white" style={surfaceSoftStyle}>
-                        <textarea
-                          ref={quickChatRef}
-                          value={quickChat}
-                          onChange={(e) => setQuickChat(e.target.value)}
-                          placeholder='Example: "Move gym to 5pm and add 30min deep work after class."'
-                          rows={1}
-                          className="w-full resize-none bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400 leading-relaxed"
-                          style={{ height: 0 }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              sendQuickChat();
-                            }
-                          }}
-                        />
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="text-[11px] text-neutral-500">Enter to send • Shift+Enter for new line</span>
-                          <button
-                            onClick={sendQuickChat}
-                            disabled={!quickChat.trim()}
-                            className={cx(
-                              "ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold border transition",
-                              quickChat.trim() ? "bg-white hover:bg-black/[0.03]" : "bg-white text-neutral-400 cursor-not-allowed"
-                            )}
-                            style={surfaceSoftStyle}
-                          >
-                            Send
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex gap-2">
-                        <Link
-                          href="/chat"
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
-                        >
-                          Open Chat
-                        </Link>
-                        <button
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
-                          onClick={() => setQuickChat("")}
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* footer (open only) */}
-                <div className="px-3 py-3 border-t" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                    <div className="px-3 py-3">
+
                   <div className="flex items-center gap-2">
                     <button
                       className="flex-1 rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-center"
@@ -907,73 +957,84 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MAIN */}
+        {/* MAIN (FIXED: wrapper was missing, causing JSX close errors) */}
         <div className="flex-1 flex flex-col h-full">
-          {/* Top controls */}
-          <div className="border-b bg-white/80 backdrop-blur-sm" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-            <div className="max-w-[1280px] mx-auto px-6 py-4 flex flex-wrap items-center gap-3">
-              {/* Day nav */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => shiftSelectedDay(-1)}
-                  className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
-                  style={surfaceSoftStyle}
-                  aria-label="Previous day"
-                >
-                  ←
-                </button>
+          {/* In-content header controls (B1 follow-through: no big top strip, but controls remain) */}
+          <div className="px-3 sm:px-6 pt-4 pb-2">
+            <div className="max-w-[1600px] mx-auto">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Day nav */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => shiftSelectedDay(-1)}
+                    className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
+                    style={surfaceSoftStyle}
+                    aria-label="Previous day"
+                  >
+                    ←
+                  </button>
 
-                <button
-                  onClick={() => setSelectedDate(new Date(2026, 0, 12))}
-                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                  style={surfaceSoftStyle}
-                >
-                  Today
-                </button>
+                  <button
+                    onClick={() => setSelectedDate(new Date(2026, 0, 12))}
+                    className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                    style={surfaceSoftStyle}
+                  >
+                    Today
+                  </button>
 
-                <button
-                  onClick={() => shiftSelectedDay(1)}
-                  className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
-                  style={surfaceSoftStyle}
-                  aria-label="Next day"
-                >
-                  →
-                </button>
+                  <button
+                    onClick={() => shiftSelectedDay(1)}
+                    className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
+                    style={surfaceSoftStyle}
+                    aria-label="Next day"
+                  >
+                    →
+                  </button>
 
-                <div className="ml-2">
-                  <div className="text-sm font-semibold">{selectedLabel.line1}</div>
-                  <div className="text-xs text-neutral-500">{selectedLabel.line2}</div>
+                  <div className="ml-2">
+                    <div className="text-sm font-semibold">{selectedLabel.line1}</div>
+                    <div className="text-xs text-neutral-500">{selectedLabel.line2}</div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex-1" />
+                <div className="flex-1" />
 
-              {/* View toggles */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <Segment value={viewSpan} options={["Day", "Week"]} onChange={(v) => setViewSpan(v as ViewSpan)} />
-                <Segment value={viewFormat} options={["Schedule", "List"]} onChange={(v) => setViewFormat(v as ViewFormat)} />
+                {/* View toggles */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Segment value={viewSpan} options={["Day", "Week"]} onChange={(v) => setViewSpan(v as ViewSpan)} />
+                  <Segment value={viewFormat} options={["Schedule", "List"]} onChange={(v) => setViewFormat(v as ViewFormat)} />
 
-                {/* REMOVED: Free time pill */}
-                <button
-                  onClick={() => setAdjustOpen(true)}
-                  className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition flex items-center gap-2"
-                  style={surfaceSoftStyle}
-                >
-                  <SlidersHorizontal size={16} />
-                  Adjust
-                </button>
+                  <button
+                    onClick={() => setAdjustOpen(true)}
+                    className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition flex items-center gap-2"
+                    style={surfaceSoftStyle}
+                  >
+                    <SlidersHorizontal size={16} />
+                    Adjust
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-[1280px] mx-auto px-6 pt-6 pb-10">
+          <div
+  className="flex-1 overflow-y-auto"
+  style={{}}
+>
+           <div className="max-w-[1600px] mx-auto px-3 sm:px-6 pt-0 pb-10">
+  <div
+    className="rounded-[28px] px-6 pt-5 pb-8"
+    style={{
+      background: "rgba(255,255,255,0.92)",
+      boxShadow: "0 24px 70px rgba(0,0,0,0.08)",
+    }}
+  >
               <section>
                 {viewSpan === "Day" ? (
                   <>
                     {viewFormat === "Schedule" ? (
-                      <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                      <div>
                         <div className="p-5">
                           <div className="flex items-center justify-between gap-4">
                             <div>
@@ -1052,7 +1113,7 @@ export default function Home() {
                               style={{
                                 ...surfaceSoftStyle,
                                 borderColor: isActive ? rgbaBrand(0.28) : (surfaceSoftStyle.borderColor as string),
-                                boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.10)}` : surfaceSoftStyle.boxShadow,
+                                boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.1)}` : surfaceSoftStyle.boxShadow,
                               }}
                             >
                               <div className="p-4">
@@ -1137,11 +1198,12 @@ export default function Home() {
                             return (
                               <div
                                 key={d.toISOString()}
-                                className={cx("w-[360px] shrink-0 rounded-3xl border bg-white", isActive ? "ring-1" : "")}
+                                className={cx("shrink-0 rounded-3xl border bg-white", isActive ? "ring-1" : "")}
                                 style={{
                                   ...surfaceSoftStyle,
+                                  width: "clamp(240px, 28vw, 360px)",
                                   borderColor: isActive ? rgbaBrand(0.28) : (surfaceSoftStyle.borderColor as string),
-                                  boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.10)}` : surfaceSoftStyle.boxShadow,
+                                  boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.1)}` : surfaceSoftStyle.boxShadow,
                                 }}
                               >
                                 <div className="p-4">
@@ -1203,6 +1265,7 @@ export default function Home() {
                   </div>
                 )}
               </section>
+              </div>
             </div>
           </div>
         </div>
@@ -1259,7 +1322,10 @@ export default function Home() {
 
                     {/* Importance control */}
                     {selected?.id && (
-                      <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5" style={surfaceSoftStyle}>
+                      <div
+                        className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5"
+                        style={surfaceSoftStyle}
+                      >
                         <span className="text-[11px] text-neutral-500">Importance</span>
                         <select
                           value={getImportanceLabel(selected.importance)}
@@ -1317,11 +1383,16 @@ export default function Home() {
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Thoughts?</div>
-                      <button className="text-[11px] text-neutral-500 hover:text-neutral-800" onClick={() => setThoughtsOpen(false)}>
+                      <button
+                        className="text-[11px] text-neutral-500 hover:text-neutral-800"
+                        onClick={() => setThoughtsOpen(false)}
+                      >
                         hide
                       </button>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-500">Quick note to yourself (or something you want the assistant to remember).</div>
+                    <div className="mt-2 text-xs text-neutral-500">
+                      Quick note to yourself (or something you want the assistant to remember).
+                    </div>
                     <textarea
                       value={thoughtsText}
                       onChange={(e) => setThoughtsText(e.target.value)}
@@ -1386,6 +1457,8 @@ export default function Home() {
           </div>
         </div>
 
+        <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes fadeScaleIn { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }`}</style>
+
         {/* Adjust overlay */}
         {adjustOpen && (
           <>
@@ -1425,8 +1498,6 @@ export default function Home() {
                   <div className="grid grid-cols-12 gap-4">
                     {/* Controls */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
-                      {/* REMOVED: Free time slider card */}
-
                       <div className="rounded-3xl border bg-white p-4 space-y-3" style={surfaceStyle}>
                         <ToggleRowLight
                           label="Protect focus blocks"
@@ -1612,7 +1683,10 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="px-5 py-4 border-t flex items-center justify-end gap-2" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                <div
+                  className="px-5 py-4 border-t flex items-center justify-end gap-2"
+                  style={{ borderColor: "rgba(0,0,0,0.08)" }}
+                >
                   <button
                     onClick={() => setAdjustOpen(false)}
                     className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
@@ -1634,26 +1708,256 @@ export default function Home() {
                 </div>
               </div>
 
-              <style jsx>{`
-                @keyframes fadeIn {
-                  from {
-                    opacity: 0;
-                  }
-                  to {
-                    opacity: 1;
-                  }
-                }
-                @keyframes fadeScaleIn {
-                  from {
-                    opacity: 0;
-                    transform: scale(0.985);
-                  }
-                  to {
-                    opacity: 1;
-                    transform: scale(1);
-                  }
-                }
-              `}</style>
+            </div>
+          </>
+        )}
+
+        {/* Goals View Modal */}
+        {goalsModalWindow && (
+          <>
+            <button
+              className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-[60]"
+              style={{ animation: "fadeIn 180ms ease-out" }}
+              onClick={() => setGoalsModalWindow(null)}
+              aria-label="Close goals"
+            />
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
+              <div
+                className="relative w-full max-w-xl rounded-3xl border bg-white overflow-hidden"
+                style={{
+                  borderColor: "rgba(0,0,0,0.10)",
+                  boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                  animation: "fadeScaleIn 220ms ease-out",
+                }}
+              >
+                {/* Header */}
+                <div className="px-6 pt-6 pb-5 flex items-start justify-between">
+                  <div>
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border"
+                      style={{
+                        background: rgbaBrand(0.1),
+                        color: JYNX_GREEN,
+                        borderColor: rgbaBrand(0.22),
+                      }}
+                    >
+                      {goalsModalWindow}
+                    </span>
+                    <div className="mt-2.5 text-[18px] font-semibold text-neutral-900 leading-tight">Goals</div>
+                    <div className="mt-0.5 text-[12px] text-neutral-500">
+                      {goals.filter((g) => g.timeWindow === goalsModalWindow).length} goal
+                      {goals.filter((g) => g.timeWindow === goalsModalWindow).length !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setGoalsModalWindow(null)}
+                    className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                    style={surfaceSoftStyle}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Divider */}
+                <div className="mx-6" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }} />
+
+                {/* Goal cards */}
+                <div className="px-6 py-5 space-y-3 max-h-[380px] overflow-y-auto">
+                  {goals.filter((g) => g.timeWindow === goalsModalWindow).length === 0 ? (
+                    <div className="py-8 text-center">
+                      <div className="text-[13px] text-neutral-400">No goals yet</div>
+                      <div className="mt-1 text-[11px] text-neutral-400">Add one below to get started</div>
+                    </div>
+                  ) : (
+                    goals
+                      .filter((g) => g.timeWindow === goalsModalWindow)
+                      .map((goal) => (
+                        <div
+                          key={goal.id}
+                          className="relative rounded-xl px-4 py-3.5 pr-8 overflow-hidden"
+                          style={{
+                            background: "rgba(0,0,0,0.02)",
+                            border: "1px solid rgba(0,0,0,0.06)",
+                          }}
+                        >
+                          <div
+                            className="absolute left-0 top-0 bottom-0 w-0.5"
+                            style={{ background: JYNX_GREEN }}
+                          />
+                          <div className="text-[13px] font-semibold text-neutral-900">{goal.title}</div>
+                          {goal.description && (
+                            <div className="mt-1 text-[12px] text-neutral-500 leading-relaxed">{goal.description}</div>
+                          )}
+                          {goal.targetDate && (
+                            <div className="mt-1.5 text-[11px] text-neutral-400">
+                              Target · {new Date(goal.targetDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => setGoals((prev) => prev.filter((g) => g.id !== goal.id))}
+                            className="absolute top-3 right-3 text-[12px] text-neutral-300 hover:text-neutral-500 transition"
+                            title="Remove goal"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 pb-6">
+                  <button
+                    onClick={() => {
+                      if (!goalsModalWindow) return;
+                      setAddGoalForm((f) => ({ ...f, timeWindow: goalsModalWindow }));
+                      setGoalsModalWindow(null);
+                      setAddGoalOpen(true);
+                    }}
+                    className="w-full h-10 rounded-2xl border text-xs font-semibold transition flex items-center justify-center gap-1.5 hover:bg-black/[0.03]"
+                    style={{
+                      borderColor: rgbaBrand(0.3),
+                      color: JYNX_GREEN,
+                    }}
+                  >
+                    <span>+</span> Add goal
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Add Goal Modal */}
+        {addGoalOpen && (
+          <>
+            <button
+              className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-[60]"
+              style={{ animation: "fadeIn 180ms ease-out" }}
+              onClick={() => setAddGoalOpen(false)}
+              aria-label="Close add goal"
+            />
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
+            <div
+              className="w-full max-w-md rounded-3xl border bg-white p-6"
+              style={{
+                borderColor: "rgba(0,0,0,0.10)",
+                boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                animation: "fadeScaleIn 220ms ease-out",
+              }}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold">New Goal</div>
+                  <div className="text-xs text-neutral-500 mt-1">Set a target and track your progress.</div>
+                </div>
+                <button
+                  onClick={() => setAddGoalOpen(false)}
+                  className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                  style={surfaceSoftStyle}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Goal</label>
+                  <input
+                    type="text"
+                    value={addGoalForm.title}
+                    onChange={(e) => setAddGoalForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="What do you want to achieve?"
+                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm bg-white outline-none transition"
+                    style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Description</label>
+                  <textarea
+                    value={addGoalForm.description}
+                    onChange={(e) => setAddGoalForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Any details or context…"
+                    rows={2}
+                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm bg-white outline-none resize-none transition"
+                    style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Target Date</label>
+                  <input
+                    type="date"
+                    value={addGoalForm.targetDate}
+                    onChange={(e) => setAddGoalForm((f) => ({ ...f, targetDate: e.target.value }))}
+                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm bg-white outline-none transition"
+                    style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Time Window</label>
+                  <div className="mt-1.5 flex gap-2">
+                    {(["Week", "Month", "Year"] as const).map((tw) => (
+                      <button
+                        key={tw}
+                        onClick={() => setAddGoalForm((f) => ({ ...f, timeWindow: tw }))}
+                        className={cx(
+                          "flex-1 rounded-full px-2 py-1.5 text-[11px] font-semibold border transition",
+                          addGoalForm.timeWindow === tw ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
+                        )}
+                        style={{
+                          borderColor: addGoalForm.timeWindow === tw ? rgbaBrand(0.22) : "rgba(0,0,0,0.08)",
+                          boxShadow: addGoalForm.timeWindow === tw ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
+                        }}
+                      >
+                        {tw}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex gap-2">
+                <button
+                  onClick={() => {
+                    if (!addGoalForm.title.trim()) return;
+                    setGoals((prev) => [
+                      ...prev,
+                      {
+                        id: uid(),
+                        title: addGoalForm.title.trim(),
+                        description: addGoalForm.description.trim(),
+                        targetDate: addGoalForm.targetDate,
+                        timeWindow: addGoalForm.timeWindow,
+                      },
+                    ]);
+                    setAddGoalForm({ title: "", description: "", targetDate: "", timeWindow: "Week" });
+                    setAddGoalOpen(false);
+                  }}
+                  disabled={!addGoalForm.title.trim()}
+                  className={cx(
+                    "flex-1 h-10 rounded-2xl px-3 text-xs font-semibold border transition",
+                    addGoalForm.title.trim()
+                      ? "bg-white hover:bg-black/[0.03]"
+                      : "bg-white text-neutral-400 cursor-not-allowed"
+                  )}
+                  style={surfaceSoftStyle}
+                >
+                  Add Goal
+                </button>
+                <button
+                  onClick={() => setAddGoalOpen(false)}
+                  className="h-10 rounded-2xl px-4 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  style={surfaceSoftStyle}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
             </div>
           </>
         )}
@@ -1671,7 +1975,10 @@ function Segment({ value, options, onChange }: { value: string; options: string[
           <button
             key={opt}
             onClick={() => onChange(opt)}
-            className={cx("h-8 rounded-xl px-3 text-xs font-semibold transition", active ? "bg-black/[0.04]" : "hover:bg-black/[0.03]")}
+            className={cx(
+              "h-8 rounded-xl px-3 text-xs font-semibold transition",
+              active ? "bg-black/[0.04]" : "hover:bg-black/[0.03]"
+            )}
             style={{
               border: "1px solid",
               borderColor: active ? rgbaBrand(0.22) : "rgba(0,0,0,0)",
@@ -2145,6 +2452,7 @@ function ListRow({
   event,
   onToggle,
   onOpen,
+  olive, // FIX: was required by props but not destructured -> TS error
   compact,
 }: {
   event: EventRecord;
@@ -2153,6 +2461,8 @@ function ListRow({
   olive: string;
   compact?: boolean;
 }) {
+  void olive; // unused (kept for API symmetry)
+
   const importanceLevel = getImportanceLabel(event.importance);
   const completed = !!event.completed;
 
@@ -2241,7 +2551,9 @@ function BlankDayCard() {
   return (
     <div className="rounded-3xl border bg-white p-6" style={surfaceSoftStyle}>
       <div className="text-sm font-semibold text-neutral-900">No events yet</div>
-      <div className="mt-1 text-sm text-neutral-600 leading-relaxed">This day is blank right now. Later this will populate from your real schedule data.</div>
+      <div className="mt-1 text-sm text-neutral-600 leading-relaxed">
+        This day is blank right now. Later this will populate from your real schedule data.
+      </div>
       <div className="mt-4 flex gap-2">
         <button
           className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
