@@ -34,6 +34,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileExpanded, setProfileExpanded] = useState(false);
 
+  // Feedback modal state
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackLike, setFeedbackLike] = useState("");
+  const [feedbackDislike, setFeedbackDislike] = useState("");
+  const [feedbackImprove, setFeedbackImprove] = useState("");
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
   // --- scroll-driven “quiet frame” header ---
   const [scrollY, setScrollY] = useState(0);
 
@@ -144,6 +151,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     {/* Right: actions */}
                     <div className="min-w-[220px] ml-auto flex items-center justify-end gap-2">
                       <button
+                        onClick={() => setFeedbackOpen(true)}
+                        className="rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition hover:bg-black/[0.03]"
+                        style={{
+                          borderColor: "rgba(0,0,0,0.10)",
+                          background: "rgba(0,0,0,0.03)",
+                          color: "rgba(17,17,17,0.70)",
+                        }}
+                      >
+                        Feedback
+                      </button>
+
+                      <button
                         onClick={() => {
                           setFilesOpen(true);
                           setFilesExpanded(false);
@@ -174,21 +193,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       >
                         <ProfileIcon className="h-5 w-5" />
                       </button>
-
-                      <div
-                        className="hidden sm:flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] ml-2"
-                        style={{
-                          borderColor: "rgba(0,0,0,0.10)",
-                          background: "rgba(0,0,0,0.03)",
-                          color: "rgba(17,17,17,0.70)",
-                        }}
-                      >
-                        <span
-                          className="inline-block h-2 w-2 rounded-full"
-                          style={{ backgroundColor: "rgba(16,185,129,0.85)" }}
-                        />
-                        UI shell
-                      </div>
                     </div>
                   </div>
 
@@ -410,6 +414,151 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     opacity: 1;
                     transform: scale(1);
                   }
+                }
+              `}</style>
+            </>
+          )}
+
+          {/* Feedback modal */}
+          {feedbackOpen && (
+            <>
+              <button
+                className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-[60]"
+                style={{ animation: "fadeIn 180ms ease-out" }}
+                onClick={() => {
+                  setFeedbackOpen(false);
+                  setFeedbackSubmitted(false);
+                  setFeedbackLike("");
+                  setFeedbackDislike("");
+                  setFeedbackImprove("");
+                }}
+                aria-label="Close feedback"
+              />
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
+                <div
+                  className="relative rounded-3xl border bg-white/92 backdrop-blur overflow-hidden"
+                  style={{
+                    width: 440,
+                    maxWidth: "90vw",
+                    borderColor: "rgba(0,0,0,0.10)",
+                    boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                    animation: "fadeScaleIn 220ms ease-out",
+                  }}
+                >
+                  {/* Header */}
+                  <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                    <div>
+                      <div className="text-sm font-semibold">Feedback</div>
+                      <div className="text-xs text-neutral-500 mt-0.5">Help us improve Jynx.</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setFeedbackOpen(false);
+                        setFeedbackSubmitted(false);
+                        setFeedbackLike("");
+                        setFeedbackDislike("");
+                        setFeedbackImprove("");
+                      }}
+                      className="ml-auto rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
+                      style={{
+                        borderColor: "rgba(0,0,0,0.10)",
+                        color: "rgba(17,17,17,0.92)",
+                        background: "rgba(0,0,0,0.02)",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-5">
+                    {feedbackSubmitted ? (
+                      <div className="text-center py-8">
+                        <div className="text-2xl mb-2">✓</div>
+                        <div className="text-sm font-semibold" style={{ color: "rgba(0,0,0,0.85)" }}>Thanks for your feedback!</div>
+                        <div className="text-[12px] mt-1" style={{ color: "rgba(0,0,0,0.45)" }}>We'll take a look and get back to you.</div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[12px] font-semibold mb-1.5" style={{ color: "rgba(0,0,0,0.55)" }}>
+                            What do you like?
+                          </label>
+                          <textarea
+                            value={feedbackLike}
+                            onChange={(e) => setFeedbackLike(e.target.value)}
+                            placeholder="Something that's working well…"
+                            rows={2}
+                            className="w-full rounded-xl border px-3 py-2.5 text-[13px] resize-none outline-none transition focus:ring-1"
+                            style={{
+                              borderColor: "rgba(0,0,0,0.10)",
+                              background: "rgba(0,0,0,0.02)",
+                              color: "rgba(17,17,17,0.88)",
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[12px] font-semibold mb-1.5" style={{ color: "rgba(0,0,0,0.55)" }}>
+                            What doesn't work?
+                          </label>
+                          <textarea
+                            value={feedbackDislike}
+                            onChange={(e) => setFeedbackDislike(e.target.value)}
+                            placeholder="Something that's frustrating…"
+                            rows={2}
+                            className="w-full rounded-xl border px-3 py-2.5 text-[13px] resize-none outline-none transition focus:ring-1"
+                            style={{
+                              borderColor: "rgba(0,0,0,0.10)",
+                              background: "rgba(0,0,0,0.02)",
+                              color: "rgba(17,17,17,0.88)",
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[12px] font-semibold mb-1.5" style={{ color: "rgba(0,0,0,0.55)" }}>
+                            What can be improved?
+                          </label>
+                          <textarea
+                            value={feedbackImprove}
+                            onChange={(e) => setFeedbackImprove(e.target.value)}
+                            placeholder="Ideas or suggestions…"
+                            rows={2}
+                            className="w-full rounded-xl border px-3 py-2.5 text-[13px] resize-none outline-none transition focus:ring-1"
+                            style={{
+                              borderColor: "rgba(0,0,0,0.10)",
+                              background: "rgba(0,0,0,0.02)",
+                              color: "rgba(17,17,17,0.88)",
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-end pt-1">
+                          <button
+                            onClick={() => {
+                              setFeedbackSubmitted(true);
+                              setFeedbackLike("");
+                              setFeedbackDislike("");
+                              setFeedbackImprove("");
+                            }}
+                            className="rounded-xl px-5 py-2 text-[13px] font-semibold transition hover:opacity-85"
+                            style={{ background: "#1F8A5B", color: "white" }}
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <style jsx>{`
+                @keyframes fadeIn {
+                  from { opacity: 0; }
+                  to { opacity: 1; }
+                }
+                @keyframes fadeScaleIn {
+                  from { opacity: 0; transform: scale(0.97); }
+                  to { opacity: 1; transform: scale(1); }
                 }
               `}</style>
             </>

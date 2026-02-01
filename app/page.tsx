@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { SlidersHorizontal } from "lucide-react";
+import { Menu, SlidersHorizontal } from "lucide-react";
 
 /**
  * Brand green pulled to match your logo vibe (darker teal-green).
@@ -728,7 +728,7 @@ export default function Home() {
                   aria-label="Toggle Control Center"
                   title="Control Center"
                 >
-                  <SlidersHorizontal size={18} />
+                  <Menu size={18} />
                 </button>
               </div>
             </div>
@@ -808,7 +808,7 @@ export default function Home() {
 
                   {/* 2) Calendar */}
                   <div>
-                    <div className="p-4">
+                    <div className="p-4 pb-1">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">{miniCal.monthLabel}</div>
                         <div className="flex items-center gap-1">

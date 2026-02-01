@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { SlidersHorizontal, Pin } from "lucide-react";
+import { Menu, Pin } from "lucide-react";
 
 type FamiliarityTier = "learning" | "calibrating" | "clear";
 
@@ -775,7 +775,7 @@ export default function MyTimePage() {
                   aria-label="Toggle My Time rail"
                   title="My Time rail"
                 >
-                  <SlidersHorizontal size={18} />
+                  <Menu size={18} />
                 </button>
               </div>
             </div>

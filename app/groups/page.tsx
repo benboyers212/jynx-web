@@ -3,7 +3,7 @@
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
-  SlidersHorizontal,
+  Menu,
   Search,
   Plus,
   Users,
@@ -669,7 +669,7 @@ export default function GroupsPage() {
                   aria-label="Toggle Groups rail"
                   title="Groups rail"
                 >
-                  <SlidersHorizontal size={18} />
+                  <Menu size={18} />
                 </button>
 
                 {/* (match Schedule) no header text here */}
