@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { SignIn } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 
 const JYNX_GREEN = "#1F8A5B";
 
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#ffffff" }}>
       <div className="w-full max-w-md">
@@ -14,10 +14,10 @@ export default function LoginPage() {
           <img src="/jynx-logo.png" alt="Jynx" className="h-10" style={{ objectFit: "contain" }} />
         </Link>
 
-        {/* Clerk SignIn */}
-        <SignIn
+        {/* Clerk SignUp */}
+        <SignUp
           routing="path"
-          path="/login"
+          path="/sign-up"
           appearance={{
             variables: {
               colorPrimary: JYNX_GREEN,

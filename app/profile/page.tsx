@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { SignOutButton } from "@clerk/nextjs";
 import AccountPanel from "./AccountPanel";
+import { useTheme } from "../ThemeContext";
 
 const OLIVE = "#556B2F";
 
@@ -1187,6 +1188,8 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </div>
+                ) : topTab === "settings" && settingsSection === "appearance" ? (
+                  <AppearancePanel surfaceStyle={surfaceStyle} />
                 ) : topTab === "settings" ? (
                   <ShellPanel
                     title={prettySettings(settingsSection as SettingsSection)}
@@ -1277,6 +1280,43 @@ function SubButton({
       <div className="text-sm font-semibold text-neutral-900">{label}</div>
       <div className="mt-0.5 text-xs text-neutral-500">{sub}</div>
     </button>
+  );
+}
+
+function AppearancePanel({ surfaceStyle }: { surfaceStyle: CSSProperties }) {
+  const { dark, setDark } = useTheme();
+
+  return (
+    <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+      <div className="p-4">
+        <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.92)" : "rgba(17,17,17,0.92)" }}>Appearance</div>
+        <div className="mt-1 text-xs" style={{ color: dark ? "rgba(240,240,240,0.48)" : "rgba(17,17,17,0.45)" }}>Choose your display theme</div>
+
+        <div className="mt-5 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium" style={{ color: dark ? "rgba(240,240,240,0.88)" : "rgba(17,17,17,0.88)" }}>Dark mode</div>
+            <div className="mt-0.5 text-xs" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(17,17,17,0.45)" }}>
+              {dark ? "Dark theme is on" : "Switch to dark theme"}
+            </div>
+          </div>
+
+          {/* iOS-style toggle */}
+          <button
+            onClick={() => setDark(!dark)}
+            className="relative w-12 h-7 rounded-full transition-colors duration-300 focus:outline-none"
+            style={{ background: dark ? "#1F8A5B" : "rgba(0,0,0,0.18)" }}
+            aria-label="Toggle dark mode"
+            role="switch"
+            aria-checked={dark}
+          >
+            <span
+              className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-300"
+              style={{ transform: dark ? "translateX(20px)" : "translateX(0)" }}
+            />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

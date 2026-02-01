@@ -22,7 +22,48 @@
   --jynx-olive: #4b5e3c;
 }
 
+/* Dark mode overrides */
+.dark {
+  color-scheme: dark;
+
+  /* Core */
+  --background: #0f0f0f;
+  --foreground: #f0f0f0;
+
+  /* Surfaces */
+  --surface: #1a1a1a;
+  --surface-2: rgba(255, 255, 255, 0.04);
+
+  /* Text */
+  --muted-foreground: rgba(240, 240, 240, 0.55);
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.10);
+
+  /* Brand stays the same — no override for --jynx-olive */
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Broad dark-mode helpers: flip Tailwind utility classes */
+.dark {
+  /* Backgrounds */
+  .bg-white { background-color: var(--surface) !important; }
+  .bg-neutral-50 { background-color: #141414 !important; }
+
+  /* Text */
+  .text-neutral-950 { color: rgba(240, 240, 240, 0.95) !important; }
+  .text-neutral-900 { color: rgba(240, 240, 240, 0.92) !important; }
+  .text-neutral-800 { color: rgba(240, 240, 240, 0.80) !important; }
+  .text-neutral-700 { color: rgba(240, 240, 240, 0.70) !important; }
+  .text-neutral-600 { color: rgba(240, 240, 240, 0.60) !important; }
+  .text-neutral-500 { color: rgba(240, 240, 240, 0.48) !important; }
+  .text-neutral-400 { color: rgba(240, 240, 240, 0.40) !important; }
+
+  /* Borders */
+  .border-neutral-200 { border-color: rgba(255, 255, 255, 0.10) !important; }
+  .border-neutral-100 { border-color: rgba(255, 255, 255, 0.08) !important; }
 }

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Menu, SlidersHorizontal } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
+import LandingPage from "./landing";
 
 /**
  * Brand green pulled to match your logo vibe (darker teal-green).
@@ -203,6 +205,8 @@ type Reminder = {
 };
 
 export default function Home() {
+  const { isSignedIn, isLoaded } = useAuth();
+
   // ---------------------------
   // Demo schedule data (UI shell)
   // ---------------------------
@@ -690,6 +694,8 @@ export default function Home() {
     setSelectedDate(d);
     setViewSpan("Day");
   }
+
+  if (!isLoaded || !isSignedIn) return <LandingPage />;
 
   return (
     <main className="h-screen bg-[#f8f9fa] text-neutral-950 overflow-hidden">

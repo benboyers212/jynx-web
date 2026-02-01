@@ -2,8 +2,11 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
+  "/",
+  "/about",
   "/login(.*)",
   "/signup(.*)",
+  "/sign-up(.*)",
 ]);
 
 const isApiRoute = createRouteMatcher(["/api(.*)"]);

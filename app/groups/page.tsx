@@ -12,6 +12,7 @@ import {
   Pin,
   ChevronRight,
 } from "lucide-react";
+import { useTheme } from "../ThemeContext";
 
 /**
  * Groups page (UI shell) — based on the newer layout, with old interactions restored:
@@ -33,16 +34,6 @@ function rgbaBrand(a: number) {
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
-
-const surfaceStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
-};
-
-const surfaceSoftStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
-};
 
 type GroupVisibility = "Private" | "Public" | "Verified";
 type GroupType = "Class hub" | "Study group" | "Accountability" | "Project" | "Organization";
@@ -113,27 +104,27 @@ type Activity = {
   when: string;
 };
 
-function pillStyleBase(active?: boolean): CSSProperties {
+function pillStyleBase(active?: boolean, dark?: boolean): CSSProperties {
   return {
-    borderColor: active ? rgbaBrand(0.26) : "rgba(0,0,0,0.08)",
-    background: active ? rgbaBrand(0.10) : "rgba(0,0,0,0.03)",
-    color: active ? "rgba(0,0,0,0.82)" : "rgba(0,0,0,0.70)",
+    borderColor: active ? rgbaBrand(0.26) : (dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
+    background: active ? rgbaBrand(0.10) : (dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)"),
+    color: active ? (dark ? "rgba(240,240,240,0.82)" : "rgba(0,0,0,0.82)") : (dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)"),
     boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
   };
 }
 
-function badgeStyle(kind: "Verified" | "Private" | "Public" | "Active" | "Chat" | "Quiet"): CSSProperties {
+function badgeStyle(kind: "Verified" | "Private" | "Public" | "Active" | "Chat" | "Quiet", dark?: boolean): CSSProperties {
   const base: CSSProperties = {
-    borderColor: "rgba(0,0,0,0.10)",
-    background: "rgba(0,0,0,0.03)",
-    color: "rgba(0,0,0,0.72)",
+    borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)",
+    color: dark ? "rgba(240,240,240,0.72)" : "rgba(0,0,0,0.72)",
   };
 
   if (kind === "Verified") {
     return {
       borderColor: rgbaBrand(0.28),
       background: rgbaBrand(0.10),
-      color: "rgba(0,0,0,0.80)",
+      color: dark ? "rgba(240,240,240,0.80)" : "rgba(0,0,0,0.80)",
       boxShadow: `0 0 0 1px ${rgbaBrand(0.06)}`,
     };
   }
@@ -141,24 +132,24 @@ function badgeStyle(kind: "Verified" | "Private" | "Public" | "Active" | "Chat" 
   if (kind === "Active") {
     return {
       borderColor: rgbaBrand(0.20),
-      background: "rgba(0,0,0,0.02)",
-      color: "rgba(0,0,0,0.64)",
+      background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+      color: dark ? "rgba(240,240,240,0.64)" : "rgba(0,0,0,0.64)",
     };
   }
 
   if (kind === "Quiet") {
     return {
-      borderColor: "rgba(0,0,0,0.10)",
-      background: "rgba(0,0,0,0.02)",
-      color: "rgba(0,0,0,0.58)",
+      borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+      background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+      color: dark ? "rgba(240,240,240,0.58)" : "rgba(0,0,0,0.58)",
     };
   }
 
   if (kind === "Chat") {
     return {
-      borderColor: "rgba(0,0,0,0.12)",
-      background: "rgba(0,0,0,0.02)",
-      color: "rgba(0,0,0,0.66)",
+      borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+      background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+      color: dark ? "rgba(240,240,240,0.66)" : "rgba(0,0,0,0.66)",
     };
   }
 
@@ -173,6 +164,22 @@ type MainTab = "My groups" | "Discover";
 type GroupModalTab = "Overview" | "Chat" | "Assignments" | "People" | "Files" | "Schedule";
 
 export default function GroupsPage() {
+  const { dark } = useTheme();
+
+  const surfaceStyle: CSSProperties = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark
+      ? "0 1px 0 rgba(255,255,255,0.04), 0 18px 50px rgba(0,0,0,0.20)"
+      : "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+  };
+
+  const surfaceSoftStyle: CSSProperties = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark
+      ? "0 0 0 1px rgba(255,255,255,0.04)"
+      : "0 0 0 1px rgba(0,0,0,0.04)",
+  };
+
   // Left sidebar (collapsible) — match Schedule
   const [leftOpen, setLeftOpen] = useState(true);
 
@@ -636,8 +643,8 @@ export default function GroupsPage() {
           <div
             className="rounded-2xl border bg-white px-4 py-2 text-sm font-semibold"
             style={{
-              borderColor: "rgba(0,0,0,0.10)",
-              boxShadow: "0 12px 40px rgba(0,0,0,0.10)",
+              borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+              boxShadow: dark ? "0 12px 40px rgba(0,0,0,0.30)" : "0 12px 40px rgba(0,0,0,0.10)",
             }}
           >
             {toast.text}
@@ -651,14 +658,14 @@ export default function GroupsPage() {
           className="h-full transition-[width] duration-200"
           style={{
             width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
-            background: "rgba(255,255,255,0.88)",
+            background: dark ? "rgba(15,15,15,0.88)" : "rgba(255,255,255,0.88)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
-            borderRight: "1px solid rgba(0,0,0,0.08)",
+            borderRight: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)",
           }}
         >
           <div className="h-full flex flex-col">
-            {/* Rail top control — same “Control center” pattern */}
+            {/* Rail top control — same "Control center" pattern */}
             <div className={cx("px-3 pt-4", leftOpen ? "pb-3" : "pb-2 flex justify-center")}>
   <div className={cx("flex items-center", leftOpen ? "justify-start" : "justify-center")}>
 
@@ -687,9 +694,9 @@ export default function GroupsPage() {
         <span
           className="inline-flex items-center justify-center h-7 px-2.5 rounded-full border text-[11px] font-semibold"
           style={{
-            borderColor: "rgba(0,0,0,0.10)",
-            background: "rgba(0,0,0,0.03)",
-            color: "rgba(0,0,0,0.70)",
+            borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+            background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)",
+            color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)",
           }}
         >
           {activity.length}
@@ -924,7 +931,7 @@ export default function GroupsPage() {
                           border: "1px solid",
                           borderColor: active ? rgbaBrand(0.22) : "rgba(0,0,0,0)",
                           boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
-                          color: active ? "rgba(0,0,0,0.88)" : "rgba(0,0,0,0.68)",
+                          color: active ? (dark ? "rgba(240,240,240,0.88)" : "rgba(0,0,0,0.88)") : (dark ? "rgba(240,240,240,0.68)" : "rgba(0,0,0,0.68)"),
                         }}
                       >
                         {t}
@@ -950,6 +957,7 @@ export default function GroupsPage() {
                           key={g.id}
                           group={g}
                           isMyGroups
+                          dark={dark}
                           onOpen={() => openGroupModal(g)}
                           onTogglePin={() => togglePin(g.id)}
                           onNotify={(txt) => showToast(txt)}
@@ -974,6 +982,7 @@ export default function GroupsPage() {
                           key={g.id}
                           group={g}
                           isMyGroups={tab === "My groups"}
+                          dark={dark}
                           onOpen={() => openGroupModal(g)}
                           onTogglePin={() => togglePin(g.id)}
                           onNotify={(txt) => showToast(txt)}
@@ -1038,7 +1047,7 @@ export default function GroupsPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <Modal onClose={() => setShowCreate(false)} title="Create group" subtitle="UI shell — creates a new group in My groups.">
+        <Modal onClose={() => setShowCreate(false)} title="Create group" subtitle="UI shell — creates a new group in My groups." dark={dark}>
           <div className="space-y-3">
             <Field label="Group name">
               <input
@@ -1148,6 +1157,7 @@ export default function GroupsPage() {
           title="Find a group"
           subtitle="UI shell — browse Discover. (Public groups have no chat.)"
           maxWidthClass="max-w-4xl"
+          dark={dark}
         >
           <div className="flex flex-wrap items-center gap-3">
             <div
@@ -1257,6 +1267,7 @@ export default function GroupsPage() {
           onClose={() => setShowInvites(false)}
           title="Invites / requests"
           subtitle="UI shell — this becomes your group invites inbox."
+          dark={dark}
         >
           <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
             <div className="text-sm font-semibold">Nothing pending</div>
@@ -1440,10 +1451,10 @@ export default function GroupsPage() {
 
                       {openGroup.type === "Class hub" && openGroup.classStats && (
                         <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                          <MiniStat label="Avg / week" value={openGroup.classStats.avgTimePerWeek} />
-                          <MiniStat label="Difficulty" value={openGroup.classStats.difficulty} />
-                          <MiniStat label="Exam 1 avg" value={openGroup.classStats.exam1Avg} />
-                          <MiniStat label="Exam 2 avg" value={openGroup.classStats.exam2Avg} />
+                          <MiniStat label="Avg / week" value={openGroup.classStats.avgTimePerWeek} dark={dark} />
+                          <MiniStat label="Difficulty" value={openGroup.classStats.difficulty} dark={dark} />
+                          <MiniStat label="Exam 1 avg" value={openGroup.classStats.exam1Avg} dark={dark} />
+                          <MiniStat label="Exam 2 avg" value={openGroup.classStats.exam2Avg} dark={dark} />
                         </div>
                       )}
                     </div>
@@ -1700,10 +1711,10 @@ export default function GroupsPage() {
                       </div>
 
                       <div className="mt-3 space-y-2">
-                        <InfoLine label="Type" value={openGroup.type} />
-                        <InfoLine label="Visibility" value={openGroup.visibility} />
-                        <InfoLine label="Members" value={`${openGroup.memberCount}`} />
-                        <InfoLine label="Chat" value={openGroup.chatEnabled ? "Enabled (private only)" : "Off"} />
+                        <InfoLine label="Type" value={openGroup.type} dark={dark} />
+                        <InfoLine label="Visibility" value={openGroup.visibility} dark={dark} />
+                        <InfoLine label="Members" value={`${openGroup.memberCount}`} dark={dark} />
+                        <InfoLine label="Chat" value={openGroup.chatEnabled ? "Enabled (private only)" : "Off"} dark={dark} />
                       </div>
 
                       <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
@@ -1743,17 +1754,23 @@ function getGroupTabs(g: Group): GroupModalTab[] {
 function GroupRow({
   group,
   isMyGroups,
+  dark,
   onOpen,
   onTogglePin,
   onNotify,
 }: {
   group: Group;
   isMyGroups: boolean;
+  dark: boolean;
   onOpen: () => void;
   onTogglePin: () => void;
   onNotify: (txt: string) => void;
 }) {
-  const leftDot = group.verified ? rgbaBrand(0.9) : "rgba(0,0,0,0.22)";
+  const surfaceSoftStyle: CSSProperties = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 0 0 1px rgba(255,255,255,0.04)" : "0 0 0 1px rgba(0,0,0,0.04)",
+  };
+  const leftDot = group.verified ? rgbaBrand(0.9) : (dark ? "rgba(240,240,240,0.22)" : "rgba(0,0,0,0.22)");
   const visibilityBadge = group.visibility === "Verified" ? "Verified" : group.visibility === "Private" ? "Private" : "Public";
   const hasUnread = !!group.unread && group.unread > 0 && group.chatEnabled;
 
@@ -1773,8 +1790,10 @@ function GroupRow({
         "hover:bg-black/[0.02] hover:-translate-y-[1px]"
       )}
       style={{
-        borderColor: "rgba(0,0,0,0.08)",
-        boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+        borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+        boxShadow: dark
+          ? "0 1px 0 rgba(255,255,255,0.04), 0 18px 50px rgba(0,0,0,0.20)"
+          : "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
       }}
     >
       <div
@@ -1801,9 +1820,9 @@ function GroupRow({
                 }}
                 className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] font-semibold hover:bg-black/[0.02] transition"
                 style={{
-                  borderColor: group.pinned ? rgbaBrand(0.22) : "rgba(0,0,0,0.10)",
-                  background: group.pinned ? rgbaBrand(0.10) : "rgba(0,0,0,0.02)",
-                  color: "rgba(0,0,0,0.78)",
+                  borderColor: group.pinned ? rgbaBrand(0.22) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)"),
+                  background: group.pinned ? rgbaBrand(0.10) : (dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)"),
+                  color: dark ? "rgba(240,240,240,0.78)" : "rgba(0,0,0,0.78)",
                 }}
                 title={group.pinned ? "Unpin" : "Pin"}
               >
@@ -1893,18 +1912,26 @@ function GroupRow({
 
 /* ---------- small UI primitives ---------- */
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, dark }: { label: string; value: string; dark: boolean }) {
+  const s: CSSProperties = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 0 0 1px rgba(255,255,255,0.04)" : "0 0 0 1px rgba(0,0,0,0.04)",
+  };
   return (
-    <div className="rounded-2xl border bg-white px-3 py-2" style={surfaceSoftStyle}>
+    <div className="rounded-2xl border bg-white px-3 py-2" style={s}>
       <div className="text-[10px] text-neutral-500">{label}</div>
       <div className="mt-0.5 text-sm font-semibold text-neutral-900">{value}</div>
     </div>
   );
 }
 
-function InfoLine({ label, value }: { label: string; value: string }) {
+function InfoLine({ label, value, dark }: { label: string; value: string; dark: boolean }) {
+  const s: CSSProperties = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 0 0 1px rgba(255,255,255,0.04)" : "0 0 0 1px rgba(0,0,0,0.04)",
+  };
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border bg-white px-3 py-2" style={surfaceSoftStyle}>
+    <div className="flex items-center justify-between gap-3 rounded-2xl border bg-white px-3 py-2" style={s}>
       <div className="text-[11px] text-neutral-500">{label}</div>
       <div className="text-sm font-semibold text-neutral-900">{value}</div>
     </div>
@@ -1925,14 +1952,20 @@ function Modal({
   title,
   subtitle,
   children,
+  dark,
   maxWidthClass = "max-w-lg",
 }: {
   onClose: () => void;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  dark: boolean;
   maxWidthClass?: string;
 }) {
+  const modalSoftStyle: CSSProperties = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 0 0 1px rgba(255,255,255,0.04)" : "0 0 0 1px rgba(0,0,0,0.04)",
+  };
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center px-4"
@@ -1942,8 +1975,10 @@ function Modal({
       <div
         className={cx("w-full rounded-3xl border bg-white p-6", maxWidthClass)}
         style={{
-          boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 30px 90px rgba(0,0,0,0.18)",
-          borderColor: "rgba(0,0,0,0.10)",
+          boxShadow: dark
+            ? "0 1px 0 rgba(255,255,255,0.04), 0 30px 90px rgba(0,0,0,0.40)"
+            : "0 1px 0 rgba(0,0,0,0.04), 0 30px 90px rgba(0,0,0,0.18)",
+          borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1955,7 +1990,7 @@ function Modal({
           <button
             onClick={onClose}
             className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-            style={surfaceSoftStyle}
+            style={modalSoftStyle}
             title="Close"
           >
             ✕
