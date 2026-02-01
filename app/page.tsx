@@ -29,16 +29,6 @@ const QUOTES = [
   { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
 ];
 
-const PIE_COLORS: Record<string, string> = {
-  class: "#1F8A5B",
-  work: "#3B82F6",
-  health: "#EF4444",
-  prep: "#8B5CF6",
-  study: "#F59E0B",
-  life: "#14B8A6",
-  free: "#E5E7EB",
-};
-
 const PIE_LABELS: Record<string, string> = {
   class: "Class",
   work: "Work",
@@ -463,6 +453,7 @@ export default function Home() {
 
   // Today overview modal
   const [todayOpen, setTodayOpen] = useState(false);
+  const [todayClicked, setTodayClicked] = useState(false);
 
   // Adjust modal (schedule controls)
   const [adjustOpen, setAdjustOpen] = useState(false);
@@ -629,10 +620,6 @@ export default function Home() {
     [activeEvents]
   );
 
-  const bottomEvents = useMemo(() =>
-    [...activeEvents].sort((a, b) => (a.importance ?? 3) - (b.importance ?? 3)).slice(0, 3),
-    [activeEvents]
-  );
 
   const todayPieData = useMemo(() => {
     const buckets: Record<string, number> = {};
@@ -720,12 +707,13 @@ export default function Home() {
       <div className="relative flex h-full">
         {/* LEFT SIDEBAR */}
         <div
-  className="h-full transition-[width] duration-200 rounded-r-[28px]"
+  className="h-full transition-[width] duration-200"
   style={{
     width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
-    background: "rgba(255,255,255,0.84)",
+    background: "rgba(255,255,255,0.88)",
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
+    borderRight: "1px solid rgba(0,0,0,0.08)",
   }}
 >
 
@@ -1028,9 +1016,9 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MAIN (FIXED: wrapper was missing, causing JSX close errors) */}
+        {/* MAIN */}
         <div className="flex-1 flex flex-col h-full">
-          {/* In-content header controls (B1 follow-through: no big top strip, but controls remain) */}
+          {/* In-content header controls */}
           <div className="px-3 sm:px-6 pt-4 pb-2">
             <div className="max-w-[1600px] mx-auto">
               <div className="flex flex-wrap items-center gap-3">
@@ -1110,9 +1098,12 @@ export default function Home() {
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                               <button
-                                onClick={() => setTodayOpen(true)}
-                                className="rounded-2xl px-3 py-1.5 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                                style={surfaceSoftStyle}
+                                onClick={() => { setTodayClicked(true); setTodayOpen(true); }}
+                                className={cx(
+                                  "rounded-2xl px-3 py-1.5 text-xs font-semibold border transition",
+                                  todayClicked ? "bg-white hover:bg-black/[0.03]" : "hover:opacity-90"
+                                )}
+                                style={todayClicked ? surfaceSoftStyle : { background: JYNX_GREEN, borderColor: JYNX_GREEN, color: "white" }}
                               >
                                 Today
                               </button>
@@ -1574,120 +1565,116 @@ export default function Home() {
                 {/* Body */}
                 <div className="p-5 overflow-y-auto" style={{ height: "calc(100% - 56px)" }}>
                   {/* Quote */}
-                  <div
-                    className="rounded-2xl p-4 mb-5"
-                    style={{ background: rgbaBrand(0.06), borderLeft: `3px solid ${JYNX_GREEN}` }}
-                  >
-                    <div className="text-sm" style={{ color: "rgba(0,0,0,0.72)", fontStyle: "italic" }}>
-                      "{todayQuote.text}"
-                    </div>
-                    <div className="text-[11px] mt-1.5" style={{ color: "rgba(0,0,0,0.42)" }}>
-                      — {todayQuote.author}
+                  <div className="rounded-2xl p-5 mb-6 relative overflow-hidden" style={{ border: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 4px 24px rgba(0,0,0,0.06)", background: "rgba(255,255,255,0.7)" }}>
+                    <div className="absolute select-none pointer-events-none" style={{ top: -8, left: -4, fontSize: 100, lineHeight: 1, color: rgbaBrand(0.10), fontWeight: 700 }}>"</div>
+                    <div className="relative" style={{ paddingLeft: 44 }}>
+                      <div className="text-[15px] font-medium leading-relaxed" style={{ color: "rgba(0,0,0,0.78)" }}>
+                        {todayQuote.text}
+                      </div>
+                      <div className="text-[11px] mt-2" style={{ color: "rgba(0,0,0,0.38)" }}>
+                        — {todayQuote.author}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Two-column layout */}
-                  <div className="grid grid-cols-[1fr_200px] gap-6">
-                    {/* Left: Focus + Don't stress */}
-                    <div className="space-y-5">
-                      {/* Focus on */}
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: JYNX_GREEN }}>
-                          Focus on
-                        </div>
-                        <div className="space-y-2">
-                          {topEvents.map((e) => (
-                            <div
-                              key={e.id}
-                              className="flex items-start gap-2.5 rounded-xl px-3 py-2"
-                              style={{ background: "rgba(0,0,0,0.02)" }}
-                            >
-                              <div
-                                className="mt-1 h-2 w-2 rounded-full shrink-0"
-                                style={{ background: JYNX_GREEN }}
-                              />
-                              <div className="min-w-0">
-                                <div className="text-[13px] font-medium truncate" style={{ color: "rgba(0,0,0,0.88)" }}>
-                                  {e.title}
-                                </div>
-                                <div className="text-[11px] truncate" style={{ color: "rgba(0,0,0,0.45)" }}>
-                                  {formatRange(e.time, e.endTime)}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Don't stress on */}
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(0,0,0,0.40)" }}>
-                          Don't stress on
-                        </div>
-                        <div className="space-y-1.5">
-                          {bottomEvents.map((e) => (
-                            <div key={e.id} className="flex items-center gap-2 px-1">
-                              <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "rgba(0,0,0,0.20)" }} />
-                              <div className="text-[12px] truncate" style={{ color: "rgba(0,0,0,0.50)" }}>
-                                {e.title}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                  {/* Time breakdown ring + list side by side */}
+                  <div className="mb-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-3 text-center" style={{ color: "rgba(0,0,0,0.40)" }}>
+                      How your day breaks down
                     </div>
-
-                    {/* Right: Pie chart */}
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(0,0,0,0.40)" }}>
-                        Time breakdown
-                      </div>
-                      <div className="flex justify-center">
-                        <svg width="140" height="140" viewBox="0 0 140 140">
-                          {(() => {
-                            let angle = -Math.PI / 2;
-                            return todayPieData.map((seg) => {
-                              const sweep = seg.pct * 2 * Math.PI;
-                              const startAngle = angle;
-                              const endAngle = angle + sweep;
-                              angle += sweep;
-                              const x1 = 70 + 60 * Math.cos(startAngle);
-                              const y1 = 70 + 60 * Math.sin(startAngle);
-                              const x2 = 70 + 60 * Math.cos(endAngle);
-                              const y2 = 70 + 60 * Math.sin(endAngle);
-                              const largeArc = sweep > Math.PI ? 1 : 0;
+                    {(() => {
+                      const scheduled = todayPieData.filter((s) => s.type !== "free").reduce((sum, s) => sum + s.mins, 0);
+                      const pct = Math.min(scheduled / 960, 1);
+                      const circ = 2 * Math.PI * 48;
+                      const hrs = Math.floor(scheduled / 60);
+                      const mins = scheduled % 60;
+                      const timeLabel = hrs > 0 ? (mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`) : `${mins}m`;
+                      return (
+                        <div className="flex items-center gap-4">
+                          {/* Ring */}
+                          <div className="shrink-0">
+                            <svg width="140" height="140" viewBox="0 0 140 140">
+                              <circle cx="70" cy="70" r="48" fill="none" stroke="rgba(0,0,0,0.07)" strokeWidth="7" />
+                              <circle
+                                cx="70" cy="70" r="48" fill="none"
+                                stroke={JYNX_GREEN} strokeWidth="7"
+                                strokeLinecap="round"
+                                strokeDasharray={`${pct * circ} ${circ}`}
+                                transform="rotate(-90 70 70)"
+                              />
+                              <text x="70" y="66" textAnchor="middle" dominantBaseline="middle" fontSize="22" fontWeight="600" fill="rgba(0,0,0,0.88)" style={{ fontFamily: "inherit" }}>{timeLabel}</text>
+                              <text x="70" y="82" textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="rgba(0,0,0,0.40)" style={{ fontFamily: "inherit" }}>planned</text>
+                            </svg>
+                          </div>
+                          {/* Activity list */}
+                          <div className="flex-1 min-w-0">
+                            {todayPieData.filter((s) => s.type !== "free").map((seg, i, arr) => {
+                              const sHrs = Math.floor(seg.mins / 60);
+                              const sMins = seg.mins % 60;
+                              const label = sHrs > 0 ? (sMins > 0 ? `${sHrs}h ${sMins}m` : `${sHrs}h`) : `${sMins}m`;
                               return (
-                                <path
+                                <div
                                   key={seg.type}
-                                  d={`M 70 70 L ${x1} ${y1} A 60 60 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                                  fill={PIE_COLORS[seg.type] || "#ccc"}
-                                />
-                              );
-                            });
-                          })()}
-                          {/* Donut hole */}
-                          <circle cx="70" cy="70" r="36" fill="white" />
-                        </svg>
-                      </div>
-                      {/* Legend */}
-                      <div className="mt-3 space-y-1.5">
-                        {todayPieData.map((seg) => {
-                          const hrs = Math.floor(seg.mins / 60);
-                          const mins = seg.mins % 60;
-                          const label = hrs > 0 ? (mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`) : `${mins}m`;
-                          return (
-                            <div key={seg.type} className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: PIE_COLORS[seg.type] || "#ccc" }} />
-                                <div className="text-[11px]" style={{ color: "rgba(0,0,0,0.65)" }}>
-                                  {PIE_LABELS[seg.type] || seg.type}
+                                  className={cx("flex items-center justify-between py-1.5 px-1", i < arr.length - 1 && "border-b")}
+                                  style={{ borderColor: "rgba(0,0,0,0.06)" }}
+                                >
+                                  <div className="text-[12px]" style={{ color: "rgba(0,0,0,0.65)" }}>{PIE_LABELS[seg.type] || seg.type}</div>
+                                  <div className="text-[12px] font-medium" style={{ color: "rgba(0,0,0,0.42)" }}>{label}</div>
                                 </div>
-                              </div>
-                              <div className="text-[11px] font-medium" style={{ color: "rgba(0,0,0,0.45)" }}>{label}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Top priorities */}
+                  <div className="mb-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: "rgba(0,0,0,0.40)" }}>
+                      Your top priorities today
+                    </div>
+                    <div className="space-y-2">
+                      {topEvents.map((e, i) => (
+                        <div key={e.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: "rgba(0,0,0,0.02)" }}>
+                          <div
+                            className="h-5 w-5 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0"
+                            style={{ background: rgbaBrand(0.12), color: JYNX_GREEN }}
+                          >
+                            {i + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-medium truncate" style={{ color: "rgba(0,0,0,0.88)" }}>{e.title}</div>
+                            <div className="text-[11px] truncate" style={{ color: "rgba(0,0,0,0.45)" }}>{formatRange(e.time, e.endTime)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pre-day notes */}
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(0,0,0,0.40)" }}>
+                      Before you start
+                    </div>
+                    <textarea
+                      placeholder="Anything on your mind before you kick off the day?"
+                      className="w-full rounded-xl px-3.5 py-3 text-[13px] resize-none outline-none border transition"
+                      style={{
+                        background: "rgba(0,0,0,0.02)",
+                        borderColor: "rgba(0,0,0,0.10)",
+                        color: "rgba(0,0,0,0.85)",
+                        minHeight: 80,
+                      }}
+                      rows={3}
+                    />
+                    <div className="flex justify-end mt-2">
+                      <button
+                        className="rounded-xl px-4 py-1.5 text-[11px] font-semibold transition hover:opacity-85"
+                        style={{ background: JYNX_GREEN, color: "white" }}
+                      >
+                        Submit
+                      </button>
                     </div>
                   </div>
                 </div>

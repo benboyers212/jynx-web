@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useMemo, useRef, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   SlidersHorizontal,
   Search,
@@ -175,6 +175,13 @@ type GroupModalTab = "Overview" | "Chat" | "Assignments" | "People" | "Files" | 
 export default function GroupsPage() {
   // Left sidebar (collapsible) — match Schedule
   const [leftOpen, setLeftOpen] = useState(true);
+
+  useEffect(() => {
+    const check = () => { if (window.innerWidth < 768) setLeftOpen(false); };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // Main filters
   const [query, setQuery] = useState("");
@@ -641,14 +648,13 @@ export default function GroupsPage() {
       <div className="relative flex h-full">
         {/* LEFT SIDEBAR */}
         <div
-          className={cx(
-            "h-full transition-[width] duration-200 rounded-r-[28px]",
-            leftOpen ? "w-[320px]" : "w-[56px]"
-          )}
+          className="h-full transition-[width] duration-200"
           style={{
-            background: "rgba(255,255,255,0.84)",
+            width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
+            background: "rgba(255,255,255,0.88)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
+            borderRight: "1px solid rgba(0,0,0,0.08)",
           }}
         >
           <div className="h-full flex flex-col">
@@ -834,7 +840,6 @@ export default function GroupsPage() {
 
         {/* MAIN */}
         <div className="flex-1 flex flex-col h-full">
-
           <div className="flex-1 overflow-y-auto">
             <div className={cx(maxW, "mx-auto px-6 pt-6 pb-10")}>
               {/* In-canvas header row */}

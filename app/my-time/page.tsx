@@ -566,6 +566,13 @@ export default function MyTimePage() {
   // Left sidebar (collapsible) — match Groups/Schedule pattern
   const [leftOpen, setLeftOpen] = useState(true);
 
+  useEffect(() => {
+    const check = () => { if (window.innerWidth < 768) setLeftOpen(false); };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   // UI-only mock signals (wire later)
   const observedSignals = useMemo<string[]>(() => ["task_drift_later", "long_focus_blocks", "frequent_reschedules"], []);
 
@@ -749,14 +756,13 @@ export default function MyTimePage() {
       <div className="relative flex h-full">
         {/* LEFT RAIL (Quick check-in + Latest insights live here now) */}
        <div
-          className={cx(
-            "h-full transition-[width] duration-200 rounded-r-[28px]",
-            leftOpen ? "w-[320px]" : "w-[56px]"
-          )}
+          className="h-full transition-[width] duration-200"
           style={{
-            background: "rgba(255,255,255,0.84)",
+            width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
+            background: "rgba(255,255,255,0.88)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
+            borderRight: "1px solid rgba(0,0,0,0.08)",
           }}
         >
           <div className="h-full flex flex-col">

@@ -98,49 +98,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   WebkitBackdropFilter: `blur(${blurPx}px)`,
                 }}
               >
-                {/* Subtle olive wash (very light) */}
-                <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                  <div
-                    className="absolute -top-28 left-1/2 h-[220px] w-[900px] -translate-x-1/2 rounded-full blur-3xl"
-                    style={{
-                      opacity: lerp(0.16, 0.08, headerT),
-                      background:
-                        "radial-gradient(circle at 35% 35%, rgba(75,94,60,0.35), rgba(255,255,255,0) 60%)",
-                    }}
-                  />
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background:
-                        "linear-gradient(to bottom, rgba(0,0,0,0.04), rgba(0,0,0,0))",
-                    }}
-                  />
-                </div>
-
-                <div className="relative mx-auto max-w-7xl px-6">
+                <div className="relative px-6">
                   <div className="h-16 flex items-center">
                     {/* Left: brand */}
-                    <div className="flex items-center gap-3 min-w-[220px]">
-                      <div
-                        className="h-10 w-10 rounded-2xl border flex items-center justify-center text-xs font-semibold"
-                        style={{
-                          borderColor: "rgba(0,0,0,0.10)",
-                          background: "rgba(0,0,0,0.03)",
-                          color: "rgba(17,17,17,0.9)",
-                          boxShadow: `0 0 0 1px rgba(75,94,60,0.12)`,
-                        }}
-                      >
-                        LOGO
-                      </div>
-
-                      <div className="min-w-0">
-                        <div
-                          className="text-base font-semibold tracking-wide leading-tight truncate"
-                          style={{ color: "rgba(17,17,17,0.92)" }}
-                        >
-                          Jynx
-                        </div>
-                      </div>
+                    <div className="flex items-center min-w-[220px]">
+                      <img src="/jynx-logo.png" alt="Jynx" className="h-9" style={{ objectFit: "contain" }} />
                     </div>
 
                     {/* Center: tabs (Vercel-ish: text, active = bold + underline) */}
