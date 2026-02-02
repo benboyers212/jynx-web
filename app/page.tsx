@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Menu, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
+import { useTheme } from "./ThemeContext";
 import LandingPage from "./landing";
 
 /**
@@ -179,15 +180,19 @@ function getImportancePillStyleLight(level: "High" | "Medium" | "Low") {
   } as CSSProperties;
 }
 
-const surfaceStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
-};
+function getSurfaceStyle(dark: boolean): CSSProperties {
+  return {
+    borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 1px 0 rgba(0,0,0,0.3), 0 18px 50px rgba(0,0,0,0.40)" : "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+  };
+}
 
-const surfaceSoftStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
-};
+function getSurfaceSoftStyle(dark: boolean): CSSProperties {
+  return {
+    borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 0 0 1px rgba(0,0,0,0.15)" : "0 0 0 1px rgba(0,0,0,0.04)",
+  };
+}
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -206,6 +211,7 @@ type Reminder = {
 
 export default function Home() {
   const { isSignedIn, isLoaded } = useAuth();
+  const { dark } = useTheme();
 
   // ---------------------------
   // Demo schedule data (UI shell)
@@ -698,16 +704,17 @@ export default function Home() {
   if (!isLoaded || !isSignedIn) return <LandingPage />;
 
   return (
-    <main className="h-screen bg-[#f8f9fa] text-neutral-950 overflow-hidden">
+    <main className="h-screen overflow-hidden" style={{ background: dark ? "var(--background)" : "#f8f9fa", color: dark ? "var(--foreground)" : "rgba(0,0,0,0.95)" }}>
       {/* very subtle ambient */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
-          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
+          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl"
           style={{
-            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, rgba(255,255,255,0) 60%)`,
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, ${dark ? "rgba(0,0,0,0)" : "rgba(255,255,255,0)"} 60%)`,
+            opacity: dark ? 0.15 : 0.25,
           }}
         />
-        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-20 bg-black/10" />
+        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15" style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.10)" }} />
       </div>
 
       <div className="relative flex h-full">
@@ -716,10 +723,10 @@ export default function Home() {
   className="h-full transition-[width] duration-200"
   style={{
     width: leftOpen ? "clamp(220px, 22vw, 460px)" : "56px",
-    background: "rgba(255,255,255,0.88)",
+    background: dark ? "rgba(15,15,15,0.88)" : "rgba(255,255,255,0.88)",
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
-    borderRight: "1px solid rgba(0,0,0,0.08)",
+    borderRight: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)",
   }}
 >
 
@@ -729,8 +736,8 @@ export default function Home() {
               <div className={cx("flex items-center", leftOpen ? "justify-start" : "justify-center")}>
                 <button
                   onClick={() => setLeftOpen((v) => !v)}
-                  className="h-10 w-10 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-                  style={surfaceSoftStyle}
+                  className="h-10 w-10 rounded-2xl border transition flex items-center justify-center"
+                  style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                   aria-label="Toggle Control Center"
                   title="Control Center"
                 >
@@ -750,7 +757,7 @@ export default function Home() {
 >
 
                   {/* 1) AI Chat */}
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                  <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                     <div className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">Schedule assistant</div>
@@ -759,7 +766,7 @@ export default function Home() {
 
                       <div className="mt-2 text-sm text-neutral-800 leading-relaxed">Conflicts, swaps, or rebalancing your day.</div>
 
-                      <div className="mt-3 rounded-2xl border px-3 py-3 bg-white" style={surfaceSoftStyle}>
+                      <div className="mt-3 rounded-2xl border px-3 py-3" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}>
                         <textarea
                           ref={quickChatRef}
                           value={quickChat}
@@ -783,10 +790,10 @@ export default function Home() {
                             className={cx(
                               "ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold border transition",
                               quickChat.trim()
-                                ? "bg-white hover:bg-black/[0.03]"
-                                : "bg-white text-neutral-400 cursor-not-allowed"
+                                ? ""
+                                : "text-neutral-400 cursor-not-allowed"
                             )}
-                            style={surfaceSoftStyle}
+                            style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                           >
                             Send
                           </button>
@@ -796,14 +803,14 @@ export default function Home() {
                       <div className="mt-3 flex gap-2">
                         <Link
                           href="/chat"
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                         >
                           Open Chat
                         </Link>
                         <button
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                          style={surfaceSoftStyle}
+                          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                           onClick={() => setQuickChat("")}
                         >
                           Clear
@@ -820,16 +827,16 @@ export default function Home() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setMiniMonthOffset((v) => v - 1)}
-                            className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition"
-                            style={surfaceSoftStyle}
+                            className="h-8 w-8 rounded-xl border transition"
+                            style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                             aria-label="Previous month"
                           >
                             ←
                           </button>
                           <button
                             onClick={() => setMiniMonthOffset((v) => v + 1)}
-                            className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition"
-                            style={surfaceSoftStyle}
+                            className="h-8 w-8 rounded-xl border transition"
+                            style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                             aria-label="Next month"
                           >
                             →
@@ -860,9 +867,9 @@ export default function Home() {
                                 active ? "font-semibold" : "font-medium"
                               )}
                               style={{
-                                borderColor: active ? rgbaBrand(0.3) : "rgba(0,0,0,0.06)",
-                                background: active ? rgbaBrand(0.1) : "white",
-                                color: isEmpty ? "transparent" : "rgba(0,0,0,0.84)",
+                                borderColor: active ? rgbaBrand(0.3) : dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
+                                background: active ? rgbaBrand(0.1) : dark ? "rgba(255,255,255,0.04)" : "white",
+                                color: isEmpty ? "transparent" : dark ? "rgba(240,240,240,0.84)" : "rgba(0,0,0,0.84)",
                                 boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.1)}` : undefined,
                               }}
                               disabled={isEmpty}
@@ -892,8 +899,8 @@ export default function Home() {
                             <button
                               key={window}
                               onClick={() => setGoalsModalWindow(window)}
-                              className="rounded-full px-3 py-1.5 text-[11px] font-semibold border bg-white hover:bg-black/[0.03] transition"
-                              style={surfaceSoftStyle}
+                              className="rounded-full px-3 py-1.5 text-[11px] font-semibold border transition"
+                              style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                             >
                               {window}
                               {count > 0 && (
@@ -915,8 +922,8 @@ export default function Home() {
                       <div className="mt-3">
                         <button
                           onClick={() => setAddGoalOpen(true)}
-                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-left flex items-center gap-2"
-                          style={surfaceSoftStyle}
+                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border transition text-left flex items-center gap-2"
+                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                         >
                           <span className="text-neutral-500">+</span> Add goal
                         </button>
@@ -955,8 +962,8 @@ export default function Home() {
                                 r.completed ? "" : "hover:border-neutral-400"
                               )}
                               style={{
-                                borderColor: r.completed ? JYNX_GREEN : "rgba(0,0,0,0.22)",
-                                background: r.completed ? JYNX_GREEN : "white",
+                                borderColor: r.completed ? JYNX_GREEN : dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.22)",
+                                background: r.completed ? JYNX_GREEN : dark ? "rgba(255,255,255,0.04)" : "white",
                               }}
                               aria-label={r.completed ? "Mark incomplete" : "Mark complete"}
                             >
@@ -991,8 +998,8 @@ export default function Home() {
                       <div className="mt-3">
                         <button
                           onClick={() => alert("UI shell")}
-                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-left flex items-center gap-2"
-                          style={surfaceSoftStyle}
+                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border transition text-left flex items-center gap-2"
+                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                         >
                           <span className="text-neutral-500">+</span> Add reminder
                         </button>
@@ -1007,8 +1014,8 @@ export default function Home() {
 
                   <div className="flex items-center gap-2">
                     <button
-                      className="flex-1 rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-center"
-                      style={surfaceSoftStyle}
+                      className="flex-1 rounded-2xl px-3 py-2 text-xs font-semibold border transition text-center"
+                      style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                       onClick={() => setAdjustOpen(true)}
                     >
                       Adjust
@@ -1032,8 +1039,8 @@ export default function Home() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => shiftSelectedDay(-1)}
-                    className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
-                    style={surfaceSoftStyle}
+                    className="h-10 w-10 rounded-2xl border transition flex items-center justify-center"
+                    style={getSurfaceSoftStyle(dark)}
                     aria-label="Previous day"
                   >
                     ←
@@ -1041,16 +1048,16 @@ export default function Home() {
 
                   <button
                     onClick={() => setSelectedDate(new Date(2026, 0, 12))}
-                    className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                    style={surfaceSoftStyle}
+                    className="h-10 rounded-2xl px-3 text-xs font-semibold border transition"
+                    style={getSurfaceSoftStyle(dark)}
                   >
                     Today
                   </button>
 
                   <button
                     onClick={() => shiftSelectedDay(1)}
-                    className="h-10 w-10 rounded-2xl border bg-white transition flex items-center justify-center hover:bg-black/[0.03]"
-                    style={surfaceSoftStyle}
+                    className="h-10 w-10 rounded-2xl border transition flex items-center justify-center"
+                    style={getSurfaceSoftStyle(dark)}
                     aria-label="Next day"
                   >
                     →
@@ -1071,8 +1078,8 @@ export default function Home() {
 
                   <button
                     onClick={() => setAdjustOpen(true)}
-                    className="h-10 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition flex items-center gap-2"
-                    style={surfaceSoftStyle}
+                    className="h-10 rounded-2xl px-3 text-xs font-semibold border transition flex items-center gap-2"
+                    style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                   >
                     <SlidersHorizontal size={16} />
                     Adjust
@@ -1105,11 +1112,8 @@ export default function Home() {
                             <div className="flex items-center gap-3">
                               <button
                                 onClick={() => { setTodayClicked(true); setTodayOpen(true); }}
-                                className={cx(
-                                  "rounded-2xl px-3 py-1.5 text-xs font-semibold border transition",
-                                  todayClicked ? "bg-white hover:bg-black/[0.03]" : "hover:opacity-90"
-                                )}
-                                style={todayClicked ? surfaceSoftStyle : { background: JYNX_GREEN, borderColor: JYNX_GREEN, color: "white" }}
+                                className="rounded-2xl px-3 py-1.5 text-xs font-semibold border transition"
+                                style={todayClicked ? { ...getSurfaceSoftStyle(dark), background: dark ? "var(--surface)" : "white" } : { background: JYNX_GREEN, borderColor: JYNX_GREEN, color: "white" }}
                               >
                                 Today
                               </button>
@@ -1127,13 +1131,13 @@ export default function Home() {
                                 onOpen={openDrawer}
                               />
                             ) : (
-                              <BlankDayCard />
+                              <BlankDayCard dark={dark} />
                             )}
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                      <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <div className="p-5">
                           <div className="flex items-center justify-between gap-4">
                             <div>
@@ -1152,10 +1156,11 @@ export default function Home() {
                                   onToggle={() => toggleComplete(e.id)}
                                   onOpen={() => openDrawer(e)}
                                   olive={JYNX_GREEN}
+                                  dark={dark}
                                 />
                               ))
                             ) : (
-                              <BlankDayList />
+                              <BlankDayList dark={dark} />
                             )}
                           </div>
                         </div>
@@ -1164,7 +1169,7 @@ export default function Home() {
                   </>
                 ) : viewFormat === "List" ? (
                   // CHANGED: Week + List is now a readable vertical list grouped by day
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                  <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                     <div className="p-5">
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -1183,11 +1188,12 @@ export default function Home() {
                           return (
                             <div
                               key={d.toISOString()}
-                              className="rounded-3xl border bg-white"
+                              className="rounded-3xl border"
                               style={{
-                                ...surfaceSoftStyle,
-                                borderColor: isActive ? rgbaBrand(0.28) : (surfaceSoftStyle.borderColor as string),
-                                boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.1)}` : surfaceSoftStyle.boxShadow,
+                                ...getSurfaceSoftStyle(dark),
+                                background: dark ? "var(--surface)" : "white",
+                                borderColor: isActive ? rgbaBrand(0.28) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
+                                boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.1)}` : (dark ? "0 0 0 1px rgba(0,0,0,0.15)" : "0 0 0 1px rgba(0,0,0,0.04)"),
                               }}
                             >
                               <div className="p-4">
@@ -1205,8 +1211,8 @@ export default function Home() {
                                     <div className="text-[11px] text-neutral-500">{events.length} items</div>
                                     <button
                                       onClick={() => openDayFromWeek(d)}
-                                      className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                                      style={surfaceSoftStyle}
+                                      className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                                      style={getSurfaceSoftStyle(dark)}
                                     >
                                       Open day
                                     </button>
@@ -1228,12 +1234,13 @@ export default function Home() {
                                           setTimeout(() => openDrawer(e), 0);
                                         }}
                                         olive={JYNX_GREEN}
+                                        dark={dark}
                                       />
                                     ))
                                   ) : (
                                     <div
                                       className="rounded-2xl border bg-white px-3 py-3 text-sm text-neutral-600"
-                                      style={surfaceSoftStyle}
+                                      style={getSurfaceSoftStyle(dark)}
                                     >
                                       Nothing scheduled
                                     </div>
@@ -1252,7 +1259,7 @@ export default function Home() {
                   </div>
                 ) : (
                   // Week + Schedule (keep the original horizontal preview)
-                  <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                  <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                     <div className="p-5">
                       <div className="flex items-center justify-between gap-4">
                         <div>
@@ -1272,12 +1279,13 @@ export default function Home() {
                             return (
                               <div
                                 key={d.toISOString()}
-                                className={cx("shrink-0 rounded-3xl border bg-white", isActive ? "ring-1" : "")}
+                                className={cx("shrink-0 rounded-3xl border", isActive ? "ring-1" : "")}
                                 style={{
-                                  ...surfaceSoftStyle,
+                                  ...getSurfaceSoftStyle(dark),
+                                  background: dark ? "var(--surface)" : "white",
                                   width: "clamp(240px, 28vw, 360px)",
-                                  borderColor: isActive ? rgbaBrand(0.28) : (surfaceSoftStyle.borderColor as string),
-                                  boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.1)}` : surfaceSoftStyle.boxShadow,
+                                  borderColor: isActive ? rgbaBrand(0.28) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
+                                  boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.1)}` : (dark ? "0 0 0 1px rgba(0,0,0,0.15)" : "0 0 0 1px rgba(0,0,0,0.04)"),
                                 }}
                               >
                                 <div className="p-4">
@@ -1311,7 +1319,7 @@ export default function Home() {
                                     ) : (
                                       <div
                                         className="rounded-2xl border bg-white px-3 py-3 text-sm text-neutral-600"
-                                        style={surfaceSoftStyle}
+                                        style={getSurfaceSoftStyle(dark)}
                                       >
                                         Nothing scheduled
                                       </div>
@@ -1321,7 +1329,7 @@ export default function Home() {
                                   <button
                                     onClick={() => openDayFromWeek(d)}
                                     className="mt-4 w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                                    style={surfaceSoftStyle}
+                                    style={getSurfaceSoftStyle(dark)}
                                   >
                                     Open day
                                   </button>
@@ -1357,13 +1365,14 @@ export default function Home() {
         <div
           className={cx(
             "fixed top-0 right-0 h-full w-[420px] max-w-[92vw] z-50",
-            "border-l bg-white/92 backdrop-blur",
+            "border-l backdrop-blur",
             "transition-transform duration-200",
             drawerOpen ? "translate-x-0" : "translate-x-full"
           )}
           style={{
-            borderColor: "rgba(0,0,0,0.08)",
-            boxShadow: "-24px 0 80px rgba(0,0,0,0.10)",
+            background: dark ? "rgba(26,26,26,0.92)" : "rgba(255,255,255,0.92)",
+            borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+            boxShadow: dark ? "-24px 0 80px rgba(0,0,0,0.40)" : "-24px 0 80px rgba(0,0,0,0.10)",
           }}
         >
           <div className="h-full flex flex-col">
@@ -1372,7 +1381,7 @@ export default function Home() {
               <div className="flex items-start gap-3">
                 <div
                   className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-sm font-semibold"
-                  style={surfaceSoftStyle}
+                  style={getSurfaceSoftStyle(dark)}
                 >
                   {selected?.tag?.slice(0, 1) ?? "E"}
                 </div>
@@ -1398,7 +1407,7 @@ export default function Home() {
                     {selected?.id && (
                       <div
                         className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5"
-                        style={surfaceSoftStyle}
+                        style={getSurfaceSoftStyle(dark)}
                       >
                         <span className="text-[11px] text-neutral-500">Importance</span>
                         <select
@@ -1422,7 +1431,7 @@ export default function Home() {
                 <button
                   onClick={closeDrawer}
                   className="rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
-                  style={surfaceSoftStyle}
+                  style={getSurfaceSoftStyle(dark)}
                 >
                   ✕
                 </button>
@@ -1453,7 +1462,7 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
               {/* Thoughts mini card */}
               {thoughtsOpen && (
-                <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+                <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-semibold">Thoughts?</div>
@@ -1472,21 +1481,21 @@ export default function Home() {
                       onChange={(e) => setThoughtsText(e.target.value)}
                       placeholder="e.g., Ask about CAPM intuition in office hours…"
                       className="mt-3 w-full rounded-2xl border bg-white px-3 py-3 text-sm outline-none placeholder:text-neutral-400 resize-none"
-                      style={surfaceSoftStyle}
+                      style={getSurfaceSoftStyle(dark)}
                       rows={3}
                     />
                     <div className="mt-3 flex gap-2">
                       <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                        style={surfaceSoftStyle}
+                        className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                        style={getSurfaceSoftStyle(dark)}
                         onClick={() => alert("UI shell — would save note")}
                         disabled={!thoughtsText.trim()}
                       >
                         Save
                       </button>
                       <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                        style={surfaceSoftStyle}
+                        className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                        style={getSurfaceSoftStyle(dark)}
                         onClick={() => setThoughtsText("")}
                       >
                         Clear
@@ -1500,11 +1509,11 @@ export default function Home() {
             </div>
 
             {/* Drawer footer */}
-            <div className="px-5 py-4 border-t bg-white/80" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+            <div className="px-5 py-4 border-t" style={{ background: dark ? "rgba(26,26,26,0.80)" : "rgba(255,255,255,0.80)", borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
               <div className="flex gap-2">
                 <button
-                  className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                  style={surfaceSoftStyle}
+                  className="rounded-2xl px-4 py-2 text-xs font-semibold border transition"
+                  style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                   onClick={() => alert("UI shell — Edit event")}
                 >
                   Edit
@@ -1512,7 +1521,7 @@ export default function Home() {
                 {selected?.id && (
                   <button
                     className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                    style={surfaceSoftStyle}
+                    style={getSurfaceSoftStyle(dark)}
                     onClick={() => removeEvent(selected.id)}
                   >
                     Drop
@@ -1520,8 +1529,8 @@ export default function Home() {
                 )}
                 <div className="ml-auto" />
                 <button
-                  className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                  style={surfaceSoftStyle}
+                  className="rounded-2xl px-4 py-2 text-xs font-semibold border transition"
+                  style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                   onClick={closeDrawer}
                 >
                   Close
@@ -1544,17 +1553,18 @@ export default function Home() {
             />
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
               <div
-                className="relative rounded-3xl border bg-white/92 backdrop-blur overflow-hidden"
+                className="relative rounded-3xl border backdrop-blur overflow-hidden"
                 style={{
                   width: adjustW,
                   height: adjustH,
-                  borderColor: "rgba(0,0,0,0.10)",
-                  boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                  background: dark ? "rgba(26,26,26,0.92)" : "rgba(255,255,255,0.92)",
+                  borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+                  boxShadow: dark ? "0 30px 120px rgba(0,0,0,0.50)" : "0 30px 120px rgba(0,0,0,0.18)",
                   animation: "fadeScaleIn 220ms ease-out",
                 }}
               >
                 {/* Header */}
-                <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
                   <div>
                     <div className="text-sm font-semibold">Today</div>
                     <div className="text-xs text-neutral-500 mt-0.5">Your day at a glance.</div>
@@ -1562,7 +1572,7 @@ export default function Home() {
                   <button
                     onClick={() => setTodayOpen(false)}
                     className="ml-auto rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
-                    style={surfaceSoftStyle}
+                    style={getSurfaceSoftStyle(dark)}
                   >
                     ✕
                   </button>
@@ -1700,16 +1710,17 @@ export default function Home() {
             />
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
               <div
-                className="relative rounded-3xl border bg-white/92 backdrop-blur overflow-hidden"
+                className="relative rounded-3xl border backdrop-blur overflow-hidden"
                 style={{
                   width: adjustW,
                   height: adjustH,
-                  borderColor: "rgba(0,0,0,0.10)",
-                  boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                  background: dark ? "rgba(26,26,26,0.92)" : "rgba(255,255,255,0.92)",
+                  borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+                  boxShadow: dark ? "0 30px 120px rgba(0,0,0,0.50)" : "0 30px 120px rgba(0,0,0,0.18)",
                   animation: "fadeScaleIn 220ms ease-out",
                 }}
               >
-                <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
+                <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
                   <div>
                     <div className="text-sm font-semibold">Adjust</div>
                     <div className="text-xs text-neutral-500 mt-0.5">Focus protection and quick edits (UI shell).</div>
@@ -1717,7 +1728,7 @@ export default function Home() {
                   <button
                     onClick={() => setAdjustOpen(false)}
                     className="ml-auto rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
-                    style={surfaceSoftStyle}
+                    style={getSurfaceSoftStyle(dark)}
                   >
                     ✕
                   </button>
@@ -1728,7 +1739,7 @@ export default function Home() {
                   <div className="grid grid-cols-12 gap-4">
                     {/* Controls */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
-                      <div className="rounded-3xl border bg-white p-4 space-y-3" style={surfaceStyle}>
+                      <div className="rounded-3xl border p-4 space-y-3" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <ToggleRowLight
                           label="Protect focus blocks"
                           desc="Keeps deep work earlier, reduces interruptions."
@@ -1744,7 +1755,7 @@ export default function Home() {
                       </div>
 
                       {/* Drop an event */}
-                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
+                      <div className="rounded-3xl border p-4" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <div className="text-sm font-semibold">Drop an event</div>
                         <div className="text-xs text-neutral-500 mt-1">Quick remove (UI shell).</div>
                         <div className="mt-3 space-y-2 max-h-[260px] overflow-auto pr-1">
@@ -1752,7 +1763,7 @@ export default function Home() {
                             <div
                               key={e.id}
                               className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2"
-                              style={surfaceSoftStyle}
+                              style={getSurfaceSoftStyle(dark)}
                             >
                               <div className="min-w-0 flex-1">
                                 <div className="text-xs text-neutral-800 truncate">
@@ -1763,7 +1774,7 @@ export default function Home() {
                               <button
                                 onClick={() => removeEvent(e.id)}
                                 className="rounded-xl px-2 py-1 text-[11px] font-semibold border bg-white hover:bg-black/[0.03] transition"
-                                style={surfaceSoftStyle}
+                                style={getSurfaceSoftStyle(dark)}
                               >
                                 Drop
                               </button>
@@ -1776,7 +1787,7 @@ export default function Home() {
 
                     {/* Add / Info */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
-                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
+                      <div className="rounded-3xl border p-4" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <div className="text-sm font-semibold">Add an event</div>
                         <div className="text-xs text-neutral-500 mt-1">UI shell: only adds to demo days (Jan 12–13).</div>
 
@@ -1787,7 +1798,7 @@ export default function Home() {
                               value={addForm.time}
                               onChange={(e) => setAddForm((p) => ({ ...p, time: e.target.value }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                              style={surfaceSoftStyle}
+                              style={getSurfaceSoftStyle(dark)}
                             />
                           </div>
                           <div className="col-span-6">
@@ -1796,7 +1807,7 @@ export default function Home() {
                               value={addForm.endTime}
                               onChange={(e) => setAddForm((p) => ({ ...p, endTime: e.target.value }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                              style={surfaceSoftStyle}
+                              style={getSurfaceSoftStyle(dark)}
                             />
                           </div>
 
@@ -1806,7 +1817,7 @@ export default function Home() {
                               value={addForm.title}
                               onChange={(e) => setAddForm((p) => ({ ...p, title: e.target.value }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                              style={surfaceSoftStyle}
+                              style={getSurfaceSoftStyle(dark)}
                               placeholder="e.g., Call Dylan"
                             />
                           </div>
@@ -1817,7 +1828,7 @@ export default function Home() {
                               value={addForm.meta}
                               onChange={(e) => setAddForm((p) => ({ ...p, meta: e.target.value }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                              style={surfaceSoftStyle}
+                              style={getSurfaceSoftStyle(dark)}
                               placeholder="e.g., 20 min · quick sync"
                             />
                           </div>
@@ -1828,7 +1839,7 @@ export default function Home() {
                               value={addForm.type}
                               onChange={(e) => setAddForm((p) => ({ ...p, type: e.target.value as EventType }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                              style={surfaceSoftStyle}
+                              style={getSurfaceSoftStyle(dark)}
                             >
                               <option value="class">class</option>
                               <option value="work">work</option>
@@ -1845,7 +1856,7 @@ export default function Home() {
                               value={addForm.tag}
                               onChange={(e) => setAddForm((p) => ({ ...p, tag: e.target.value as any }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                              style={surfaceSoftStyle}
+                              style={getSurfaceSoftStyle(dark)}
                             >
                               <option>Class</option>
                               <option>Work</option>
@@ -1886,21 +1897,21 @@ export default function Home() {
                               "rounded-2xl px-3 py-2 text-xs font-semibold border transition",
                               addForm.title.trim() ? "bg-white hover:bg-black/[0.03]" : "bg-white text-neutral-400 cursor-not-allowed"
                             )}
-                            style={surfaceSoftStyle}
+                            style={getSurfaceSoftStyle(dark)}
                           >
                             Add
                           </button>
                           <button
                             onClick={() => setAddForm((p) => ({ ...p, title: "", meta: "" }))}
-                            className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                            style={surfaceSoftStyle}
+                            className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                            style={getSurfaceSoftStyle(dark)}
                           >
                             Clear
                           </button>
                         </div>
                       </div>
 
-                      <div className="rounded-3xl border bg-white p-4" style={surfaceStyle}>
+                      <div className="rounded-3xl border p-4" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <div className="text-sm font-semibold">What this is (for now)</div>
                         <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
                           This “Adjust” panel is the control center. Later it becomes the place where Jynx actually rebalances your day.
@@ -1919,16 +1930,17 @@ export default function Home() {
                 >
                   <button
                     onClick={() => setAdjustOpen(false)}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                    style={surfaceSoftStyle}
+                    className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                    style={getSurfaceSoftStyle(dark)}
                   >
                     Close
                   </button>
                   <button
                     onClick={() => alert("UI shell — would apply rebalance")}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                    className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
                     style={{
-                      ...surfaceSoftStyle,
+                      ...getSurfaceSoftStyle(dark),
+                      background: dark ? "var(--surface)" : "white",
                       borderColor: rgbaBrand(0.22),
                       boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
                     }}
@@ -1953,10 +1965,11 @@ export default function Home() {
             />
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
               <div
-                className="relative w-full max-w-xl rounded-3xl border bg-white overflow-hidden"
+                className="relative w-full max-w-xl rounded-3xl border overflow-hidden"
                 style={{
-                  borderColor: "rgba(0,0,0,0.10)",
-                  boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                  background: dark ? "var(--surface)" : "white",
+                  borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+                  boxShadow: dark ? "0 30px 120px rgba(0,0,0,0.50)" : "0 30px 120px rgba(0,0,0,0.18)",
                   animation: "fadeScaleIn 220ms ease-out",
                 }}
               >
@@ -1982,7 +1995,7 @@ export default function Home() {
                   <button
                     onClick={() => setGoalsModalWindow(null)}
                     className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-                    style={surfaceSoftStyle}
+                    style={getSurfaceSoftStyle(dark)}
                     title="Close"
                   >
                     ✕
@@ -2070,10 +2083,11 @@ export default function Home() {
             />
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
             <div
-              className="w-full max-w-md rounded-3xl border bg-white p-6"
+              className="w-full max-w-md rounded-3xl border p-6"
               style={{
-                borderColor: "rgba(0,0,0,0.10)",
-                boxShadow: "0 30px 120px rgba(0,0,0,0.18)",
+                background: dark ? "var(--surface)" : "white",
+                borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+                boxShadow: dark ? "0 30px 120px rgba(0,0,0,0.50)" : "0 30px 120px rgba(0,0,0,0.18)",
                 animation: "fadeScaleIn 220ms ease-out",
               }}
             >
@@ -2085,7 +2099,7 @@ export default function Home() {
                 <button
                   onClick={() => setAddGoalOpen(false)}
                   className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-                  style={surfaceSoftStyle}
+                  style={getSurfaceSoftStyle(dark)}
                   title="Close"
                 >
                   ✕
@@ -2175,14 +2189,14 @@ export default function Home() {
                       ? "bg-white hover:bg-black/[0.03]"
                       : "bg-white text-neutral-400 cursor-not-allowed"
                   )}
-                  style={surfaceSoftStyle}
+                  style={getSurfaceSoftStyle(dark)}
                 >
                   Add Goal
                 </button>
                 <button
                   onClick={() => setAddGoalOpen(false)}
                   className="h-10 rounded-2xl px-4 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                  style={surfaceSoftStyle}
+                  style={getSurfaceSoftStyle(dark)}
                 >
                   Cancel
                 </button>
@@ -2196,24 +2210,22 @@ export default function Home() {
   );
 }
 
-function Segment({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
+function Segment({ value, options, onChange, dark = false }: { value: string; options: string[]; onChange: (v: string) => void; dark?: boolean }) {
   return (
-    <div className="h-10 rounded-2xl border bg-white p-1 flex items-center gap-1" style={surfaceSoftStyle}>
+    <div className="h-10 rounded-2xl border p-1 flex items-center gap-1" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "var(--surface)" : "white" }}>
       {options.map((opt) => {
         const active = value === opt;
         return (
           <button
             key={opt}
             onClick={() => onChange(opt)}
-            className={cx(
-              "h-8 rounded-xl px-3 text-xs font-semibold transition",
-              active ? "bg-black/[0.04]" : "hover:bg-black/[0.03]"
-            )}
+            className="h-8 rounded-xl px-3 text-xs font-semibold transition"
             style={{
               border: "1px solid",
               borderColor: active ? rgbaBrand(0.22) : "rgba(0,0,0,0)",
               boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
-              color: active ? "rgba(0,0,0,0.88)" : "rgba(0,0,0,0.68)",
+              background: active ? (dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)") : (dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)"),
+              color: active ? (dark ? "rgba(240,240,240,0.88)" : "rgba(0,0,0,0.88)") : (dark ? "rgba(240,240,240,0.68)" : "rgba(0,0,0,0.68)"),
             }}
           >
             {opt}
@@ -2283,9 +2295,11 @@ function DaypartLineLight({ label, hint }: { label: string; hint?: string }) {
 function DrawerContentLight({
   selected,
   tab,
+  dark = false,
 }: {
   selected: EventRecord | null;
   tab: "Overview" | "Files" | "Assignments" | "Notes";
+  dark?: boolean;
 }) {
   if (!selected) return <div className="text-sm text-neutral-500">Select an event to view details.</div>;
 
@@ -2370,10 +2384,10 @@ function DrawerContentLight({
         <PanelLight title="Assignments" subtitle="due soon">
           <div className="space-y-2">
             {classD.assignmentsDue.map((a) => (
-              <div key={a.title} className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
+              <div key={a.title} className="rounded-2xl border px-3 py-3" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-semibold text-neutral-900">{a.title}</div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full border text-neutral-700" style={surfaceSoftStyle}>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full border text-neutral-700" style={getSurfaceSoftStyle(dark)}>
                     {a.points ?? "—"}
                   </span>
                 </div>
@@ -2402,7 +2416,7 @@ function DrawerContentLight({
                 key={f.name}
                 href={f.href}
                 className="flex items-center justify-between rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition"
-                style={surfaceSoftStyle}
+                style={getSurfaceSoftStyle(dark)}
               >
                 <div className="text-sm text-neutral-900">{f.name}</div>
                 <div className="text-xs text-neutral-500">open</div>
@@ -2422,7 +2436,7 @@ function DrawerContentLight({
                 key={l.name}
                 href={l.href}
                 className="flex items-center justify-between rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition"
-                style={surfaceSoftStyle}
+                style={getSurfaceSoftStyle(dark)}
               >
                 <div className="text-sm text-neutral-900">{l.name}</div>
                 <div className="text-xs text-neutral-500">open</div>
@@ -2444,22 +2458,22 @@ function DrawerContentLight({
     <PanelLight title="Notes" subtitle="freeform">
       <textarea
         className="w-full rounded-2xl border bg-white px-3 py-3 text-sm outline-none placeholder:text-neutral-400 resize-none"
-        style={surfaceSoftStyle}
+        style={getSurfaceSoftStyle(dark)}
         rows={6}
         placeholder="Add notes for this event…"
         defaultValue=""
       />
       <div className="mt-3 flex gap-2">
         <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-          style={surfaceSoftStyle}
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+          style={getSurfaceSoftStyle(dark)}
           onClick={() => alert("UI shell — save notes")}
         >
           Save
         </button>
         <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-          style={surfaceSoftStyle}
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+          style={getSurfaceSoftStyle(dark)}
           onClick={() => alert("UI shell — clear notes")}
         >
           Clear
@@ -2469,13 +2483,13 @@ function DrawerContentLight({
   );
 }
 
-function PanelLight({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function PanelLight({ title, subtitle, children, dark = false }: { title: string; subtitle?: string; children: React.ReactNode; dark?: boolean }) {
   return (
-    <div className="rounded-3xl border bg-white" style={surfaceStyle}>
+    <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
       <div className="p-4">
         <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold">{title}</div>
-          {subtitle ? <div className="text-[11px] text-neutral-500">{subtitle}</div> : null}
+          <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{title}</div>
+          {subtitle ? <div className="text-[11px]" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>{subtitle}</div> : null}
         </div>
         <div className="mt-3">{children}</div>
       </div>
@@ -2501,24 +2515,29 @@ function ToggleRowLight({
   desc,
   value,
   onChange,
+  dark = false,
 }: {
   label: string;
   desc: string;
   value: boolean;
   onChange: (v: boolean) => void;
+  dark?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={() => onChange(!value)}
-      className="w-full flex items-start gap-3 rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition text-left"
-      style={surfaceSoftStyle}
+      className="w-full flex items-start gap-3 rounded-2xl border px-3 py-3 transition text-left"
+      style={{
+        ...getSurfaceSoftStyle(dark),
+        background: dark ? "var(--surface)" : "white",
+      }}
     >
       <div
         className="mt-0.5 h-4 w-7 rounded-full border relative"
         style={{
-          borderColor: "rgba(0,0,0,0.10)",
-          background: value ? rgbaBrand(0.16) : "rgba(0,0,0,0.04)",
+          borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+          background: value ? rgbaBrand(0.16) : (dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"),
           boxShadow: value ? `0 0 0 1px ${rgbaBrand(0.10)}` : undefined,
         }}
       >
@@ -2526,14 +2545,14 @@ function ToggleRowLight({
           className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full"
           style={{
             left: value ? 16 : 2,
-            background: value ? "rgba(25,25,25,0.92)" : "rgba(0,0,0,0.35)",
+            background: value ? (dark ? "rgba(240,240,240,0.92)" : "rgba(25,25,25,0.92)") : (dark ? "rgba(240,240,240,0.35)" : "rgba(0,0,0,0.35)"),
             transition: "left 140ms ease",
           }}
         />
       </div>
       <div className="flex-1">
-        <div className="text-sm font-semibold text-neutral-900">{label}</div>
-        <div className="text-xs text-neutral-500 mt-0.5">{desc}</div>
+        <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{label}</div>
+        <div className="text-xs mt-0.5" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>{desc}</div>
       </div>
     </button>
   );
@@ -2684,12 +2703,14 @@ function ListRow({
   onOpen,
   olive, // FIX: was required by props but not destructured -> TS error
   compact,
+  dark = false,
 }: {
   event: EventRecord;
   onToggle: () => void;
   onOpen: () => void;
   olive: string;
   compact?: boolean;
+  dark?: boolean;
 }) {
   void olive; // unused (kept for API symmetry)
 
@@ -2697,7 +2718,7 @@ function ListRow({
   const completed = !!event.completed;
 
   return (
-    <div className={cx("rounded-2xl border bg-white relative overflow-hidden", compact ? "opacity-95" : "")} style={surfaceSoftStyle}>
+    <div className={cx("rounded-2xl border bg-white relative overflow-hidden", compact ? "opacity-95" : "")} style={getSurfaceSoftStyle(dark)}>
       {/* COMPLETED overlay */}
       {completed && (
         <div className="pointer-events-none absolute inset-0">
@@ -2777,24 +2798,24 @@ function ListRow({
   );
 }
 
-function BlankDayCard() {
+function BlankDayCard({ dark = false }: { dark?: boolean }) {
   return (
-    <div className="rounded-3xl border bg-white p-6" style={surfaceSoftStyle}>
+    <div className="rounded-3xl border p-6" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "var(--surface)" : "white" }}>
       <div className="text-sm font-semibold text-neutral-900">No events yet</div>
       <div className="mt-1 text-sm text-neutral-600 leading-relaxed">
         This day is blank right now. Later this will populate from your real schedule data.
       </div>
       <div className="mt-4 flex gap-2">
         <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-          style={surfaceSoftStyle}
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+          style={getSurfaceSoftStyle(dark)}
           onClick={() => alert("UI shell — add event")}
         >
           Add event
         </button>
         <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-          style={surfaceSoftStyle}
+          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+          style={getSurfaceSoftStyle(dark)}
           onClick={() => alert("UI shell — build blocks")}
         >
           Build blocks
@@ -2804,9 +2825,9 @@ function BlankDayCard() {
   );
 }
 
-function BlankDayList() {
+function BlankDayList({ dark = false }: { dark?: boolean }) {
   return (
-    <div className="rounded-2xl border bg-white p-5" style={surfaceSoftStyle}>
+    <div className="rounded-2xl border p-5" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "var(--surface)" : "white" }}>
       <div className="text-sm font-semibold text-neutral-900">Nothing scheduled</div>
       <div className="mt-1 text-sm text-neutral-600">Pick another day or add your first event.</div>
     </div>

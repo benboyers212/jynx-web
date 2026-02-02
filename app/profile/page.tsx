@@ -111,26 +111,33 @@ function rgbaBrand(a: number) {
   return `rgba(${BRAND_RGB.r},${BRAND_RGB.g},${BRAND_RGB.b},${a})`;
 }
 
-const surfaceStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
-};
+function getSurfaceStyle(dark: boolean): CSSProperties {
+  return {
+    borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 1px 0 rgba(0,0,0,0.3), 0 18px 50px rgba(0,0,0,0.40)" : "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+  };
+}
 
-const surfaceSoftStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
-};
+function getSurfaceSoftStyle(dark: boolean): CSSProperties {
+  return {
+    borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+    boxShadow: dark ? "0 0 0 1px rgba(0,0,0,0.15)" : "0 0 0 1px rgba(0,0,0,0.04)",
+  };
+}
 
-/** ✅ FIXED: no stray `s = {}` — this is the style object */
 const brandSoftStyle: CSSProperties = {
   borderColor: rgbaBrand(0.22),
   boxShadow: `0 0 0 1px ${rgbaBrand(0.06)}`,
 };
 
 export default function ProfilePage() {
-  // === style tokens aligned to your NEW shell (light) ===
-  const panelBase = "rounded-3xl border bg-white";
-  const panelInner = "rounded-2xl border bg-white";
+  const { dark } = useTheme();
+
+  // === style tokens aligned to your NEW shell ===
+  const surfaceStyle = getSurfaceStyle(dark);
+  const surfaceSoftStyle = getSurfaceSoftStyle(dark);
+  const panelBase = "rounded-3xl border";
+  const panelInner = "rounded-2xl border";
   const buttonBase =
     "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
 
@@ -482,18 +489,17 @@ export default function ProfilePage() {
   const activeChipStyle: CSSProperties = brandSoftStyle;
 
   return (
-    <main className="h-screen bg-white text-neutral-950 overflow-hidden min-h-0">
-      {/* Ambient background (light) */}
+    <main className="h-screen overflow-hidden min-h-0" style={{ background: dark ? "var(--background)" : "white", color: dark ? "var(--foreground)" : "rgba(0,0,0,0.95)" }}>
+      {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
-          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
+          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl"
           style={{
-            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(
-              0.22
-            )}, rgba(255,255,255,0) 60%)`,
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, ${dark ? "rgba(0,0,0,0)" : "rgba(255,255,255,0)"} 60%)`,
+            opacity: dark ? 0.15 : 0.25,
           }}
         />
-        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-black/10" />
+        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15" style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.10)" }} />
       </div>
 
       {/* Header */}
@@ -550,7 +556,7 @@ export default function ProfilePage() {
           <div className={cx("grid gap-4", gridCols)}>
             {/* Column 1 */}
             <aside className={cx(col1Span, "space-y-4")}>
-              <div className={panelBase} style={sectionCardStyle}>
+              <div className={panelBase} style={{ ...sectionCardStyle, background: dark ? "var(--surface)" : "white" }}>
                 <div className="p-4">
                   <div className="text-xs font-semibold text-neutral-700">Tabs</div>
 
@@ -584,7 +590,7 @@ export default function ProfilePage() {
             {/* Column 2 */}
             {stage >= 2 && (
               <aside className={cx(col2Span, "space-y-4")}>
-                <div className={panelBase} style={sectionCardStyle}>
+                <div className={panelBase} style={{ ...sectionCardStyle, background: dark ? "var(--surface)" : "white" }}>
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-xs font-semibold text-neutral-700">
@@ -690,7 +696,7 @@ export default function ProfilePage() {
             {stage === 3 && (
               <section className={cx(col3Span, "space-y-4")}>
                 {topTab === "preferences" && prefSection === "medication" && (
-                  <div className={panelBase} style={sectionCardStyle}>
+                  <div className={panelBase} style={{ ...sectionCardStyle, background: dark ? "var(--surface)" : "white" }}>
                     <div className="p-4">
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-semibold">Medication</div>
@@ -723,7 +729,7 @@ export default function ProfilePage() {
                         ) : null}
 
                         {meds.map((m) => (
-                          <div key={m.id} className={cx(panelInner, "px-3 py-3")} style={innerCardStyle}>
+                          <div key={m.id} className={cx(panelInner, "px-3 py-3")} style={{ ...innerCardStyle, background: dark ? "rgba(255,255,255,0.04)" : "white" }}>
                             <div className="flex items-start gap-3">
                               <div
                                 className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[11px] font-semibold shrink-0"
@@ -899,7 +905,7 @@ export default function ProfilePage() {
 
                 {/* ✅ Reminders (full UI) */}
                 {topTab === "preferences" && prefSection === "reminders" && (
-                  <div className={panelBase} style={sectionCardStyle}>
+                  <div className={panelBase} style={{ ...sectionCardStyle, background: dark ? "var(--surface)" : "white" }}>
                     <div className="p-4">
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-semibold">Reminders</div>

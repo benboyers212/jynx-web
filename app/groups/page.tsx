@@ -6,8 +6,6 @@ import {
   Menu,
   Search,
   Plus,
-  Users,
-  MessageSquare,
   Bell,
   Pin,
   ChevronRight,
@@ -848,7 +846,6 @@ export default function GroupsPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold">Groups</div>
-                  <div className="text-xs text-neutral-500">Structure + expectations. No feed. No noise.</div>
                 </div>
 
                 <div className="flex-1" />
@@ -1922,12 +1919,6 @@ function GroupRow({
   onTogglePin: () => void;
   onNotify: (txt: string) => void;
 }) {
-  const surfaceSoftStyle: CSSProperties = {
-    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-    boxShadow: dark ? "0 0 0 1px rgba(255,255,255,0.04)" : "0 0 0 1px rgba(0,0,0,0.04)",
-  };
-  const leftDot = group.verified ? rgbaBrand(0.9) : (dark ? "rgba(240,240,240,0.22)" : "rgba(0,0,0,0.22)");
-  const visibilityBadge = group.visibility === "Verified" ? "Verified" : group.visibility === "Private" ? "Private" : "Public";
   const hasUnread = !!group.unread && group.unread > 0 && group.chatEnabled;
 
   return (
@@ -1941,125 +1932,87 @@ function GroupRow({
           onOpen();
         }
       }}
-      className={cx(
-        "w-full rounded-3xl border bg-white px-5 py-4 transition relative overflow-hidden cursor-pointer",
-        "hover:bg-black/[0.02] hover:-translate-y-[1px]"
-      )}
+      className="w-full rounded-xl px-4 py-3.5 transition cursor-pointer relative overflow-hidden hover:scale-[1.005]"
       style={{
-        borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+        background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
+        border: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
         boxShadow: dark
-          ? "0 1px 0 rgba(255,255,255,0.04), 0 18px 50px rgba(0,0,0,0.20)"
-          : "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+          ? "0 1px 3px rgba(0,0,0,0.15)"
+          : "0 1px 3px rgba(0,0,0,0.06)",
       }}
     >
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[6px]"
-        style={{
-          background: `linear-gradient(to bottom, ${leftDot}, rgba(255,255,255,0))`,
-          opacity: 0.55,
-        }}
-      />
+      {/* Subtle green left accent for verified groups */}
+      {group.verified && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-[3px]"
+          style={{
+            background: "linear-gradient(to bottom, #1F8A5B 0%, rgba(31,138,91,0.3) 100%)",
+          }}
+        />
+      )}
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
+        {/* Left: Name + optional subtitle */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="text-base font-semibold text-neutral-900 truncate">{group.name}</div>
-
-            {isMyGroups ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onTogglePin();
-                  onNotify(group.pinned ? "Unpinned" : "Pinned");
-                }}
-                className="inline-flex items-center gap-1 h-7 px-2.5 rounded-full border text-[11px] font-semibold hover:bg-black/[0.02] transition"
-                style={{
-                  borderColor: group.pinned ? rgbaBrand(0.22) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)"),
-                  background: group.pinned ? rgbaBrand(0.10) : (dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)"),
-                  color: dark ? "rgba(240,240,240,0.78)" : "rgba(0,0,0,0.78)",
-                }}
-                title={group.pinned ? "Unpin" : "Pin"}
-              >
-                <Pin size={12} />
-                {group.pinned ? "Pinned" : "Pin"}
-              </button>
-            ) : null}
+          <div className="flex items-center gap-2">
+            <div className="text-[15px] font-semibold text-neutral-900 truncate">{group.name}</div>
+            {group.verified && (
+              <div
+                className="h-1.5 w-1.5 rounded-full shrink-0"
+                style={{ background: "#1F8A5B" }}
+                title="Verified"
+              />
+            )}
           </div>
-
-          <div className="mt-1 text-sm text-neutral-600 leading-relaxed">{group.description}</div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span
-              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
-              style={badgeStyle(group.verified ? "Verified" : (visibilityBadge as any))}
-            >
-              {visibilityBadge}
-            </span>
-
-            <span
-              className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold"
-              style={badgeStyle(group.active ? "Active" : "Quiet")}
-            >
-              {group.active ? "Active" : "Quiet"}
-            </span>
-
-            <span className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold" style={badgeStyle("Chat")}>
-              {group.chatEnabled ? "Chat · max 20" : "No chat"}
-            </span>
-
-            <span className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold" style={pillStyleBase(false)}>
-              {group.category}
-            </span>
-
-            <span className="inline-flex items-center justify-center h-7 px-3 rounded-full border text-[11px] font-semibold" style={pillStyleBase(false)}>
-              {group.memberCount} members
-            </span>
-          </div>
-
-          <div className="mt-3 text-sm text-neutral-800">
-            <span className="text-neutral-500">Expectations:</span> {group.expectations}
-          </div>
+          <div className="text-[12px] text-neutral-500 mt-0.5">{group.lastActivity}</div>
         </div>
 
-        <div className="shrink-0 text-right">
-          <div className="text-[11px] text-neutral-500">{group.lastActivity}</div>
-          <div className="mt-1 text-sm text-neutral-800 max-w-[260px] leading-snug">{group.lastActivityText}</div>
-
-          <div className="mt-3 flex items-center justify-end gap-2">
-            {group.chatEnabled ? (
-              <div className="relative">
-                <span className="inline-flex items-center justify-center h-9 w-9 rounded-2xl border bg-white" style={surfaceSoftStyle} aria-label="Chat" title="Chat">
-                  <MessageSquare size={16} />
-                </span>
-
-                {hasUnread ? (
-                  <span
-                    className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full border text-[11px] font-semibold flex items-center justify-center"
-                    style={{
-                      borderColor: rgbaBrand(0.30),
-                      background: rgbaBrand(0.14),
-                      color: "rgba(0,0,0,0.82)",
-                      boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
-                    }}
-                    title={`${group.unread} unread`}
-                  >
-                    {group.unread}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-
+        {/* Right: Activity indicator + pin */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Unread badge */}
+          {hasUnread && (
             <span
-              className="inline-flex items-center justify-center h-9 w-9 rounded-2xl border bg-white"
-              style={{ ...surfaceSoftStyle, borderColor: rgbaBrand(0.18) }}
-              aria-label="Members"
-              title="Members"
+              className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-bold"
+              style={{
+                background: "#1F8A5B",
+                color: "#fff",
+              }}
+              title={`${group.unread} unread`}
             >
-              <Users size={16} />
+              {group.unread}
             </span>
-          </div>
+          )}
+
+          {/* Pin icon (My Groups only) */}
+          {isMyGroups && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTogglePin();
+                onNotify(group.pinned ? "Unpinned" : "Pinned");
+              }}
+              className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-black/[0.04] active:bg-black/[0.06] transition"
+              style={{
+                color: group.pinned
+                  ? "#1F8A5B"
+                  : dark
+                  ? "rgba(240,240,240,0.30)"
+                  : "rgba(0,0,0,0.22)",
+              }}
+              title={group.pinned ? "Unpin" : "Pin"}
+            >
+              <Pin size={14} />
+            </button>
+          )}
+
+          {/* Subtle chevron indicator */}
+          <ChevronRight
+            size={16}
+            className="shrink-0"
+            style={{ color: dark ? "rgba(240,240,240,0.20)" : "rgba(0,0,0,0.15)" }}
+          />
         </div>
       </div>
     </div>

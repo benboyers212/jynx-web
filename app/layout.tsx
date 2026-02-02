@@ -24,14 +24,16 @@ const OLIVE = "#4b5e3c";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider signInUrl="/login" signUpUrl="/sign-up">
-      <html lang="en" className={dmSans.variable}>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-        </head>
-        <body className="font-sans bg-[var(--background)] text-[var(--foreground)]">
-          <AppShell>{children}</AppShell>
-        </body>
-      </html>
+      <ThemeProvider>
+        <html lang="en" className={dmSans.variable}>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+          </head>
+          <body className="font-sans bg-[var(--background)] text-[var(--foreground)]">
+            <AppShell>{children}</AppShell>
+          </body>
+        </html>
+      </ThemeProvider>
     </ClerkProvider>
   );
 }
@@ -106,7 +108,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
     : { borderColor: "rgba(0,0,0,0.14)", color: "rgba(17,17,17,0.92)", background: "rgba(0,0,0,0.02)" };
 
   return (
-    <ThemeProvider>
+    <>
       {!hideShell && (
         <div className="sticky top-0 z-40">
           {/* Header surface */}
@@ -123,7 +125,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
               <div className="h-16 flex items-center">
                 {/* Left: brand */}
                 <div className="flex items-center min-w-[220px]">
-                  <img src="/jynx-logo.png" alt="Jynx" className="h-9" style={{ objectFit: "contain" }} />
+                  <img src={dark ? "/jynx-logo-dark.png" : "/jynx-logo.png"} alt="Jynx" className="h-9" style={{ objectFit: "contain" }} />
                 </div>
 
                 {/* Center: tabs (Vercel-ish: text, active = bold + underline) */}
@@ -386,7 +388,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="ml-auto flex items-center gap-2">
                   <button
                     onClick={() => setProfileExpanded((v) => !v)}
-                    className={cx(modalBtnClass, "hover:bg-black/[0.04]")}
+                    className={modalBtnClass}
                     style={modalBtnStyle}
                     title={profileExpanded ? "Exit full screen" : "Full screen"}
                   >
@@ -398,7 +400,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                       setProfileOpen(false);
                       setProfileExpanded(false);
                     }}
-                    className={cx(modalBtnClass, "hover:bg-black/[0.04]")}
+                    className={modalBtnClass}
                     style={modalBtnStyle}
                     title="Close"
                   >
@@ -651,7 +653,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           `}</style>
         </>
       )}
-    </ThemeProvider>
+    </>
   );
 }
 
