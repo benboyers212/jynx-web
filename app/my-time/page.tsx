@@ -18,6 +18,30 @@ type Goal = {
   progress: number;
 };
 
+type Lens = "today" | "week" | "month";
+
+type CategoryConsistency = {
+  study: number;
+  work: number;
+  fitness: number;
+  life: number;
+};
+
+type LensData = {
+  intentionalMinutesTotal: number;
+  today: number;
+  sevenDayAvg: number;
+  streak: string;
+  weekTrend: number[];
+  consistencyByCategory: CategoryConsistency;
+  previous: {
+    intentionalMinutesTotal: number;
+    today: number;
+    sevenDayAvg: number;
+    streak: string;
+  };
+};
+
 /** Light brand accent */
 const BRAND_RGB = { r: 31, g: 138, b: 91 };
 function rgbaBrand(a: number) {
@@ -56,6 +80,126 @@ function getSurfaceSoftStyle(dark: boolean): CSSProperties {
   };
 }
 
+/* ---------- Helper Functions ---------- */
+
+/**
+ * Compute percent delta between current and previous values
+ */
+function computePercentDelta(current: number, previous: number): string {
+  if (previous === 0) return current > 0 ? "+100%" : "0%";
+  const delta = ((current - previous) / previous) * 100;
+  if (delta > 0) return `+${Math.round(delta)}%`;
+  if (delta < 0) return `${Math.round(delta)}%`;
+  return "0%";
+}
+
+/**
+ * Compute qualitative label from consistency percentage
+ */
+function computeLabelFromPercent(pct: number): string {
+  if (pct >= 85) return "Strong";
+  if (pct >= 70) return "Stable";
+  if (pct >= 50) return "Recovering";
+  return "Fragile";
+}
+
+/**
+ * Build reflection text based on consistency by category
+ */
+function buildReflectionText(consistency: CategoryConsistency, lens: Lens): string {
+  const categories = [
+    { name: "Study", value: consistency.study },
+    { name: "Work", value: consistency.work },
+    { name: "Fitness", value: consistency.fitness },
+    { name: "Life", value: consistency.life },
+  ];
+
+  // Sort by value
+  const sorted = [...categories].sort((a, b) => b.value - a.value);
+  const highest = sorted[0];
+  const lowest = sorted[sorted.length - 1];
+
+  const highestLabel = computeLabelFromPercent(highest.value).toLowerCase();
+  const lowestLabel = computeLabelFromPercent(lowest.value).toLowerCase();
+
+  const timeframe = lens === "today" ? "today" : lens === "week" ? "this week" : "this month";
+
+  // Build observational sentence
+  if (highest.value >= 70 && lowest.value < 50) {
+    return `${highest.name} is ${highestLabel} ${timeframe} while ${lowest.name} routines look more ${lowestLabel} — common during high-output stretches.`;
+  } else if (lowest.value >= 70) {
+    return `All categories are holding steady ${timeframe} — a balanced rhythm across the board.`;
+  } else if (highest.value < 50) {
+    return `Most categories are rebuilding ${timeframe} — gentle momentum is forming.`;
+  } else {
+    return `${highest.name} is ${highestLabel} ${timeframe}, while ${lowest.name} is ${lowestLabel} — patterns shift naturally over time.`;
+  }
+}
+
+/* ---------- Mock Data by Lens ---------- */
+
+const MOCK_DATA: Record<Lens, LensData> = {
+  today: {
+    intentionalMinutesTotal: 120,
+    today: 120,
+    sevenDayAvg: 597,
+    streak: "6 days",
+    weekTrend: [520, 580, 610, 590, 620, 640, 120],
+    consistencyByCategory: {
+      study: 75,
+      work: 60,
+      fitness: 55,
+      life: 42,
+    },
+    previous: {
+      intentionalMinutesTotal: 110,
+      today: 110,
+      sevenDayAvg: 580,
+      streak: "5 days",
+    },
+  },
+  week: {
+    intentionalMinutesTotal: 620,
+    today: 120,
+    sevenDayAvg: 597,
+    streak: "6 days",
+    weekTrend: [520, 580, 610, 590, 620, 640, 620],
+    consistencyByCategory: {
+      study: 78,
+      work: 64,
+      fitness: 58,
+      life: 46,
+    },
+    previous: {
+      intentionalMinutesTotal: 575,
+      today: 115,
+      sevenDayAvg: 550,
+      streak: "5 days",
+    },
+  },
+  month: {
+    intentionalMinutesTotal: 2480,
+    today: 120,
+    sevenDayAvg: 597,
+    streak: "18 days",
+    weekTrend: [2100, 2200, 2250, 2300, 2350, 2400, 2480],
+    consistencyByCategory: {
+      study: 82,
+      work: 68,
+      fitness: 62,
+      life: 51,
+    },
+    previous: {
+      intentionalMinutesTotal: 2200,
+      today: 105,
+      sevenDayAvg: 530,
+      streak: "15 days",
+    },
+  },
+};
+
+/* ---------- Enhanced SimpleBars with Qualitative Labels ---------- */
+
 function SimpleBars({
   title,
   bars,
@@ -69,21 +213,25 @@ function SimpleBars({
     <div className="rounded-3xl border p-6" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
       <div className="text-base font-semibold mb-5" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{title}</div>
       <div className="space-y-4">
-        {bars.map((b) => (
-          <div key={b.label} className="flex items-center gap-3">
-            <div className="w-16 text-[12px] font-medium" style={{ color: dark ? "rgba(240,240,240,0.55)" : "rgba(0,0,0,0.55)" }}>{b.label}</div>
-            <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }}>
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${clamp(b.value, 0, 100)}%`,
-                  background: JYNX_GREEN,
-                }}
-              />
+        {bars.map((b) => {
+          const qualLabel = computeLabelFromPercent(b.value);
+          return (
+            <div key={b.label} className="flex items-center gap-3">
+              <div className="w-16 text-[12px] font-medium" style={{ color: dark ? "rgba(240,240,240,0.55)" : "rgba(0,0,0,0.55)" }}>{b.label}</div>
+              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }}>
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${clamp(b.value, 0, 100)}%`,
+                    background: JYNX_GREEN,
+                  }}
+                />
+              </div>
+              <div className="w-10 text-right text-[12px] font-semibold" style={{ color: dark ? "rgba(240,240,240,0.65)" : "rgba(0,0,0,0.65)" }}>{Math.round(b.value)}%</div>
+              <div className="w-20 text-right text-[11px] font-medium" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.45)" }}>{qualLabel}</div>
             </div>
-            <div className="w-10 text-right text-[12px] font-semibold" style={{ color: dark ? "rgba(240,240,240,0.65)" : "rgba(0,0,0,0.65)" }}>{Math.round(b.value)}%</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -94,9 +242,29 @@ function SimpleBars({
 export default function MyTimePage() {
   const { dark } = useTheme();
 
-  // Stats
-  const [intentionalMinutes] = useState(620);
-  const [weekTrend] = useState([520, 580, 610, 590, 620, 640, 620]);
+  // Lens state
+  const [lens, setLens] = useState<Lens>("week");
+
+  // Derived data from lens
+  const lensData = MOCK_DATA[lens];
+  const intentionalMinutes = lensData.intentionalMinutesTotal;
+  const weekTrend = lensData.weekTrend;
+  const consistencyByCategory = lensData.consistencyByCategory;
+
+  // Compute deltas
+  const totalDelta = computePercentDelta(lensData.intentionalMinutesTotal, lensData.previous.intentionalMinutesTotal);
+  const todayDelta = computePercentDelta(lensData.today, lensData.previous.today);
+  const avgDelta = computePercentDelta(lensData.sevenDayAvg, lensData.previous.sevenDayAvg);
+
+  // For streak, show comparison text instead of %
+  const streakComparison = lens === "today"
+    ? lensData.streak === lensData.previous.streak ? "= vs yesterday" : "vs yesterday"
+    : lens === "week"
+    ? lensData.streak === lensData.previous.streak ? "= vs last week" : `vs last week (${lensData.previous.streak})`
+    : `vs last month (${lensData.previous.streak})`;
+
+  // Reflection text
+  const reflectionText = buildReflectionText(consistencyByCategory, lens);
 
   // Left sidebar (collapsible)
   const [leftOpen, setLeftOpen] = useState(true);
@@ -221,6 +389,45 @@ export default function MyTimePage() {
             {leftOpen && (
               <>
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+                  {/* 0) Lens Toggle */}
+                  <section>
+                    <div className="text-sm font-semibold mb-2" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>Lens</div>
+                    <div className="text-[11px] mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>View your reflection across different timeframes.</div>
+
+                    <div className="flex gap-2">
+                      {(["today", "week", "month"] as Lens[]).map((l) => (
+                        <button
+                          key={l}
+                          onClick={() => setLens(l)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setLens(l);
+                            }
+                          }}
+                          className="flex-1 h-9 rounded-lg text-xs font-semibold border transition"
+                          style={{
+                            ...getSurfaceSoftStyle(dark),
+                            background: lens === l
+                              ? rgbaBrand(0.12)
+                              : dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                            borderColor: lens === l
+                              ? rgbaBrand(0.3)
+                              : dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                            color: lens === l
+                              ? JYNX_GREEN
+                              : dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)",
+                          }}
+                          tabIndex={0}
+                          role="radio"
+                          aria-checked={lens === l}
+                        >
+                          {l === "today" ? "Today" : l === "week" ? "This Week" : "This Month"}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
                   {/* 1) AI Chat */}
                   <section>
                     <div className="text-sm font-semibold mb-2" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>AI Assistant</div>
@@ -340,6 +547,19 @@ export default function MyTimePage() {
                 </div>
               </div>
 
+              {/* Reflection Header */}
+              <div
+                className="rounded-2xl border p-4 mb-6"
+                style={{
+                  ...getSurfaceSoftStyle(dark),
+                  background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.015)"
+                }}
+              >
+                <div className="text-sm leading-relaxed" style={{ color: dark ? "rgba(240,240,240,0.75)" : "rgba(0,0,0,0.70)" }}>
+                  {reflectionText}
+                </div>
+              </div>
+
               {/* Main canvas */}
               <div className="space-y-6">
                 {/* 1) Intentional minutes — clean, prominent */}
@@ -358,7 +578,12 @@ export default function MyTimePage() {
                   </div>
 
                   <div className="flex items-end gap-6 mb-5">
-                    <div className="text-5xl font-bold tracking-tight" style={{ color: JYNX_GREEN }}>{formatNumber(intentionalMinutes)}</div>
+                    <div>
+                      <div className="text-5xl font-bold tracking-tight" style={{ color: JYNX_GREEN }}>{formatNumber(intentionalMinutes)}</div>
+                      <div className="text-xs mt-1 font-medium" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.45)" }}>
+                        {totalDelta} vs last period
+                      </div>
+                    </div>
 
                     {/* Week trend sparkline */}
                     <div className="flex-1 flex items-end gap-1.5 pb-1" style={{ maxHeight: "60px" }}>
@@ -384,15 +609,24 @@ export default function MyTimePage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="rounded-xl border px-3 py-2.5" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
                       <div className="text-[10px] uppercase tracking-wide font-semibold mb-1" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.45)" }}>Today</div>
-                      <div className="text-lg font-bold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>120</div>
+                      <div className="text-lg font-bold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{lensData.today}</div>
+                      <div className="text-[10px] mt-0.5 font-medium" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>
+                        {todayDelta}
+                      </div>
                     </div>
                     <div className="rounded-xl border px-3 py-2.5" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
                       <div className="text-[10px] uppercase tracking-wide font-semibold mb-1" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.45)" }}>7-Day Avg</div>
-                      <div className="text-lg font-bold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>597</div>
+                      <div className="text-lg font-bold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{lensData.sevenDayAvg}</div>
+                      <div className="text-[10px] mt-0.5 font-medium" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>
+                        {avgDelta}
+                      </div>
                     </div>
                     <div className="rounded-xl border px-3 py-2.5" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
                       <div className="text-[10px] uppercase tracking-wide font-semibold mb-1" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.45)" }}>Streak</div>
-                      <div className="text-lg font-bold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>6 days</div>
+                      <div className="text-lg font-bold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{lensData.streak}</div>
+                      <div className="text-[10px] mt-0.5 font-medium" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>
+                        {streakComparison}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -401,10 +635,10 @@ export default function MyTimePage() {
                 <SimpleBars
                   title="Consistency by Category"
                   bars={[
-                    { label: "Study", value: 78 },
-                    { label: "Work", value: 64 },
-                    { label: "Fitness", value: 58 },
-                    { label: "Life", value: 46 },
+                    { label: "Study", value: consistencyByCategory.study },
+                    { label: "Work", value: consistencyByCategory.work },
+                    { label: "Fitness", value: consistencyByCategory.fitness },
+                    { label: "Life", value: consistencyByCategory.life },
                   ]}
                   dark={dark}
                 />
