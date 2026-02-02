@@ -715,7 +715,7 @@ export default function Home() {
         <div
   className="h-full transition-[width] duration-200"
   style={{
-    width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
+    width: leftOpen ? "clamp(220px, 22vw, 460px)" : "56px",
     background: "rgba(255,255,255,0.88)",
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
@@ -1026,7 +1026,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col h-full">
           {/* In-content header controls */}
           <div className="px-3 sm:px-6 pt-4 pb-2">
-            <div className="max-w-[1600px] mx-auto">
+            <div className="max-w-[1900px] mx-auto">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Day nav */}
                 <div className="flex items-center gap-2">
@@ -1087,7 +1087,7 @@ export default function Home() {
   className="flex-1 overflow-y-auto"
   style={{}}
 >
-           <div className="max-w-[1600px] mx-auto px-3 sm:px-6 pt-0 pb-10">
+           <div className="max-w-[1900px] mx-auto px-3 sm:px-6 pt-0 pb-10">
   <div
     className="rounded-[28px] px-6 pt-5 pb-8"
     style={{

@@ -172,7 +172,7 @@ function sparkFromSeed(seed: number, len = 10) {
 
 /* ---------- Shared light styles ---------- */
 
-const maxW = "max-w-[1280px]";
+const maxW = "max-w-[1600px]";
 
 const surfaceStyle: CSSProperties = {
   borderColor: "rgba(0,0,0,0.08)",
@@ -758,7 +758,7 @@ export default function MyTimePage() {
        <div
           className="h-full transition-[width] duration-200"
           style={{
-            width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
+            width: leftOpen ? "clamp(220px, 22vw, 460px)" : "56px",
             background: "rgba(255,255,255,0.88)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",

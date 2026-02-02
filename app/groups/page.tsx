@@ -104,6 +104,17 @@ type Activity = {
   when: string;
 };
 
+type GroupEvent = {
+  id: string;
+  title: string;
+  group: string;
+  time: string;
+  required: boolean;
+  duration: string;
+  location: string;
+  notes: string;
+};
+
 function pillStyleBase(active?: boolean, dark?: boolean): CSSProperties {
   return {
     borderColor: active ? rgbaBrand(0.26) : (dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
@@ -208,6 +219,30 @@ export default function GroupsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showFind, setShowFind] = useState(false);
   const [showInvites, setShowInvites] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<GroupEvent | null>(null);
+
+  // Inbox mock data
+  const inboxInvitations: { id: string; group: string; from: string; when: string }[] = [
+    { id: "inv1", group: "F305 — Financial Management", from: "Prof. Alvarez", when: "2h ago" },
+    { id: "inv2", group: "Weekend Study Circle", from: "Maya Chen", when: "Yesterday" },
+  ];
+  const inboxRequests: { id: string; group: string; who: string; when: string }[] = [
+    { id: "req1", group: "Morning Deep Work", who: "Jordan K.", when: "1d ago" },
+  ];
+  const inboxSuggestions: { id: string; group: string; reason: string }[] = [
+    { id: "sug1", group: "Calc II — Verified Hub", reason: "Popular in your major" },
+    { id: "sug2", group: "Sunday Reset Crew", reason: "3 friends are members" },
+  ];
+  const inboxCount = inboxInvitations.length + inboxRequests.length;
+
+  // Upcoming group events
+  const upcomingEvents: GroupEvent[] = [
+    { id: "ev1", title: "Study Session — CAPM Review", group: "F305 Study Group", time: "Today · 8:00 PM", required: true, duration: "90 min", location: "Room 204, Business Hall", notes: "Bring problem set 3. Focus on CAPM derivation." },
+    { id: "ev2", title: "Weekly Check-in", group: "Gym Accountability", time: "Tomorrow · 7:00 AM", required: false, duration: "15 min", location: "Virtual (Zoom)", notes: "Quick wins from last week + goals for this week." },
+    { id: "ev3", title: "Midterm Prep Workshop", group: "F305 — Financial Management", time: "Fri · 3:00 PM", required: true, duration: "2 hrs", location: "Library, Room 3B", notes: "Professor will walk through past exam questions." },
+    { id: "ev4", title: "Weekend Hike", group: "Sunday Reset Crew", time: "Sun · 9:00 AM", required: false, duration: "3 hrs", location: "Riverside Trail, Main Entrance", notes: "Optional — just show up. No gear needed." },
+  ];
 
   // Create modal fields (simple)
   const [newName, setNewName] = useState("");
@@ -484,7 +519,7 @@ export default function GroupsPage() {
   const pinned = tab === "My groups" ? filtered.filter((g) => g.pinned) : [];
   const rest = tab === "My groups" ? filtered.filter((g) => !g.pinned) : filtered;
 
-  const maxW = "max-w-[1280px]";
+  const maxW = "max-w-[1600px]";
 
   function openGroupModal(g: Group) {
     setOpenGroup(g);
@@ -611,19 +646,6 @@ export default function GroupsPage() {
     setInviteEmail("");
   }
 
-  // Left rail pinned list should be “your groups” with pin toggles
-  const leftPinnedList = useMemo(() => {
-    return myGroups
-      .slice()
-      .sort((a, b) => {
-        const ap = a.pinned ? 1 : 0;
-        const bp = b.pinned ? 1 : 0;
-        if (ap !== bp) return bp - ap;
-        return a.name.localeCompare(b.name);
-      })
-      .slice(0, 6);
-  }, [myGroups]);
-
   return (
    <main className="h-screen bg-neutral-50 text-neutral-950 overflow-hidden">
       {/* Subtle ambient — match Schedule */}
@@ -657,7 +679,7 @@ export default function GroupsPage() {
         <div
           className="h-full transition-[width] duration-200"
           style={{
-            width: leftOpen ? "clamp(220px, 22vw, 320px)" : "56px",
+            width: leftOpen ? "clamp(220px, 22vw, 460px)" : "56px",
             background: dark ? "rgba(15,15,15,0.88)" : "rgba(255,255,255,0.88)",
             backdropFilter: "blur(8px)",
             WebkitBackdropFilter: "blur(8px)",
@@ -685,158 +707,131 @@ export default function GroupsPage() {
 
             {leftOpen ? (
               <>
-                <div className="flex-1 overflow-y-auto px-4 py-4">
-  <div className="space-y-7">
-    {/* Recent activity — flat (Schedule-style) */}
-    <section>
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold text-neutral-900">Recent activity</div>
-        <span
-          className="inline-flex items-center justify-center h-7 px-2.5 rounded-full border text-[11px] font-semibold"
-          style={{
-            borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
-            background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.03)",
-            color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)",
-          }}
-        >
-          {activity.length}
-        </span>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {activity.map((a) => (
-          <button
-            key={a.id}
-            onClick={() => {
-              const g = myGroups.find((x) => x.id === a.groupId);
-              if (g) openGroupModal(g);
-              else showToast("That group isn’t in My groups");
-            }}
-            className="w-full text-left rounded-2xl border bg-white hover:bg-black/[0.03] transition"
-            style={surfaceSoftStyle}
-          >
-            <div className="px-3 py-2">
-              <div className="flex items-start gap-2">
-                <div
-                  className="mt-0.5 h-8 w-8 rounded-2xl border bg-white flex items-center justify-center"
-                  style={{
-                    ...surfaceSoftStyle,
-                    borderColor: rgbaBrand(0.16),
-                  }}
-                >
-                  {a.kind === "chat" ? (
-                    <MessageSquare size={16} />
-                  ) : a.kind === "update" ? (
-                    <Bell size={16} />
-                  ) : (
-                    <Users size={16} />
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold text-neutral-900 truncate">{a.groupName}</div>
-                  <div className="text-[11px] text-neutral-500 leading-relaxed">{a.text}</div>
-                </div>
-
-                <div className="text-[11px] text-neutral-400 shrink-0">{a.when}</div>
-              </div>
-            </div>
-          </button>
-        ))}
-
-        <button
-          onClick={() => showToast("Activity inbox (UI shell)")}
-          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-          style={surfaceSoftStyle}
-        >
-          Open activity
-        </button>
-      </div>
-    </section>
-
-    {/* Pinned — flat */}
-    <section>
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold text-neutral-900">Pinned</div>
-        <div className="text-[11px] text-neutral-500">{myGroups.filter((g) => g.pinned).length}</div>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {leftPinnedList.map((g) => (
-          <div key={g.id} className="w-full rounded-2xl border bg-white" style={surfaceSoftStyle}>
-            <div className="px-3 py-2">
-              <div className="flex items-center gap-2">
-                <button className="min-w-0 flex-1 text-left" onClick={() => openGroupModal(g)}>
-                  <div className="text-sm font-semibold text-neutral-900 truncate">{g.name}</div>
-                  <div className="text-[11px] text-neutral-500 truncate">{g.lastActivityText}</div>
-                </button>
-
-                <button
-                  className="h-8 w-8 rounded-xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-                  style={surfaceSoftStyle}
-                  title={g.pinned ? "Unpin" : "Pin"}
-                  onClick={() => {
-                    togglePin(g.id);
-                    showToast(g.pinned ? "Unpinned" : "Pinned");
-                  }}
-                >
-                  <Pin size={14} className={g.pinned ? "text-neutral-900" : "text-neutral-500"} />
-                </button>
-
-                <ChevronRight size={16} className="text-neutral-400" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-
-    {/* Quick actions — flat */}
-    <section>
-      <div className="text-sm font-semibold text-neutral-900">Quick actions</div>
-      <div className="mt-2 text-sm text-neutral-700 leading-relaxed">
-        Keep groups lightweight: structure + expectations, not feeds.
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-          style={surfaceSoftStyle}
-          onClick={() => setShowCreate(true)}
-        >
-          Create group
-        </button>
-        <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-          style={surfaceSoftStyle}
-          onClick={() => {
-            setTab("Discover");
-            setShowFind(true);
-          }}
-        >
-          Find group
-        </button>
-        <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition col-span-2"
-          style={surfaceSoftStyle}
-          onClick={() => setShowInvites(true)}
-        >
-          Invites / requests
-        </button>
-      </div>
-    </section>
-  </div>
-</div>
-
-
-                <div className="px-3 py-3">
-                  <Link
-                    href="/chat"
-                    className="w-full block rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition text-center"
-                    style={surfaceSoftStyle}
+                <div className="flex-1 overflow-y-auto px-4 py-3">
+                  {/* Inbox */}
+                  <button
+                    onClick={() => setShowInbox(true)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-black/[0.04] transition"
                   >
-                    Open Chat
-                  </Link>
+                    <div
+                      className="h-8 w-8 rounded-xl flex items-center justify-center"
+                      style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" }}
+                    >
+                      <Bell size={17} />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-sm font-semibold text-neutral-900">Inbox</div>
+                    </div>
+                    {inboxCount > 0 && (
+                      <span
+                        className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-bold text-white"
+                        style={{ background: "#1F8A5B" }}
+                      >
+                        {inboxCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Divider */}
+                  <div
+                    className="my-2.5 mx-1"
+                    style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}
+                  />
+
+                  {/* Activity */}
+                  <div className="px-3 pb-1.5">
+                    <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Activity</div>
+                  </div>
+                  <div className="space-y-0.5">
+                    {activity.map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => {
+                          const g = myGroups.find((x) => x.id === a.groupId);
+                          if (g) openGroupModal(g);
+                          else showToast("That group isn't in My groups");
+                        }}
+                        className="w-full flex items-start gap-2.5 px-3 py-2 rounded-xl hover:bg-black/[0.04] transition text-left"
+                      >
+                        <div
+                          className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
+                          style={{
+                            background: a.kind === "chat" ? "#1F8A5B" : a.kind === "update" ? "#E8943A" : "#6C6CFF",
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[12px] font-semibold text-neutral-800 truncate">{a.groupName}</div>
+                          <div className="text-[11px] text-neutral-500 leading-relaxed truncate">{a.text}</div>
+                        </div>
+                        <div className="text-[10px] text-neutral-400 shrink-0 mt-0.5">{a.when}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Divider */}
+                  <div
+                    className="my-3 mx-1"
+                    style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}
+                  />
+
+                  {/* Upcoming events */}
+                  <div className="px-3 pb-1.5">
+                    <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Upcoming events</div>
+                  </div>
+                  <div className="space-y-0.5">
+                    {upcomingEvents.map((ev) => (
+                      <button
+                        key={ev.id}
+                        onClick={() => setSelectedEvent(ev)}
+                        className="w-full flex items-start gap-2.5 px-3 py-2 rounded-xl hover:bg-black/[0.04] transition text-left"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="text-[12px] font-semibold text-neutral-800 truncate">{ev.title}</div>
+                            <span
+                              className="inline-flex items-center justify-center h-3.5 px-1.5 rounded-full text-[9px] font-bold uppercase tracking-wide"
+                              style={{
+                                background: ev.required
+                                  ? (dark ? "rgba(31,138,91,0.18)" : "rgba(31,138,91,0.12)")
+                                  : (dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
+                                color: ev.required
+                                  ? "#1F8A5B"
+                                  : (dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.45)"),
+                              }}
+                            >
+                              {ev.required ? "Required" : "Optional"}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-neutral-500 mt-0.5">{ev.time} · {ev.duration}</div>
+                        </div>
+                        <ChevronRight size={14} className="text-neutral-400 mt-0.5 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Bottom actions */}
+                  <div className="mt-4 px-2 flex gap-2">
+                    <button
+                      onClick={() => setShowCreate(true)}
+                      className="flex-1 text-center text-[11px] font-semibold py-1.5 rounded-lg"
+                      style={{
+                        background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                        color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.55)",
+                      }}
+                    >
+                      + Create
+                    </button>
+                    <button
+                      onClick={() => { setTab("Discover"); setShowFind(true); }}
+                      className="flex-1 text-center text-[11px] font-semibold py-1.5 rounded-lg"
+                      style={{
+                        background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                        color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.55)",
+                      }}
+                    >
+                      Find
+                    </button>
+                  </div>
                 </div>
               </>
             ) : (
@@ -1255,6 +1250,167 @@ export default function GroupsPage() {
               <div className="rounded-3xl border bg-white p-6" style={surfaceSoftStyle}>
                 <div className="text-sm font-semibold text-neutral-900">No matches</div>
                 <div className="mt-1 text-sm text-neutral-600 leading-relaxed">Try a different search.</div>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Inbox modal */}
+      {showInbox && (
+        <Modal
+          onClose={() => setShowInbox(false)}
+          title="Inbox"
+          subtitle={`${inboxCount} pending`}
+          dark={dark}
+          maxWidthClass="max-w-md"
+        >
+          {/* Invitations */}
+          <div>
+            <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Invitations</div>
+            {inboxInvitations.length === 0 ? (
+              <div className="text-[12px] text-neutral-500 px-1">None</div>
+            ) : (
+              <div className="space-y-1.5">
+                {inboxInvitations.map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
+                    style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)" }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-semibold text-neutral-900">{inv.group}</div>
+                      <div className="text-[11px] text-neutral-500 mt-0.5">From {inv.from} · {inv.when}</div>
+                    </div>
+                    <button
+                      onClick={() => showToast("Accepted (UI shell)")}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
+                      style={{ background: "#1F8A5B", color: "#fff" }}
+                    >
+                      Accept
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Requests to join */}
+          <div className="mt-4">
+            <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Requests to join</div>
+            {inboxRequests.length === 0 ? (
+              <div className="text-[12px] text-neutral-500 px-1">None</div>
+            ) : (
+              <div className="space-y-1.5">
+                {inboxRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
+                    style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)" }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-semibold text-neutral-900">{req.group}</div>
+                      <div className="text-[11px] text-neutral-500 mt-0.5">{req.who} wants to join · {req.when}</div>
+                    </div>
+                    <button
+                      onClick={() => showToast("Approved (UI shell)")}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
+                      style={{ background: "#1F8A5B", color: "#fff" }}
+                    >
+                      Approve
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Suggested groups */}
+          <div className="mt-4">
+            <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Suggested groups</div>
+            {inboxSuggestions.length === 0 ? (
+              <div className="text-[12px] text-neutral-500 px-1">None</div>
+            ) : (
+              <div className="space-y-1.5">
+                {inboxSuggestions.map((sug) => (
+                  <div
+                    key={sug.id}
+                    className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
+                    style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)" }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-semibold text-neutral-900">{sug.group}</div>
+                      <div className="text-[11px] text-neutral-500 mt-0.5">{sug.reason}</div>
+                    </div>
+                    <button
+                      onClick={() => showToast("Joined (UI shell)")}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
+                      style={{
+                        background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                        color: dark ? "rgba(240,240,240,0.80)" : "rgba(0,0,0,0.70)",
+                      }}
+                    >
+                      Join
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Event detail modal */}
+      {selectedEvent && (
+        <Modal
+          onClose={() => setSelectedEvent(null)}
+          title={selectedEvent.title}
+          subtitle={selectedEvent.group}
+          dark={dark}
+          maxWidthClass="max-w-sm"
+        >
+          <div className="space-y-3">
+            {/* Required / Optional badge */}
+            <div>
+              <span
+                className="inline-flex items-center justify-center h-5 px-2.5 rounded-full text-[11px] font-bold uppercase tracking-wide"
+                style={{
+                  background: selectedEvent.required
+                    ? (dark ? "rgba(31,138,91,0.18)" : "rgba(31,138,91,0.12)")
+                    : (dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
+                  color: selectedEvent.required
+                    ? "#1F8A5B"
+                    : (dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.45)"),
+                }}
+              >
+                {selectedEvent.required ? "Required" : "Optional"}
+              </span>
+            </div>
+
+            {/* Detail rows */}
+            <div className="space-y-2">
+              <div className="flex gap-3">
+                <div className="text-[11px] font-semibold text-neutral-500 w-20 shrink-0">When</div>
+                <div className="text-[12px] text-neutral-900">{selectedEvent.time}</div>
+              </div>
+              <div className="flex gap-3">
+                <div className="text-[11px] font-semibold text-neutral-500 w-20 shrink-0">Duration</div>
+                <div className="text-[12px] text-neutral-900">{selectedEvent.duration}</div>
+              </div>
+              <div className="flex gap-3">
+                <div className="text-[11px] font-semibold text-neutral-500 w-20 shrink-0">Where</div>
+                <div className="text-[12px] text-neutral-900">{selectedEvent.location}</div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            {selectedEvent.notes && (
+              <div
+                className="mt-2 px-3 py-2.5 rounded-xl"
+                style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)" }}
+              >
+                <div className="text-[11px] font-semibold text-neutral-500 mb-1">Notes</div>
+                <div className="text-[12px] text-neutral-700 leading-relaxed">{selectedEvent.notes}</div>
               </div>
             )}
           </div>
