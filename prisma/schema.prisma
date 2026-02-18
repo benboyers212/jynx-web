@@ -7,108 +7,30 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ============================================================
+// CORE USER & IDENTITY
+// ============================================================
+
 model User {
   id                  String   @id @default(cuid())
   clerkUserId         String   @unique
   email               String?
   name                String?
   onboardingCompleted Boolean  @default(false)
-    onboardingResponse OnboardingResponse?
+  onboardingResponse  OnboardingResponse?
 
   // Relations
-  medications        Medication[]
-  scheduleBlocks     ScheduleBlock[]
-  conversations      Conversation[]
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-}
-
-model Medication {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  name       String
-  dosage     String?
-  recurrence String   // "Daily", "Weekdays", "Custom"
-  times      String?  // "8:00 AM, 10:00 PM"
-  pharmacy   String?
-  qty        Int?
-  refills    Int?
-  notes      String?
-
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([userId])
-}
-
-model ScheduleBlock {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  title     String
-  category  String   // "class", "work", "health", "study", etc.
-  startAt   DateTime
-  endAt     DateTime
-  location  String?
-  notes     String?
+  medications      Medication[]
+  scheduleBlocks   ScheduleBlock[]
+  conversations    Conversation[]
+  reminders        Reminder[]
+  groupMemberships GroupMember[]
+  files            File[]
+  notes            Note[]
+  tasks            Task[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@index([startAt])
-}
-
-model Conversation {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  title     String?
-  messages  Message[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-}
-
-model Message {
-  id             String   @id @default(cuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  role           String   // "user" | "assistant"
-  content        String
-
-  createdAt      DateTime @default(now())
-
-  @@index([conversationId])
-  @@index([createdAt])
-}
-
-model Reminder {
-  id         String   @id @default(cuid())
-  userId     String
-
-  title      String
-  notes      String?
-  enabled    Boolean  @default(true)
-
-  schedule   String   // "once" | "daily" | "weekdays" | "custom"
-  timeOfDay  String?  // "08:00"
-  date       String?  // "YYYY-MM-DD"
-  location   String?
-  daysOfWeek String?  // JSON string like "[1,2,3]"
-
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([userId])
 }
 
 model OnboardingResponse {
@@ -116,9 +38,422 @@ model OnboardingResponse {
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // flexible payload so we can iterate on the survey without migrations
+  // { v: 1, behavioral, identity, timeReality, taste, context }
   answers   Json
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================================
+// SCHEDULE & EVENTS
+// ============================================================
+
+model ScheduleBlock {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  eventType   String   // "class" | "work" | "health" | "meeting" | "prep" | "study" | "life" | "free"
+  category    String   // kept for backward compat – mirrors eventType
+  startAt     DateTime
+  endAt       DateTime
+  location    String?
+  description String?  @db.Text  // richer description / summary
+
+  // Optional hub linkage (recurring class or workout sessions)
+  classHubId    String?
+  classHub      ClassHub? @relation(fields: [classHubId], references: [id], onDelete: SetNull)
+
+  workoutHubId  String?
+  workoutHub    WorkoutHub? @relation(fields: [workoutHubId], references: [id], onDelete: SetNull)
+
+  // Relations
+  eventNotes  EventNote[]   // legacy – do not use for new code
+  notes       Note[]
+  tasks       Task[]
+  assignments Assignment[]  // legacy – new code uses tasks
+  workoutLogs WorkoutLog[]
+  files       File[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([startAt])
+  @@index([eventType])
+  @@index([classHubId])
+  @@index([workoutHubId])
+}
+
+// ============================================================
+// HUBS — canonical context for recurring class / workout sessions
+// ============================================================
+
+model ClassHub {
+  id          String   @id @default(cuid())
+  userId      String
+
+  name        String           // e.g. "Operating Systems"
+  courseCode  String?          // e.g. "CS401"
+  instructor  String?
+  department  String?
+  semester    String?          // e.g. "Spring 2026"
+  description String?  @db.Text
+
+  // Hub-level shared resources
+  notes  Note[]
+  files  File[]
+  tasks  Task[]
+
+  // Events belonging to this class
+  events ScheduleBlock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([courseCode])
+}
+
+model WorkoutHub {
+  id          String   @id @default(cuid())
+  userId      String
+
+  name        String           // e.g. "PPL Split"
+  description String?  @db.Text
+
+  // Hub-level shared resources
+  notes       Note[]
+  files       File[]
+  workoutLogs WorkoutLog[]
+
+  // Events belonging to this routine
+  events ScheduleBlock[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================================
+// LEGACY EVENT NOTES (kept so existing FK data doesn't break)
+// ============================================================
+
+model EventNote {
+  id        String        @id @default(cuid())
+  eventId   String
+  event     ScheduleBlock @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+
+  content   String        @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([userId])
+}
+
+// ============================================================
+// CANONICAL NOTES
+// ============================================================
+
+model Note {
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content String  @db.Text
+  title   String? // optional — used for search / AI retrieval
+
+  // Polymorphic context
+  eventId      String?
+  event        ScheduleBlock? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  classHubId   String?
+  classHub     ClassHub? @relation(fields: [classHubId], references: [id], onDelete: Cascade)
+
+  workoutHubId String?
+  workoutHub   WorkoutHub? @relation(fields: [workoutHubId], references: [id], onDelete: Cascade)
+
+  groupId      String?
+  group        Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // One-to-one reverse link: the File record that surfaces this Note in the Files UI
+  fileRepresentation File? @relation("NoteToFile")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([classHubId])
+  @@index([workoutHubId])
+  @@index([groupId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// CANONICAL TASKS (replaces Assignment)
+// taskType: "task" | "assignment" | "goal"
+// ============================================================
+
+model Task {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?  @db.Text
+  dueDate     DateTime?
+  completed   Boolean  @default(false)
+  priority    String?  // "low" | "medium" | "high"
+  taskType    String   @default("task") // "task" | "assignment" | "goal"
+  points      Int?     // for assignments
+
+  // Polymorphic context
+  eventId    String?
+  event      ScheduleBlock? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  classHubId String?
+  classHub   ClassHub? @relation(fields: [classHubId], references: [id], onDelete: Cascade)
+
+  groupId    String?
+  group      Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([classHubId])
+  @@index([groupId])
+  @@index([dueDate])
+  @@index([completed])
+  @@index([taskType])
+}
+
+// Legacy – kept so existing API routes keep working without a hard cut-over
+model Assignment {
+  id          String        @id @default(cuid())
+  eventId     String
+  event       ScheduleBlock @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId      String
+
+  title       String
+  description String?  @db.Text
+  dueDate     DateTime?
+  points      Int?
+  completed   Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([dueDate])
+}
+
+// ============================================================
+// WORKOUT LOGS
+// ============================================================
+
+model WorkoutLog {
+  id     String @id @default(cuid())
+  userId String
+
+  // Context: event session or hub-level aggregate
+  eventId      String?
+  event        ScheduleBlock? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  workoutHubId String?
+  workoutHub   WorkoutHub? @relation(fields: [workoutHubId], references: [id], onDelete: Cascade)
+
+  exercises Json    // [{ name, sets, reps, weight }]
+  duration  Int?    // minutes
+  notes     String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([workoutHubId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// FILES
+// ============================================================
+
+model File {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name  String
+  type  String  // "pdf" | "doc" | "image" | "note" | "link"
+  url   String? // S3 URL or external link (null for notes)
+  size  Int?    // bytes
+
+  category String? // "School" | "Work" | "Health" | etc.
+
+  // For type="note" files: reference to Note content (no duplication)
+  noteId      String? @unique
+  noteContent Note?   @relation("NoteToFile", fields: [noteId], references: [id], onDelete: Cascade)
+
+  // Polymorphic context
+  eventId      String?
+  event        ScheduleBlock? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  classHubId   String?
+  classHub     ClassHub? @relation(fields: [classHubId], references: [id], onDelete: SetNull)
+
+  workoutHubId String?
+  workoutHub   WorkoutHub? @relation(fields: [workoutHubId], references: [id], onDelete: SetNull)
+
+  groupId      String?
+  group        Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  pinned Boolean @default(false)
+  notes  String? @db.Text // lightweight metadata note on the file
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([classHubId])
+  @@index([workoutHubId])
+  @@index([groupId])
+  @@index([noteId])
+  @@index([type])
+}
+
+// ============================================================
+// CONVERSATIONS & MESSAGES (AI chat + group chat)
+// ============================================================
+
+model Conversation {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title            String?
+  conversationType String   @default("ai") // "ai" | "group"
+
+  // For group conversations
+  groupId String?
+  group   Group? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([groupId])
+  @@index([conversationType])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role    String @db.Text // "user" | "assistant"
+  content String @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// HEALTH
+// ============================================================
+
+model Medication {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name       String
+  dosage     String?
+  recurrence String  // "Daily" | "Weekdays" | "Custom"
+  times      String? // "8:00 AM, 10:00 PM"
+  pharmacy   String?
+  qty        Int?
+  refills    Int?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Reminder {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title      String
+  notes      String?
+  enabled    Boolean @default(true)
+
+  schedule   String  // "once" | "daily" | "weekdays" | "custom"
+  timeOfDay  String? // "08:00"
+  date       String? // "YYYY-MM-DD"
+  location   String?
+  daysOfWeek String? // JSON "[1,2,3]"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([enabled])
+}
+
+// ============================================================
+// GROUPS
+// ============================================================
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  type        String   @default("general") // "class" | "project" | "social" | "general"
+
+  members       GroupMember[]
+  files         File[]
+  notes         Note[]
+  tasks         Task[]
+  conversations Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+}
+
+model GroupMember {
+  id      String @id @default(cuid())
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role     String   @default("member") // "owner" | "admin" | "member"
+  joinedAt DateTime @default(now())
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
 }

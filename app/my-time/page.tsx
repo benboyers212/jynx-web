@@ -18,6 +18,18 @@ type Goal = {
   progress: number;
 };
 
+type InsightType = "summary" | "patterns" | "suggestions" | "saved";
+
+type Insight = {
+  id: string;
+  title: string;
+  description: string;
+  confidence: "High" | "Medium" | "Low";
+  lens: Lens;
+  type: InsightType;
+  pinned: boolean;
+};
+
 type Lens = "today" | "week" | "month";
 
 type CategoryConsistency = {
@@ -135,6 +147,86 @@ function buildReflectionText(consistency: CategoryConsistency, lens: Lens): stri
     return `${highest.name} is ${highestLabel} ${timeframe}, while ${lowest.name} is ${lowestLabel} — patterns shift naturally over time.`;
   }
 }
+
+/* ---------- Mock Insights Data ---------- */
+
+const MOCK_INSIGHTS: Insight[] = [
+  // Week insights
+  {
+    id: "i1",
+    title: "Strong Study Momentum",
+    description: "Your study consistency is at 78% this week, up from 64% last week. You're building a solid routine around morning deep work sessions.",
+    confidence: "High",
+    lens: "week",
+    type: "summary",
+    pinned: false,
+  },
+  {
+    id: "i2",
+    title: "Fitness Routine Fragile",
+    description: "Your fitness consistency dropped to 58% this week. Consider scheduling workouts earlier in the day when energy is higher.",
+    confidence: "Medium",
+    lens: "week",
+    type: "patterns",
+    pinned: false,
+  },
+  {
+    id: "i3",
+    title: "Peak Focus: 9-11 AM",
+    description: "Data shows your most productive deep work happens between 9-11 AM. Consider protecting this time block for high-priority tasks.",
+    confidence: "High",
+    lens: "week",
+    type: "patterns",
+    pinned: true,
+  },
+  {
+    id: "i4",
+    title: "Add Buffer Time",
+    description: "You've had 3 schedule conflicts this week. Try adding 10-minute buffers between back-to-back meetings.",
+    confidence: "Medium",
+    lens: "week",
+    type: "suggestions",
+    pinned: false,
+  },
+  // Today insights
+  {
+    id: "i5",
+    title: "Today's Intentional Minutes: On Track",
+    description: "You've completed 120 intentional minutes so far today, matching your daily target. You're on pace for a strong day.",
+    confidence: "High",
+    lens: "today",
+    type: "summary",
+    pinned: false,
+  },
+  {
+    id: "i6",
+    title: "Energy Dip After Lunch",
+    description: "Your activity shows reduced focus between 2-3 PM. Consider a short walk or switching to lighter tasks during this window.",
+    confidence: "Medium",
+    lens: "today",
+    type: "patterns",
+    pinned: false,
+  },
+  // Month insights
+  {
+    id: "i7",
+    title: "Consistency Trending Up",
+    description: "Overall consistency improved to 82% this month, up from 68% last month. All major categories show positive momentum.",
+    confidence: "High",
+    lens: "month",
+    type: "summary",
+    pinned: false,
+  },
+  {
+    id: "i8",
+    title: "Weekend Planning Gap",
+    description: "Weekends show 40% less intentional time. Consider adding 1-2 weekend routines to maintain momentum.",
+    confidence: "High",
+    lens: "month",
+    type: "suggestions",
+    pinned: false,
+  },
+];
 
 /* ---------- Mock Data by Lens ---------- */
 
@@ -290,45 +382,87 @@ export default function MyTimePage() {
     // Wire to backend later
   };
 
-  // Goals (mock data - will sync with schedule later)
-  const [goals] = useState<Goal[]>([
-    {
-      id: "g1",
-      title: "Launch MVP",
-      window: "Q1 2026",
-      progress: 65,
-      items: [
-        { id: "i1", text: "Complete user authentication", completed: true },
-        { id: "i2", text: "Build dashboard UI", completed: true },
-        { id: "i3", text: "Integrate payment system", completed: false },
-        { id: "i4", text: "Run beta testing", completed: false },
-        { id: "i5", text: "Deploy to production", completed: false },
-      ],
-    },
-    {
-      id: "g2",
-      title: "Health & Fitness",
-      window: "This Month",
-      progress: 40,
-      items: [
-        { id: "i6", text: "Gym 3x per week", completed: true },
-        { id: "i7", text: "Track meals daily", completed: false },
-        { id: "i8", text: "Sleep 8 hours consistently", completed: false },
-      ],
-    },
-    {
-      id: "g3",
-      title: "Learn TypeScript",
-      window: "6 Weeks",
-      progress: 30,
-      items: [
-        { id: "i9", text: "Complete basics course", completed: true },
-        { id: "i10", text: "Build practice project", completed: false },
-        { id: "i11", text: "Read advanced patterns book", completed: false },
-        { id: "i12", text: "Contribute to open source", completed: false },
-      ],
-    },
-  ]);
+  // Goals — fetched from Task API (taskType="goal")
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [loadingGoals, setLoadingGoals] = useState(true);
+  const [showNewGoalForm, setShowNewGoalForm] = useState(false);
+  const [newGoalTitle, setNewGoalTitle] = useState("");
+  const [newGoalWindow, setNewGoalWindow] = useState("");
+  const [creatingGoal, setCreatingGoal] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/tasks?taskType=goal")
+      .then((r) => r.json())
+      .then((res) => {
+        const raw: any[] = res?.data ?? res ?? [];
+        setGoals(
+          raw.map((t) => ({
+            id: t.id,
+            title: t.title,
+            window: t.description ?? "",
+            items: [],
+            progress: t.completed ? 100 : 0,
+          }))
+        );
+      })
+      .catch(console.error)
+      .finally(() => setLoadingGoals(false));
+  }, []);
+
+  async function handleCreateGoal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newGoalTitle.trim()) return;
+    setCreatingGoal(true);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newGoalTitle.trim(),
+          taskType: "goal",
+          description: newGoalWindow.trim() || null,
+        }),
+      });
+      const body = await res.json();
+      const created = body?.data ?? body;
+      if (created?.id) {
+        setGoals((prev) => [
+          ...prev,
+          { id: created.id, title: created.title, window: created.description ?? "", items: [], progress: 0 },
+        ]);
+        setNewGoalTitle("");
+        setNewGoalWindow("");
+        setShowNewGoalForm(false);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCreatingGoal(false);
+    }
+  }
+
+  async function handleGoalComplete(goalId: string, currentProgress: number) {
+    const newCompleted = currentProgress < 100;
+    setGoals((prev) =>
+      prev.map((g) => (g.id === goalId ? { ...g, progress: newCompleted ? 100 : 0 } : g))
+    );
+    try {
+      await fetch(`/api/tasks/${goalId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: newCompleted }),
+      });
+    } catch {
+      setGoals((prev) =>
+        prev.map((g) => (g.id === goalId ? { ...g, progress: currentProgress } : g))
+      );
+    }
+  }
+
+  async function handleGoalDelete(goalId: string) {
+    setGoals((prev) => prev.filter((g) => g.id !== goalId));
+    await fetch(`/api/tasks/${goalId}`, { method: "DELETE" }).catch(console.error);
+  }
 
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
 
@@ -337,8 +471,43 @@ export default function MyTimePage() {
   };
 
   const toggleItem = (goalId: string, itemId: string) => {
-    console.log("Toggle item:", goalId, itemId);
-    // Wire to backend later
+    setGoals((prev) =>
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        const updatedItems = g.items.map((i) =>
+          i.id === itemId ? { ...i, completed: !i.completed } : i
+        );
+        const completedCount = updatedItems.filter((i) => i.completed).length;
+        const progress =
+          updatedItems.length > 0
+            ? Math.round((completedCount / updatedItems.length) * 100)
+            : g.progress;
+        return { ...g, items: updatedItems, progress };
+      })
+    );
+  };
+
+  // Insights state
+  const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(null);
+  const [insights, setInsights] = useState<Insight[]>(MOCK_INSIGHTS);
+  const [expandedInsightId, setExpandedInsightId] = useState<string | null>(null);
+
+  // Filter insights by lens and type
+  const filteredInsights = insights.filter((insight) => {
+    if (insight.lens !== lens) return false;
+    if (selectedInsightType === "saved") return insight.pinned;
+    if (selectedInsightType) return insight.type === selectedInsightType;
+    return false;
+  });
+
+  const togglePinInsight = (insightId: string) => {
+    setInsights((prev) =>
+      prev.map((ins) => (ins.id === insightId ? { ...ins, pinned: !ins.pinned } : ins))
+    );
+  };
+
+  const toggleExpandInsight = (insightId: string) => {
+    setExpandedInsightId(expandedInsightId === insightId ? null : insightId);
   };
 
   return (
@@ -391,8 +560,7 @@ export default function MyTimePage() {
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
                   {/* 0) Lens Toggle */}
                   <section>
-                    <div className="text-sm font-semibold mb-2" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>Lens</div>
-                    <div className="text-[11px] mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>View your reflection across different timeframes.</div>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Timeframe</div>
 
                     <div className="flex gap-2">
                       {(["today", "week", "month"] as Lens[]).map((l) => (
@@ -405,15 +573,14 @@ export default function MyTimePage() {
                               setLens(l);
                             }
                           }}
-                          className="flex-1 h-9 rounded-lg text-xs font-semibold border transition"
+                          className="flex-1 h-9 rounded-lg text-xs font-semibold transition"
                           style={{
-                            ...getSurfaceSoftStyle(dark),
                             background: lens === l
                               ? rgbaBrand(0.12)
-                              : dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-                            borderColor: lens === l
-                              ? rgbaBrand(0.3)
-                              : dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                              : dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                            border: lens === l
+                              ? `1px solid ${rgbaBrand(0.3)}`
+                              : `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
                             color: lens === l
                               ? JYNX_GREEN
                               : dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)",
@@ -428,12 +595,13 @@ export default function MyTimePage() {
                     </div>
                   </section>
 
+                  <div style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }} />
+
                   {/* 1) AI Chat */}
                   <section>
-                    <div className="text-sm font-semibold mb-2" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>AI Assistant</div>
-                    <div className="text-[11px] mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Quick questions about your schedule, goals, or habits.</div>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>AI Assistant</div>
 
-                    <div className="rounded-xl border p-3" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+                    <div className="rounded-xl p-3" style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
                       <textarea
                         ref={aiChatRef}
                         value={aiChat}
@@ -446,9 +614,9 @@ export default function MyTimePage() {
                           minHeight: "80px",
                         }}
                       />
-                      <div className="flex justify-end mt-2">
+                      <div className="flex justify-end mt-2 pt-2" style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
                         <button
-                          className="rounded-xl px-3 py-1.5 text-xs font-semibold transition"
+                          className="rounded-lg px-3 py-1.5 text-xs font-semibold transition"
                           style={{
                             background: aiChat.trim() ? JYNX_GREEN : dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
                             color: aiChat.trim() ? "white" : dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)",
@@ -468,31 +636,30 @@ export default function MyTimePage() {
                     </div>
                   </section>
 
+                  <div style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }} />
+
                   {/* 2) Quick check-in */}
                   <section>
-                    <div className="text-sm font-semibold mb-2" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>Quick check-in</div>
-                    <div className="text-[11px] mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>1-2 questions max — only when it helps.</div>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Quick check-in</div>
 
                     {!showCheckIn || pendingQuestions.length === 0 ? (
-                      <div className="rounded-xl border px-3 py-3" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+                      <div className="rounded-xl px-3 py-3" style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
                         <div className="text-sm" style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }}>Nothing to answer right now.</div>
                         <div className="text-[11px] mt-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Jynx asks occasionally.</div>
                       </div>
                     ) : (
                       <div className="space-y-2.5">
                         {pendingQuestions.map((q) => (
-                          <div key={q.id} className="rounded-xl border px-3 py-3" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+                          <div key={q.id} className="rounded-xl px-3 py-3" style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
                             <div className="text-sm font-medium mb-3" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{q.prompt}</div>
 
                             <div className="flex gap-2">
                               <button
                                 type="button"
                                 onClick={() => answer(q.id, "yes")}
-                                className="flex-1 h-8 rounded-lg text-xs font-semibold border transition hover:bg-opacity-80"
+                                className="flex-1 h-8 rounded-lg text-xs font-semibold transition"
                                 style={{
-                                  ...getSurfaceSoftStyle(dark),
-                                  background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-                                  borderColor: rgbaBrand(0.15),
+                                  background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
                                   color: dark ? "rgba(240,240,240,0.85)" : "rgba(0,0,0,0.85)"
                                 }}
                               >
@@ -501,10 +668,9 @@ export default function MyTimePage() {
                               <button
                                 type="button"
                                 onClick={() => answer(q.id, "no")}
-                                className="flex-1 h-8 rounded-lg text-xs font-semibold border transition hover:bg-opacity-80"
+                                className="flex-1 h-8 rounded-lg text-xs font-semibold transition"
                                 style={{
-                                  ...getSurfaceSoftStyle(dark),
-                                  background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                                  background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
                                   color: dark ? "rgba(240,240,240,0.85)" : "rgba(0,0,0,0.85)"
                                 }}
                               >
@@ -513,10 +679,9 @@ export default function MyTimePage() {
                               <button
                                 type="button"
                                 onClick={() => answer(q.id, "skip")}
-                                className="flex-1 h-8 rounded-lg text-xs font-semibold border transition hover:bg-opacity-80"
+                                className="flex-1 h-8 rounded-lg text-xs font-semibold transition"
                                 style={{
-                                  ...getSurfaceSoftStyle(dark),
-                                  background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                                  background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
                                   color: dark ? "rgba(240,240,240,0.55)" : "rgba(0,0,0,0.55)"
                                 }}
                               >
@@ -527,6 +692,46 @@ export default function MyTimePage() {
                         ))}
                       </div>
                     )}
+                  </section>
+
+                  <div style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }} />
+
+                  {/* 3) Insights */}
+                  <section>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Insights</div>
+
+                    <div className="space-y-1.5">
+                      {(["summary", "patterns", "suggestions", "saved"] as const).map((type) => {
+                        const labels = {
+                          summary: "Weekly Summary",
+                          patterns: "Patterns",
+                          suggestions: "Suggestions",
+                          saved: "Saved Insights",
+                        };
+                        const active = selectedInsightType === type;
+
+                        return (
+                          <button
+                            key={type}
+                            onClick={() => setSelectedInsightType(type)}
+                            className="w-full px-3 py-2 rounded-lg text-sm font-medium text-left transition"
+                            style={{
+                              background: active
+                                ? rgbaBrand(0.12)
+                                : dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                              border: active
+                                ? `1px solid ${rgbaBrand(0.3)}`
+                                : `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+                              color: active
+                                ? JYNX_GREEN
+                                : dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)",
+                            }}
+                          >
+                            {labels[type]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </section>
                 </div>
               </>
@@ -650,22 +855,209 @@ export default function MyTimePage() {
                       <div className="text-base font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>Goals & Progress</div>
                       <div className="text-xs mt-0.5" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Click to expand and track detailed progress</div>
                     </div>
-                    <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full" style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", color: dark ? "rgba(240,240,240,0.65)" : "rgba(0,0,0,0.65)" }}>
-                      {goals.length} active
-                    </span>
+                    <button
+                      onClick={() => setShowNewGoalForm((v) => !v)}
+                      className="rounded-2xl px-3 py-1.5 text-xs font-semibold border transition"
+                      style={{
+                        borderColor: rgbaBrand(0.22),
+                        background: dark ? "rgba(255,255,255,0.04)" : "white",
+                        color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                      }}
+                    >
+                      {showNewGoalForm ? "Cancel" : "+ New Goal"}
+                    </button>
                   </div>
 
-                  <div className="space-y-2.5">
-                    {goals.map((goal) => {
-                      const isExpanded = expandedGoalId === goal.id;
-                      const completedCount = goal.items.filter(i => i.completed).length;
-                      const totalCount = goal.items.length;
+                  {showNewGoalForm && (
+                    <form onSubmit={handleCreateGoal} className="mb-4 space-y-2">
+                      <input
+                        type="text"
+                        value={newGoalTitle}
+                        onChange={(e) => setNewGoalTitle(e.target.value)}
+                        placeholder="Goal title"
+                        autoFocus
+                        className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                        style={{
+                          borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+                          background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+                          color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={newGoalWindow}
+                        onChange={(e) => setNewGoalWindow(e.target.value)}
+                        placeholder='Timeframe (e.g. "Q1 2026", "This Month")'
+                        className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                        style={{
+                          borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+                          background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+                          color: dark ? "rgba(240,240,240,0.75)" : "rgba(0,0,0,0.75)",
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={creatingGoal || !newGoalTitle.trim()}
+                        className="rounded-xl px-3 py-1.5 text-xs font-semibold border transition"
+                        style={{
+                          borderColor: rgbaBrand(0.30),
+                          background: rgbaBrand(0.10),
+                          color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                          opacity: creatingGoal ? 0.6 : 1,
+                        }}
+                      >
+                        {creatingGoal ? "Adding…" : "Add Goal"}
+                      </button>
+                    </form>
+                  )}
 
-                      return (
-                        <div key={goal.id}>
-                          <button
-                            onClick={() => toggleGoal(goal.id)}
-                            className="w-full text-left rounded-xl border p-4 transition hover:bg-opacity-80"
+                  {loadingGoals ? (
+                    <div className="text-sm" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Loading…</div>
+                  ) : goals.length === 0 ? (
+                    <div className="text-sm" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>No goals yet. Add one to start tracking.</div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {goals.map((goal) => {
+                        const isExpanded = expandedGoalId === goal.id;
+                        const completedCount = goal.items.filter(i => i.completed).length;
+                        const totalCount = goal.items.length;
+
+                        return (
+                          <div key={goal.id}>
+                            <div
+                              className="rounded-xl border p-4"
+                              style={{
+                                ...getSurfaceSoftStyle(dark),
+                                background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.015)",
+                                opacity: goal.progress >= 100 ? 0.7 : 1,
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <button
+                                  onClick={() => toggleGoal(goal.id)}
+                                  className="flex-1 min-w-0 text-left"
+                                >
+                                  <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)", textDecoration: goal.progress >= 100 ? "line-through" : "none" }}>{goal.title}</div>
+                                  {goal.window && (
+                                    <div className="text-[11px] mt-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>{goal.window}</div>
+                                  )}
+                                  <div className="mt-3 flex items-center gap-2.5">
+                                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
+                                      <div
+                                        className="h-full rounded-full transition-all duration-500"
+                                        style={{ width: `${goal.progress}%`, background: JYNX_GREEN }}
+                                      />
+                                    </div>
+                                    <span className="text-[11px] font-semibold" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>{goal.progress}%</span>
+                                  </div>
+                                </button>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    onClick={() => handleGoalComplete(goal.id, goal.progress)}
+                                    title={goal.progress >= 100 ? "Mark incomplete" : "Mark complete"}
+                                    className="h-7 w-7 rounded-lg border flex items-center justify-center transition"
+                                    style={{
+                                      borderColor: goal.progress >= 100 ? rgbaBrand(0.50) : (dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"),
+                                      background: goal.progress >= 100 ? rgbaBrand(0.15) : "transparent",
+                                    }}
+                                  >
+                                    {goal.progress >= 100 && <Check size={11} style={{ color: dark ? "rgba(240,240,240,0.80)" : "rgba(0,0,0,0.70)" }} />}
+                                  </button>
+                                  {totalCount > 0 && (
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-md" style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                                      {completedCount}/{totalCount}
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => handleGoalDelete(goal.id)}
+                                    className="text-[10px] opacity-30 hover:opacity-70 transition"
+                                    style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}
+                                  >
+                                    ✕
+                                  </button>
+                                  <svg
+                                    onClick={() => toggleGoal(goal.id)}
+                                    width="14" height="14" viewBox="0 0 16 16" fill="none"
+                                    className="transition-transform cursor-pointer"
+                                    style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}
+                                  >
+                                    <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Expanded checklist */}
+                            {isExpanded && goal.items.length > 0 && (
+                              <div className="mt-2.5 ml-3 pl-3 border-l space-y-1.5" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
+                                {goal.items.map((item) => (
+                                  <button
+                                    key={item.id}
+                                    onClick={() => toggleItem(goal.id, item.id)}
+                                    className="w-full flex items-start gap-2.5 text-left py-2 px-2.5 rounded-lg transition hover:bg-opacity-70"
+                                    style={{ background: dark ? "rgba(255,255,255,0.015)" : "rgba(0,0,0,0.015)" }}
+                                  >
+                                    {item.completed ? (
+                                      <div className="h-4.5 w-4.5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: JYNX_GREEN }}>
+                                        <Check size={12} color="white" strokeWidth={3} />
+                                      </div>
+                                    ) : (
+                                      <Circle size={18} className="shrink-0 mt-0.5" style={{ color: dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.20)" }} strokeWidth={2} />
+                                    )}
+                                    <span
+                                      className="text-sm"
+                                      style={{
+                                        color: item.completed
+                                          ? dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)"
+                                          : dark ? "rgba(240,240,240,0.85)" : "rgba(0,0,0,0.85)",
+                                        textDecoration: item.completed ? "line-through" : "none",
+                                      }}
+                                    >
+                                      {item.text}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 4) Insights Block */}
+                {selectedInsightType && filteredInsights.length > 0 && (
+                  <div className="rounded-3xl border p-6" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
+                    <div className="flex items-center justify-between mb-5">
+                      <div>
+                        <div className="text-base font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                          {selectedInsightType === "summary"
+                            ? "Weekly Summary"
+                            : selectedInsightType === "patterns"
+                            ? "Patterns"
+                            : selectedInsightType === "suggestions"
+                            ? "Suggestions"
+                            : "Saved Insights"}
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                          {lens === "today" ? "Today" : lens === "week" ? "This Week" : "This Month"}
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full" style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", color: dark ? "rgba(240,240,240,0.65)" : "rgba(0,0,0,0.65)" }}>
+                        {filteredInsights.length} insight{filteredInsights.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {filteredInsights.map((insight) => {
+                        const isExpanded = expandedInsightId === insight.id;
+
+                        return (
+                          <div
+                            key={insight.id}
+                            className="rounded-xl border p-4"
                             style={{
                               ...getSurfaceSoftStyle(dark),
                               background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.015)",
@@ -673,74 +1065,54 @@ export default function MyTimePage() {
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{goal.title}</div>
-                                <div className="text-[11px] mt-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>{goal.window}</div>
+                                <div className="text-sm font-semibold mb-1" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{insight.title}</div>
 
-                                {/* Progress bar */}
-                                <div className="mt-3 flex items-center gap-2.5">
-                                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
-                                    <div
-                                      className="h-full rounded-full transition-all duration-500"
-                                      style={{
-                                        width: `${goal.progress}%`,
-                                        background: JYNX_GREEN,
-                                      }}
-                                    />
+                                {isExpanded && (
+                                  <div className="text-sm mt-2 leading-relaxed" style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }}>
+                                    {insight.description}
                                   </div>
-                                  <span className="text-[11px] font-semibold" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>{goal.progress}%</span>
+                                )}
+
+                                <div className="flex items-center gap-3 mt-2">
+                                  <span className="text-[11px] font-medium" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                                    Confidence: <span style={{ color: insight.confidence === "High" ? JYNX_GREEN : insight.confidence === "Medium" ? "#E8943A" : dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>{insight.confidence}</span>
+                                  </span>
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-md" style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)", color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
-                                  {completedCount}/{totalCount}
-                                </span>
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="transition-transform" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>
-                                  <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  onClick={() => togglePinInsight(insight.id)}
+                                  className="h-8 w-8 rounded-lg flex items-center justify-center transition"
+                                  style={{
+                                    background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                                    color: insight.pinned ? JYNX_GREEN : dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)"
+                                  }}
+                                  title={insight.pinned ? "Unpin" : "Pin"}
+                                >
+                                  {insight.pinned ? "★" : "☆"}
+                                </button>
+                                <button
+                                  onClick={() => toggleExpandInsight(insight.id)}
+                                  className="h-8 w-8 rounded-lg flex items-center justify-center transition"
+                                  style={{
+                                    background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                                    color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)"
+                                  }}
+                                  title={isExpanded ? "Collapse" : "Expand"}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                                    <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                </button>
                               </div>
                             </div>
-                          </button>
-
-                          {/* Expanded checklist */}
-                          {isExpanded && (
-                            <div className="mt-2.5 ml-3 pl-3 border-l space-y-1.5" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
-                              {goal.items.map((item) => (
-                                <button
-                                  key={item.id}
-                                  onClick={() => toggleItem(goal.id, item.id)}
-                                  className="w-full flex items-start gap-2.5 text-left py-2 px-2.5 rounded-lg transition hover:bg-opacity-70"
-                                  style={{
-                                    background: dark ? "rgba(255,255,255,0.015)" : "rgba(0,0,0,0.015)",
-                                  }}
-                                >
-                                  {item.completed ? (
-                                    <div className="h-4.5 w-4.5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: JYNX_GREEN }}>
-                                      <Check size={12} color="white" strokeWidth={3} />
-                                    </div>
-                                  ) : (
-                                    <Circle size={18} className="shrink-0 mt-0.5" style={{ color: dark ? "rgba(255,255,255,0.20)" : "rgba(0,0,0,0.20)" }} strokeWidth={2} />
-                                  )}
-                                  <span
-                                    className="text-sm"
-                                    style={{
-                                      color: item.completed
-                                        ? dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)"
-                                        : dark ? "rgba(240,240,240,0.85)" : "rgba(0,0,0,0.85)",
-                                      textDecoration: item.completed ? "line-through" : "none",
-                                    }}
-                                  >
-                                    {item.text}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="h-8" />

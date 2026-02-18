@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Menu, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useTheme } from "./ThemeContext";
 import LandingPage from "./landing";
+import { EventDetailModal } from "@/components/events/EventDetailModal";
 
 /**
  * Brand green pulled to match your logo vibe (darker teal-green).
@@ -448,18 +448,17 @@ export default function Home() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Drawer state
+  // Event detail modal state
   const [selected, setSelected] = useState<EventRecord | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<"Overview" | "Files" | "Assignments" | "Notes">("Overview");
+  const [eventData, setEventData] = useState<any>(null);
+  const [loadingEventData, setLoadingEventData] = useState(false);
 
   // Quick chat (assistant input)
   const [quickChat, setQuickChat] = useState("");
   const quickChatRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Thoughts mini card
-  const [thoughtsOpen, setThoughtsOpen] = useState(false);
-  const [thoughtsText, setThoughtsText] = useState("");
 
   // Today overview modal
   const [todayOpen, setTodayOpen] = useState(false);
@@ -528,15 +527,30 @@ export default function Home() {
     if (ev.isFree) return;
     setSelected(ev);
     setDrawerOpen(true);
-    setDrawerTab("Overview");
-    setThoughtsOpen(true);
-    setThoughtsText("");
+
+    // Fetch full event data from API
+    setLoadingEventData(true);
+    fetch(`/api/events/${ev.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+          setEventData(data);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch event details:', err);
+      })
+      .finally(() => {
+        setLoadingEventData(false);
+      });
   }
 
   function closeDrawer() {
     setDrawerOpen(false);
-    setTimeout(() => setSelected(null), 200);
-    setThoughtsOpen(false);
+    setTimeout(() => {
+      setSelected(null);
+      setEventData(null);
+    }, 200);
   }
 
   // ESC closes drawer / adjust
@@ -555,20 +569,6 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerOpen, adjustOpen, addGoalOpen, goalsModalWindow, todayOpen]);
 
-  function setImportance(id: string, importance: 1 | 2 | 3 | 4 | 5) {
-    // Only demo days have data
-    const y = selectedDate.getFullYear();
-    const m = selectedDate.getMonth();
-    const d = selectedDate.getDate();
-
-    if (y === 2026 && m === 0 && d === 12) {
-      setTodayEvents((prev) => prev.map((e) => (e.id === id ? { ...e, importance } : e)));
-    }
-    if (y === 2026 && m === 0 && d === 13) {
-      setTomorrowEvents((prev) => prev.map((e) => (e.id === id ? { ...e, importance } : e)));
-    }
-    if (selected?.id === id) setSelected((s) => (s ? { ...s, importance } : s));
-  }
 
   function removeEvent(id: string) {
     const y = selectedDate.getFullYear();
@@ -749,278 +749,164 @@ export default function Home() {
             {/* ONLY render content when open (collapsed = icon only) */}
             {leftOpen ? (
               <>
-                <div
-  className="flex-1 overflow-y-auto px-3 py-4 space-y-4"
-  style={{
-    borderBottomRightRadius: leftOpen ? 24 : 999,
-  }}
->
-
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
                   {/* 1) AI Chat */}
-                  <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">Schedule assistant</div>
-                        <div className="text-[11px] text-neutral-500">quick</div>
-                      </div>
+                  <section>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>AI Assistant</div>
 
-                      <div className="mt-2 text-sm text-neutral-800 leading-relaxed">Conflicts, swaps, or rebalancing your day.</div>
-
-                      <div className="mt-3 rounded-2xl border px-3 py-3" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}>
-                        <textarea
-                          ref={quickChatRef}
-                          value={quickChat}
-                          onChange={(e) => setQuickChat(e.target.value)}
-                          placeholder='Example: "Move gym to 5pm and add 30min deep work after class."'
-                          rows={1}
-                          className="w-full resize-none bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400 leading-relaxed"
-                          style={{ height: 0 }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
+                    <div className="rounded-xl p-3" style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}>
+                      <textarea
+                        ref={quickChatRef}
+                        value={quickChat}
+                        onChange={(e) => setQuickChat(e.target.value)}
+                        placeholder='e.g., "Move gym to 5pm and add 30min deep work after class."'
+                        className="w-full text-sm outline-none resize-none placeholder:text-neutral-400"
+                        style={{
+                          background: "transparent",
+                          color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                          minHeight: "80px",
+                        }}
+                      />
+                      <div className="flex justify-end mt-2 pt-2" style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }}>
+                        <button
+                          className="rounded-lg px-3 py-1.5 text-xs font-semibold transition"
+                          style={{
+                            background: quickChat.trim() ? JYNX_GREEN : dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+                            color: quickChat.trim() ? "white" : dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)",
+                            cursor: quickChat.trim() ? "pointer" : "not-allowed",
+                          }}
+                          disabled={!quickChat.trim()}
+                          onClick={() => {
+                            if (quickChat.trim()) {
                               sendQuickChat();
                             }
                           }}
-                        />
-                        <div className="mt-2 flex items-center gap-2">
-                          <span className="text-[11px] text-neutral-500">Enter to send • Shift+Enter for new line</span>
-                          <button
-                            onClick={sendQuickChat}
-                            disabled={!quickChat.trim()}
-                            className={cx(
-                              "ml-auto rounded-xl px-3 py-1.5 text-xs font-semibold border transition",
-                              quickChat.trim()
-                                ? ""
-                                : "text-neutral-400 cursor-not-allowed"
-                            )}
-                            style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                          >
-                            Send
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex gap-2">
-                        <Link
-                          href="/chat"
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                         >
-                          Open Chat
-                        </Link>
-                        <button
-                          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                          onClick={() => setQuickChat("")}
-                        >
-                          Clear
+                          Send
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </section>
+
+                  <div style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }} />
 
                   {/* 2) Calendar */}
-                  <div>
-                    <div className="p-4 pb-1">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">{miniCal.monthLabel}</div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setMiniMonthOffset((v) => v - 1)}
-                            className="h-8 w-8 rounded-xl border transition"
-                            style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                            aria-label="Previous month"
-                          >
-                            ←
-                          </button>
-                          <button
-                            onClick={() => setMiniMonthOffset((v) => v + 1)}
-                            className="h-8 w-8 rounded-xl border transition"
-                            style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                            aria-label="Next month"
-                          >
-                            →
-                          </button>
-                        </div>
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>{miniCal.monthLabel}</div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setMiniMonthOffset((v) => v - 1)}
+                          className="h-7 w-7 rounded-lg transition flex items-center justify-center"
+                          style={{
+                            background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                            color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)"
+                          }}
+                          aria-label="Previous month"
+                        >
+                          ←
+                        </button>
+                        <button
+                          onClick={() => setMiniMonthOffset((v) => v + 1)}
+                          className="h-7 w-7 rounded-lg transition flex items-center justify-center"
+                          style={{
+                            background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                            color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)"
+                          }}
+                          aria-label="Next month"
+                        >
+                          →
+                        </button>
                       </div>
-
-                      <div className="mt-3 grid grid-cols-7 gap-1 text-[11px] text-neutral-500">
-                        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-                          <div key={`${d}-${i}`} className="text-center py-1">
-                            {d}
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="grid grid-cols-7 gap-1">
-                        {miniCal.cells.map((c, idx) => {
-                          const active = !!c.isActive;
-                          const isEmpty = !c.day;
-
-                          return (
-                            <button
-                              key={idx}
-                              onClick={() => (c.day ? setSelectedDayInDisplayedMonth(c.day) : null)}
-                              className={cx(
-                                "h-9 rounded-xl text-[12px] border transition",
-                                isEmpty ? "opacity-0 cursor-default" : "hover:bg-black/[0.03]",
-                                active ? "font-semibold" : "font-medium"
-                              )}
-                              style={{
-                                borderColor: active ? rgbaBrand(0.3) : dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
-                                background: active ? rgbaBrand(0.1) : dark ? "rgba(255,255,255,0.04)" : "white",
-                                color: isEmpty ? "transparent" : dark ? "rgba(240,240,240,0.84)" : "rgba(0,0,0,0.84)",
-                                boxShadow: active ? `0 0 0 1px ${rgbaBrand(0.1)}` : undefined,
-                              }}
-                              disabled={isEmpty}
-                              aria-label={c.day ? `Day ${c.day}` : "Empty"}
-                              title={c.day ? "Open this day" : ""}
-                            >
-                              {c.day ?? ""}
-                            </button>
-                          );
-                        })}
-                      </div>
-
                     </div>
-                  </div>
+
+                    <div className="grid grid-cols-7 gap-1 text-[11px] mb-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                      {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                        <div key={`${d}-${i}`} className="text-center py-1">
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-1">
+                      {miniCal.cells.map((c, idx) => {
+                        const active = !!c.isActive;
+                        const isEmpty = !c.day;
+
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => (c.day ? setSelectedDayInDisplayedMonth(c.day) : null)}
+                            className={cx(
+                              "h-9 rounded-lg text-[12px] transition",
+                              isEmpty ? "opacity-0 cursor-default" : "",
+                              active ? "font-semibold" : "font-medium"
+                            )}
+                            style={{
+                              background: active ? rgbaBrand(0.12) : dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                              border: active ? `1px solid ${rgbaBrand(0.3)}` : "none",
+                              color: isEmpty ? "transparent" : dark ? "rgba(240,240,240,0.84)" : "rgba(0,0,0,0.84)",
+                            }}
+                            disabled={isEmpty}
+                            aria-label={c.day ? `Day ${c.day}` : "Empty"}
+                            title={c.day ? "Open this day" : ""}
+                          >
+                            {c.day ?? ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <div style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }} />
 
                   {/* 3) Goals */}
-                  <div>
-                    <div className="px-4 pb-4 pt-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">Goals</div>
-                      </div>
+                  <section>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Goals</div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(["Week", "Month", "Year"] as const).map((window) => {
-                          const count = goals.filter((g) => g.timeWindow === window).length;
-                          return (
-                            <button
-                              key={window}
-                              onClick={() => setGoalsModalWindow(window)}
-                              className="rounded-full px-3 py-1.5 text-[11px] font-semibold border transition"
-                              style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                            >
-                              {window}
-                              {count > 0 && (
-                                <span
-                                  className="ml-1.5 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[9px] font-semibold"
-                                  style={{
-                                    background: rgbaBrand(0.12),
-                                    color: JYNX_GREEN,
-                                  }}
-                                >
-                                  {count}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="mt-3">
-                        <button
-                          onClick={() => setAddGoalOpen(true)}
-                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border transition text-left flex items-center gap-2"
-                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                        >
-                          <span className="text-neutral-500">+</span> Add goal
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 4) Reminders */}
-                  <div>
-                    <div className="px-4 pb-4 pt-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold">Reminders</div>
-                        <span
-                          className="inline-flex items-center justify-center h-7 px-2.5 rounded-full border text-[11px] font-semibold"
-                          style={{
-                            borderColor: "rgba(0,0,0,0.10)",
-                            background: "rgba(0,0,0,0.03)",
-                            color: "rgba(0,0,0,0.70)",
-                          }}
-                        >
-                          {reminders.filter((r) => !r.completed).length}
-                        </span>
-                      </div>
-
-                      <div className="mt-3 space-y-0.5">
-                        {reminders.map((r) => (
-                          <div key={r.id} className="flex items-center gap-3 py-1.5">
-                            <button
-                              onClick={() =>
-                                setReminders((prev) =>
-                                  prev.map((rem) => (rem.id === r.id ? { ...rem, completed: !rem.completed } : rem))
-                                )
-                              }
-                              className={cx(
-                                "h-5 w-5 rounded-full border flex items-center justify-center shrink-0 transition",
-                                r.completed ? "" : "hover:border-neutral-400"
-                              )}
-                              style={{
-                                borderColor: r.completed ? JYNX_GREEN : dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.22)",
-                                background: r.completed ? JYNX_GREEN : dark ? "rgba(255,255,255,0.04)" : "white",
-                              }}
-                              aria-label={r.completed ? "Mark incomplete" : "Mark complete"}
-                            >
-                              {r.completed && (
-                                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                                  <path d="M2 5L4.5 7.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              )}
-                            </button>
-                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                              <div
-                                className={cx(
-                                  "text-[13px] truncate transition",
-                                  r.completed ? "line-through text-neutral-400" : "text-neutral-800"
-                                )}
+                    <div className="flex flex-wrap gap-2">
+                      {(["Week", "Month", "Year"] as const).map((window) => {
+                        const count = goals.filter((g) => g.timeWindow === window).length;
+                        return (
+                          <button
+                            key={window}
+                            onClick={() => setGoalsModalWindow(window)}
+                            className="rounded-full px-3 py-1.5 text-[11px] font-semibold transition"
+                            style={{
+                              background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                              color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)"
+                            }}
+                          >
+                            {window}
+                            {count > 0 && (
+                              <span
+                                className="ml-1.5 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[9px] font-semibold"
+                                style={{
+                                  background: rgbaBrand(0.12),
+                                  color: JYNX_GREEN,
+                                }}
                               >
-                                {r.title}
-                              </div>
-                              <div
-                                className={cx(
-                                  "text-[11px] shrink-0 transition",
-                                  r.completed ? "text-neutral-300" : "text-neutral-400"
-                                )}
-                              >
-                                by {r.due}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-3">
-                        <button
-                          onClick={() => alert("UI shell")}
-                          className="w-full rounded-2xl px-3 py-2 text-xs font-semibold border transition text-left flex items-center gap-2"
-                          style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                        >
-                          <span className="text-neutral-500">+</span> Add reminder
-                        </button>
-                      </div>
+                                {count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </div>
 
-                </div>
-
-                {/* footer (open only) */}
-                    <div className="px-3 py-3">
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="flex-1 rounded-2xl px-3 py-2 text-xs font-semibold border transition text-center"
-                      style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                      onClick={() => setAdjustOpen(true)}
-                    >
-                      Adjust
-                    </button>
-                  </div>
+                    <div className="mt-2">
+                      <button
+                        onClick={() => setAddGoalOpen(true)}
+                        className="w-full rounded-lg px-3 py-2 text-xs font-semibold transition text-left flex items-center gap-2"
+                        style={{
+                          background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                          color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)"
+                        }}
+                      >
+                        <span>+</span> Add goal
+                      </button>
+                    </div>
+                  </section>
                 </div>
               </>
             ) : (
@@ -1352,193 +1238,26 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Drawer overlay */}
-        {drawerOpen && (
-          <button
-            className="fixed inset-0 bg-black/30 backdrop-blur-[1px] z-40"
-            onClick={closeDrawer}
-            aria-label="Close drawer"
+        {/* Event Detail Modal */}
+        {drawerOpen && selected && (
+          <EventDetailModal
+            event={{
+              id: selected.id,
+              type: selected.type,
+              title: selected.title,
+              meta: selected.meta,
+              time: selected.time,
+              endTime: selected.endTime,
+              location: selected.location,
+              tag: selected.tag,
+              assignments: eventData?.assignments || [],
+              workoutLogs: eventData?.workoutLogs || [],
+              files: eventData?.files || [],
+            }}
+            dark={dark}
+            onClose={closeDrawer}
           />
         )}
-
-        {/* Drawer */}
-        <div
-          className={cx(
-            "fixed top-0 right-0 h-full w-[420px] max-w-[92vw] z-50",
-            "border-l backdrop-blur",
-            "transition-transform duration-200",
-            drawerOpen ? "translate-x-0" : "translate-x-full"
-          )}
-          style={{
-            background: dark ? "rgba(26,26,26,0.92)" : "rgba(255,255,255,0.92)",
-            borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-            boxShadow: dark ? "-24px 0 80px rgba(0,0,0,0.40)" : "-24px 0 80px rgba(0,0,0,0.10)",
-          }}
-        >
-          <div className="h-full flex flex-col">
-            {/* Drawer header */}
-            <div className="px-5 py-4 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-              <div className="flex items-start gap-3">
-                <div
-                  className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-sm font-semibold"
-                  style={getSurfaceSoftStyle(dark)}
-                >
-                  {selected?.tag?.slice(0, 1) ?? "E"}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold truncate">{selected?.title ?? "Event"}</div>
-                  <div className="mt-1 text-xs text-neutral-500">
-                    {formatRange(selected?.time, selected?.endTime)}
-                    {selected?.location ? ` · ${selected.location}` : ""}
-                  </div>
-
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {selected?.tag && (
-                      <span
-                        className="inline-flex items-center justify-center h-7 px-3 rounded-full text-[11px] font-semibold tracking-wide border"
-                        style={getTagStyleLight(selected.tag)}
-                      >
-                        {selected.tag}
-                      </span>
-                    )}
-
-                    {/* Importance control */}
-                    {selected?.id && (
-                      <div
-                        className="flex items-center gap-2 rounded-full border bg-white px-3 py-1.5"
-                        style={getSurfaceSoftStyle(dark)}
-                      >
-                        <span className="text-[11px] text-neutral-500">Importance</span>
-                        <select
-                          value={getImportanceLabel(selected.importance)}
-                          onChange={(e) => {
-                            const tier = e.target.value as "Low" | "Medium" | "High";
-                            const mapped: 1 | 2 | 3 | 4 | 5 = tier === "High" ? 4 : tier === "Low" ? 2 : 3;
-                            setImportance(selected.id, mapped);
-                          }}
-                          className="bg-transparent text-[11px] text-neutral-800 outline-none"
-                        >
-                          <option value="High">High</option>
-                          <option value="Medium">Medium</option>
-                          <option value="Low">Low</option>
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={closeDrawer}
-                  className="rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
-                  style={getSurfaceSoftStyle(dark)}
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Tabs */}
-              <div className="mt-4 flex gap-2 flex-wrap">
-                {(["Overview", "Assignments", "Files", "Notes"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setDrawerTab(t)}
-                    className={cx(
-                      "rounded-full px-3 py-1.5 text-[11px] font-semibold border transition",
-                      drawerTab === t ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
-                    )}
-                    style={{
-                      borderColor: drawerTab === t ? rgbaBrand(0.22) : "rgba(0,0,0,0.08)",
-                      boxShadow: drawerTab === t ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
-                    }}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Drawer body */}
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-              {/* Thoughts mini card */}
-              {thoughtsOpen && (
-                <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Thoughts?</div>
-                      <button
-                        className="text-[11px] text-neutral-500 hover:text-neutral-800"
-                        onClick={() => setThoughtsOpen(false)}
-                      >
-                        hide
-                      </button>
-                    </div>
-                    <div className="mt-2 text-xs text-neutral-500">
-                      Quick note to yourself (or something you want the assistant to remember).
-                    </div>
-                    <textarea
-                      value={thoughtsText}
-                      onChange={(e) => setThoughtsText(e.target.value)}
-                      placeholder="e.g., Ask about CAPM intuition in office hours…"
-                      className="mt-3 w-full rounded-2xl border bg-white px-3 py-3 text-sm outline-none placeholder:text-neutral-400 resize-none"
-                      style={getSurfaceSoftStyle(dark)}
-                      rows={3}
-                    />
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-                        style={getSurfaceSoftStyle(dark)}
-                        onClick={() => alert("UI shell — would save note")}
-                        disabled={!thoughtsText.trim()}
-                      >
-                        Save
-                      </button>
-                      <button
-                        className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-                        style={getSurfaceSoftStyle(dark)}
-                        onClick={() => setThoughtsText("")}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <DrawerContentLight selected={selected} tab={drawerTab} />
-            </div>
-
-            {/* Drawer footer */}
-            <div className="px-5 py-4 border-t" style={{ background: dark ? "rgba(26,26,26,0.80)" : "rgba(255,255,255,0.80)", borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
-              <div className="flex gap-2">
-                <button
-                  className="rounded-2xl px-4 py-2 text-xs font-semibold border transition"
-                  style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                  onClick={() => alert("UI shell — Edit event")}
-                >
-                  Edit
-                </button>
-                {selected?.id && (
-                  <button
-                    className="rounded-2xl px-4 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                    style={getSurfaceSoftStyle(dark)}
-                    onClick={() => removeEvent(selected.id)}
-                  >
-                    Drop
-                  </button>
-                )}
-                <div className="ml-auto" />
-                <button
-                  className="rounded-2xl px-4 py-2 text-xs font-semibold border transition"
-                  style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
-                  onClick={closeDrawer}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes fadeScaleIn { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }`}</style>
 
@@ -2288,220 +2007,6 @@ function DaypartLineLight({ label, hint }: { label: string; hint?: string }) {
       <div className="text-[11px] tracking-widest text-neutral-500 font-semibold">{label}</div>
       <div className="h-px flex-1" style={{ background: "rgba(0,0,0,0.06)" }} />
       {hint ? <div className="text-[11px] text-neutral-500">{hint}</div> : null}
-    </div>
-  );
-}
-
-function DrawerContentLight({
-  selected,
-  tab,
-  dark = false,
-}: {
-  selected: EventRecord | null;
-  tab: "Overview" | "Files" | "Assignments" | "Notes";
-  dark?: boolean;
-}) {
-  if (!selected) return <div className="text-sm text-neutral-500">Select an event to view details.</div>;
-
-  const type = selected.type;
-  const classD = selected.details?.class;
-  const workD = selected.details?.work;
-  const healthD = selected.details?.health;
-
-  if (tab === "Overview") {
-    return (
-      <div className="space-y-4">
-        <PanelLight title="Overview" subtitle="high-level details">
-          <div className="text-sm text-neutral-800 leading-relaxed">{selected.meta}</div>
-
-          {type === "class" && classD && (
-            <div className="mt-4 space-y-2 text-sm">
-              <InfoRowLight label="Instructor" value={classD.instructor} />
-              <InfoRowLight label="Email" value={classD.email ?? "—"} />
-              <InfoRowLight label="Room" value={classD.room} />
-              <InfoRowLight label="Meets" value={classD.meetingPattern} />
-              <div className="mt-3 text-xs text-neutral-500">Summary</div>
-              <div className="text-sm text-neutral-800 leading-relaxed">{classD.shortSummary}</div>
-            </div>
-          )}
-
-          {type === "work" && workD && (
-            <div className="mt-4 space-y-2 text-sm">
-              <InfoRowLight label="Owner" value={workD.owner ?? "—"} />
-              <InfoRowLight label="Priority" value={workD.priority ?? "—"} />
-              {workD.deliverables?.length ? (
-                <>
-                  <div className="mt-3 text-xs text-neutral-500">Deliverables</div>
-                  <ul className="text-sm text-neutral-800 list-disc pl-5 space-y-1">
-                    {workD.deliverables.map((d) => (
-                      <li key={d}>{d}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-            </div>
-          )}
-
-          {type === "health" && healthD && (
-            <div className="mt-4 space-y-2 text-sm">
-              <InfoRowLight label="Duration" value={healthD.duration ?? "—"} />
-              {healthD.plan?.length ? (
-                <>
-                  <div className="mt-3 text-xs text-neutral-500">Plan</div>
-                  <ul className="text-sm text-neutral-800 list-disc pl-5 space-y-1">
-                    {healthD.plan.map((p) => (
-                      <li key={p}>{p}</li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-              {healthD.notes ? (
-                <>
-                  <div className="mt-3 text-xs text-neutral-500">Notes</div>
-                  <div className="text-sm text-neutral-800 leading-relaxed">{healthD.notes}</div>
-                </>
-              ) : null}
-            </div>
-          )}
-        </PanelLight>
-
-        {type === "class" && classD?.nextTopics?.length ? (
-          <PanelLight title="Next topics" subtitle="coming up">
-            <ul className="text-sm text-neutral-800 list-disc pl-5 space-y-1">
-              {classD.nextTopics.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          </PanelLight>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (tab === "Assignments") {
-    if (type === "class" && classD?.assignmentsDue?.length) {
-      return (
-        <PanelLight title="Assignments" subtitle="due soon">
-          <div className="space-y-2">
-            {classD.assignmentsDue.map((a) => (
-              <div key={a.title} className="rounded-2xl border px-3 py-3" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-neutral-900">{a.title}</div>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full border text-neutral-700" style={getSurfaceSoftStyle(dark)}>
-                    {a.points ?? "—"}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-neutral-500">Due: {a.due}</div>
-              </div>
-            ))}
-          </div>
-        </PanelLight>
-      );
-    }
-
-    return (
-      <PanelLight title="Assignments" subtitle="none found">
-        <div className="text-sm text-neutral-500">This event type doesn’t have assignments yet.</div>
-      </PanelLight>
-    );
-  }
-
-  if (tab === "Files") {
-    if (type === "class" && classD?.syllabusFiles?.length) {
-      return (
-        <PanelLight title="Files" subtitle="materials">
-          <div className="space-y-2">
-            {classD.syllabusFiles.map((f) => (
-              <Link
-                key={f.name}
-                href={f.href}
-                className="flex items-center justify-between rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition"
-                style={getSurfaceSoftStyle(dark)}
-              >
-                <div className="text-sm text-neutral-900">{f.name}</div>
-                <div className="text-xs text-neutral-500">open</div>
-              </Link>
-            ))}
-          </div>
-        </PanelLight>
-      );
-    }
-
-    if (type === "work" && workD?.links?.length) {
-      return (
-        <PanelLight title="Links" subtitle="resources">
-          <div className="space-y-2">
-            {workD.links.map((l) => (
-              <Link
-                key={l.name}
-                href={l.href}
-                className="flex items-center justify-between rounded-2xl border bg-white px-3 py-3 hover:bg-black/[0.03] transition"
-                style={getSurfaceSoftStyle(dark)}
-              >
-                <div className="text-sm text-neutral-900">{l.name}</div>
-                <div className="text-xs text-neutral-500">open</div>
-              </Link>
-            ))}
-          </div>
-        </PanelLight>
-      );
-    }
-
-    return (
-      <PanelLight title="Files" subtitle="not available yet">
-        <div className="text-sm text-neutral-500">Wire this to your Files tab later.</div>
-      </PanelLight>
-    );
-  }
-
-  return (
-    <PanelLight title="Notes" subtitle="freeform">
-      <textarea
-        className="w-full rounded-2xl border bg-white px-3 py-3 text-sm outline-none placeholder:text-neutral-400 resize-none"
-        style={getSurfaceSoftStyle(dark)}
-        rows={6}
-        placeholder="Add notes for this event…"
-        defaultValue=""
-      />
-      <div className="mt-3 flex gap-2">
-        <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-          style={getSurfaceSoftStyle(dark)}
-          onClick={() => alert("UI shell — save notes")}
-        >
-          Save
-        </button>
-        <button
-          className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-          style={getSurfaceSoftStyle(dark)}
-          onClick={() => alert("UI shell — clear notes")}
-        >
-          Clear
-        </button>
-      </div>
-    </PanelLight>
-  );
-}
-
-function PanelLight({ title, subtitle, children, dark = false }: { title: string; subtitle?: string; children: React.ReactNode; dark?: boolean }) {
-  return (
-    <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
-      <div className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{title}</div>
-          {subtitle ? <div className="text-[11px]" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>{subtitle}</div> : null}
-        </div>
-        <div className="mt-3">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function InfoRowLight({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className="text-sm text-neutral-800 text-right">{value}</div>
     </div>
   );
 }

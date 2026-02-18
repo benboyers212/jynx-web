@@ -270,103 +270,53 @@ export default function GroupsPage() {
   });
   const [chatDraft, setChatDraft] = useState("");
 
-  // My groups (stateful)
-  const [myGroups, setMyGroups] = useState<Group[]>([
-    {
-      id: "g1",
-      name: "F305 — Financial Management",
-      type: "Class hub",
-      visibility: "Verified",
-      category: "Study",
-      verified: true,
-      active: true,
-      memberCount: 186,
-      chatEnabled: false,
-      description: "Course hub: assignments + pacing insights (verified)",
-      expectations: "Weekly rhythm · ~3–6 hrs/week · Structured",
-      pinned: true,
-      unread: 0,
-      lastActivity: "1h ago",
-      lastActivityText: "New assignment posted: Problem Set 3",
-      classStats: {
-        avgTimePerWeek: "4.2 hrs",
-        exam1Avg: "7.1 hrs",
-        exam2Avg: "8.0 hrs",
-        difficulty: "Hard",
-      },
-      upcomingAssignments: [
-        { title: "HW 3 — Time Value of Money", due: "Thu 11:59 PM", estTime: "~45–60 min" },
-        { title: "Quiz — WACC Concepts", due: "Mon 9:00 AM", estTime: "~15 min" },
-      ],
-    },
-    {
-      id: "g2",
-      name: "F305 Study Group",
-      type: "Study group",
+  // My groups — fetched from API
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [myGroups, setMyGroups] = useState<Group[]>([]);
+
+  // Map API group type to UI GroupType
+  function apiTypeToUiType(t: string): GroupType {
+    if (t === "class") return "Class hub";
+    if (t === "project") return "Project";
+    return "Study group";
+  }
+
+  // Map API group → UI Group shape
+  function mapApiGroup(g: any): Group {
+    return {
+      id: g.id,
+      name: g.name,
+      type: apiTypeToUiType(g.type ?? "general"),
       visibility: "Private",
       category: "Study",
       active: true,
-      memberCount: 6,
+      memberCount: g.members?.length ?? 1,
       chatEnabled: true,
-      description: "Exam reviews, problem sets, weekly cadence",
-      expectations: "2–3x/week check-ins · ~30–60 min/session · Moderate",
-      pinned: false,
-      unread: 3,
-      lastActivity: "2h ago",
-      lastActivityText: "3 new messages in chat",
-      membersList: [
-        { id: "u1", name: "You" },
-        { id: "u2", name: "Dylan" },
-        { id: "u3", name: "Ava" },
-        { id: "u4", name: "Noah" },
-        { id: "u5", name: "Mia" },
-        { id: "u6", name: "Ryan" },
-      ],
-    },
-    {
-      id: "g3",
-      name: "Gym Accountability",
-      type: "Accountability",
-      visibility: "Private",
-      category: "Fitness",
-      active: true,
-      memberCount: 4,
-      chatEnabled: true,
-      description: "3x/week check-ins (no streak pressure)",
-      expectations: "3x/week check-ins · ~5 min/check-in · Loose",
+      description: g.description ?? "",
+      expectations: "",
       pinned: false,
       unread: 0,
-      lastActivity: "Yesterday",
-      lastActivityText: "Check-in reminder went out",
-      membersList: [
-        { id: "u1", name: "You" },
-        { id: "u2", name: "Dylan" },
-        { id: "u7", name: "Sam" },
-        { id: "u8", name: "Lena" },
-      ],
-    },
-    {
-      id: "g4",
-      name: "Deal Prep Sprint",
-      type: "Project",
-      visibility: "Private",
-      category: "Work",
-      active: false,
-      memberCount: 3,
-      chatEnabled: true,
-      description: "Light structure for interview + modeling reps",
-      expectations: "3 sessions/week · 45–60 min · Structured",
-      pinned: false,
-      unread: 1,
-      lastActivity: "3d ago",
-      lastActivityText: "Pinned: Technicals checklist updated",
-      membersList: [
-        { id: "u1", name: "You" },
-        { id: "u2", name: "Dylan" },
-        { id: "u9", name: "Chris" },
-      ],
-    },
-  ]);
+      lastActivity: "Recently",
+      lastActivityText: "",
+      membersList: (g.members ?? []).map((m: any) => ({
+        id: m.user?.id ?? m.userId,
+        name: m.user?.name ?? "Member",
+        email: m.user?.email,
+      })),
+    };
+  }
+
+  useEffect(() => {
+    fetch("/api/groups")
+      .then((r) => r.json())
+      .then((res) => {
+        const raw: any[] = res?.data ?? res ?? [];
+        setMyGroups(raw.map(mapApiGroup));
+      })
+      .catch(console.error)
+      .finally(() => setLoadingGroups(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Discover groups (separate list)
   const [discoverGroups] = useState<Group[]>([
@@ -547,52 +497,48 @@ export default function GroupsPage() {
     setMyGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, pinned: !g.pinned } : g)));
   }
 
-  function createGroupNow() {
+  async function createGroupNow() {
     const name = newName.trim();
     if (!name) {
       showToast("Add a group name");
       return;
     }
 
-    // Rules (MVP):
-    // - Private => chat enabled
-    // - Public/Verified => no chat in this UI shell
-    const visibility: GroupVisibility = newType === "Class hub" ? "Verified" : newVisibility;
-    const chatEnabled = visibility === "Private";
-    const newGroup: Group = {
-      id: `g_${Date.now()}_${uid()}`,
-      name,
-      type: newType,
-      visibility,
-      category: newCategory,
-      verified: visibility === "Verified",
-      active: true,
-      memberCount: 1,
-      chatEnabled,
-      description: newDesc.trim() || "No description yet",
-      expectations:
-        newType === "Accountability"
-          ? "3x/week check-ins · ~5 min/check-in · Loose"
-          : newType === "Project"
-          ? "2–3 sessions/week · 45–60 min · Structured"
-          : newType === "Class hub"
-          ? "Weekly rhythm · ~3–6 hrs/week · Structured"
-          : "2–3x/week check-ins · ~30–60 min/session · Moderate",
-      pinned: false,
-      unread: 0,
-      lastActivity: "Just now",
-      lastActivityText: "Created",
-      membersList: [{ id: "me", name: "You" }],
+    const typeMap: Record<GroupType, string> = {
+      "Class hub": "class",
+      "Project": "project",
+      "Study group": "social",
+      "Accountability": "social",
+      "Organization": "general",
     };
 
-    setMyGroups((prev) => [newGroup, ...prev]);
+    try {
+      const res = await fetch("/api/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          type: typeMap[newType] ?? "general",
+          description: newDesc.trim() || null,
+        }),
+      });
+      const body = await res.json();
+      const created = body?.data ?? body;
+      if (created?.id) {
+        setMyGroups((prev) => [mapApiGroup(created), ...prev]);
+        showToast("Group created");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to create group");
+    }
+
     setShowCreate(false);
     setNewName("");
     setNewDesc("");
     setNewCategory("Study");
     setNewType("Study group");
     setNewVisibility("Private");
-    showToast("Group created");
   }
 
   function sendChat() {
@@ -705,131 +651,108 @@ export default function GroupsPage() {
 
             {leftOpen ? (
               <>
-                <div className="flex-1 overflow-y-auto px-4 py-3">
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
                   {/* Inbox */}
-                  <button
-                    onClick={() => setShowInbox(true)}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-black/[0.04] transition"
-                  >
-                    <div
-                      className="h-8 w-8 rounded-xl flex items-center justify-center"
-                      style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" }}
-                    >
-                      <Bell size={17} />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <div className="text-sm font-semibold text-neutral-900">Inbox</div>
-                    </div>
-                    {inboxCount > 0 && (
-                      <span
-                        className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-bold text-white"
-                        style={{ background: "#1F8A5B" }}
-                      >
-                        {inboxCount}
-                      </span>
-                    )}
-                  </button>
+                  <section>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Inbox</div>
 
-                  {/* Divider */}
-                  <div
-                    className="my-2.5 mx-1"
-                    style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}
-                  />
+                    <button
+                      onClick={() => setShowInbox(true)}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition"
+                      style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}
+                    >
+                      <div
+                        className="h-8 w-8 rounded-lg flex items-center justify-center"
+                        style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)", color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}
+                      >
+                        <Bell size={17} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>Inbox</div>
+                      </div>
+                      {inboxCount > 0 && (
+                        <span
+                          className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full text-[11px] font-bold text-white"
+                          style={{ background: "#1F8A5B" }}
+                        >
+                          {inboxCount}
+                        </span>
+                      )}
+                    </button>
+                  </section>
+
+                  <div style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }} />
 
                   {/* Activity */}
-                  <div className="px-3 pb-1.5">
-                    <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Activity</div>
-                  </div>
-                  <div className="space-y-0.5">
-                    {activity.map((a) => (
-                      <button
-                        key={a.id}
-                        onClick={() => {
-                          const g = myGroups.find((x) => x.id === a.groupId);
-                          if (g) openGroupModal(g);
-                          else showToast("That group isn't in My groups");
-                        }}
-                        className="w-full flex items-start gap-2.5 px-3 py-2 rounded-xl hover:bg-black/[0.04] transition text-left"
-                      >
-                        <div
-                          className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
-                          style={{
-                            background: a.kind === "chat" ? "#1F8A5B" : a.kind === "update" ? "#E8943A" : "#6C6CFF",
-                          }}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[12px] font-semibold text-neutral-800 truncate">{a.groupName}</div>
-                          <div className="text-[11px] text-neutral-500 leading-relaxed truncate">{a.text}</div>
-                        </div>
-                        <div className="text-[10px] text-neutral-400 shrink-0 mt-0.5">{a.when}</div>
-                      </button>
-                    ))}
-                  </div>
+                  <section>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Activity</div>
 
-                  {/* Divider */}
-                  <div
-                    className="my-3 mx-1"
-                    style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}
-                  />
+                    <div className="space-y-1.5">
+                      {activity.map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={() => {
+                            const g = myGroups.find((x) => x.id === a.groupId);
+                            if (g) openGroupModal(g);
+                            else showToast("That group isn't in My groups");
+                          }}
+                          className="w-full flex items-start gap-2.5 px-3 py-2 rounded-xl transition text-left"
+                          style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}
+                        >
+                          <div
+                            className="mt-1.5 h-1.5 w-1.5 rounded-full shrink-0"
+                            style={{
+                              background: a.kind === "chat" ? "#1F8A5B" : a.kind === "update" ? "#E8943A" : "#6C6CFF",
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[12px] font-semibold truncate" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{a.groupName}</div>
+                            <div className="text-[11px] leading-relaxed truncate" style={{ color: dark ? "rgba(240,240,240,0.55)" : "rgba(0,0,0,0.55)" }}>{a.text}</div>
+                          </div>
+                          <div className="text-[10px] shrink-0 mt-0.5" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>{a.when}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <div style={{ borderTop: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}` }} />
 
                   {/* Upcoming events */}
-                  <div className="px-3 pb-1.5">
-                    <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">Upcoming events</div>
-                  </div>
-                  <div className="space-y-0.5">
-                    {upcomingEvents.map((ev) => (
-                      <button
-                        key={ev.id}
-                        onClick={() => setSelectedEvent(ev)}
-                        className="w-full flex items-start gap-2.5 px-3 py-2 rounded-xl hover:bg-black/[0.04] transition text-left"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <div className="text-[12px] font-semibold text-neutral-800 truncate">{ev.title}</div>
-                            <span
-                              className="inline-flex items-center justify-center h-3.5 px-1.5 rounded-full text-[9px] font-bold uppercase tracking-wide"
-                              style={{
-                                background: ev.required
-                                  ? (dark ? "rgba(31,138,91,0.18)" : "rgba(31,138,91,0.12)")
-                                  : (dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
-                                color: ev.required
-                                  ? "#1F8A5B"
-                                  : (dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.45)"),
-                              }}
-                            >
-                              {ev.required ? "Required" : "Optional"}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-neutral-500 mt-0.5">{ev.time} · {ev.duration}</div>
-                        </div>
-                        <ChevronRight size={14} className="text-neutral-400 mt-0.5 shrink-0" />
-                      </button>
-                    ))}
-                  </div>
+                  <section>
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Upcoming</div>
 
-                  {/* Bottom actions */}
-                  <div className="mt-4 px-2 flex gap-2">
-                    <button
-                      onClick={() => setShowCreate(true)}
-                      className="flex-1 text-center text-[11px] font-semibold py-1.5 rounded-lg"
-                      style={{
-                        background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
-                        color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.55)",
-                      }}
-                    >
-                      + Create
-                    </button>
-                    <button
-                      onClick={() => { setTab("Discover"); setShowFind(true); }}
-                      className="flex-1 text-center text-[11px] font-semibold py-1.5 rounded-lg"
-                      style={{
-                        background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
-                        color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.55)",
-                      }}
-                    >
-                      Find
-                    </button>
-                  </div>
+                    <div className="space-y-1.5">
+                      {upcomingEvents.map((ev) => (
+                        <button
+                          key={ev.id}
+                          onClick={() => setSelectedEvent(ev)}
+                          className="w-full flex items-start gap-2.5 px-3 py-2 rounded-xl transition text-left"
+                          style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)" }}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="text-[12px] font-semibold truncate" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>{ev.title}</div>
+                              <span
+                                className="inline-flex items-center justify-center h-3.5 px-1.5 rounded-full text-[9px] font-bold uppercase tracking-wide"
+                                style={{
+                                  background: ev.required
+                                    ? (dark ? "rgba(31,138,91,0.18)" : "rgba(31,138,91,0.12)")
+                                    : (dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
+                                  color: ev.required
+                                    ? "#1F8A5B"
+                                    : (dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.45)"),
+                                }}
+                              >
+                                {ev.required ? "Required" : "Optional"}
+                              </span>
+                            </div>
+                            <div className="text-[11px] mt-0.5" style={{ color: dark ? "rgba(240,240,240,0.55)" : "rgba(0,0,0,0.55)" }}>{ev.time} · {ev.duration}</div>
+                          </div>
+                          <ChevronRight size={14} className="shrink-0 mt-0.5" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }} />
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 </div>
               </>
             ) : (
@@ -935,6 +858,11 @@ export default function GroupsPage() {
 
               {/* Body */}
               <div className="mt-6 space-y-8">
+                {/* Loading state */}
+                {loadingGroups && tab === "My groups" && (
+                  <div className="text-sm" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>Loading groups…</div>
+                )}
+
                 {/* Pinned section (only in My groups) */}
                 {tab === "My groups" && pinned.length ? (
                   <section>

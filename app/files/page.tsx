@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 const OLIVE = "#556B2F";
 
@@ -131,75 +131,39 @@ export default function FilesPage() {
     []
   );
 
-  const [files, setFiles] = useState<FileItem[]>(() => {
-    const now = Date.now();
-    return [
-      {
-        id: "f1",
-        name: "F303 Practice Exam 2.pdf",
-        type: "pdf",
-        category: "School",
-        context: { kind: "personal" },
-        createdAt: now - 35 * 60 * 1000,
-        sizeLabel: "1.8 MB",
-        pinned: true,
-      },
-      {
-        id: "f2",
-        name: "Pitch Deck v4 (internal).pptx",
-        type: "other",
-        category: "Work",
-        context: {
-          kind: "group",
-          groupId: "g2",
-          groupName: "Startup Team — Jynx",
-        },
-        createdAt: now - 4 * 60 * 60 * 1000,
-        sizeLabel: "6.2 MB",
-      },
-      {
-        id: "f3",
-        name: "Gym split notes.txt",
-        type: "doc",
-        category: "Fitness",
-        context: { kind: "personal" },
-        createdAt: now - 22 * 60 * 60 * 1000,
-        sizeLabel: "4 KB",
-      },
-      {
-        id: "f4",
-        name: "Apartment chore list.jpg",
-        type: "image",
-        category: "Life",
-        context: {
-          kind: "group",
-          groupId: "g3",
-          groupName: "Roommates — Spring",
-        },
-        createdAt: now - 3 * 24 * 60 * 60 * 1000,
-        sizeLabel: "2.4 MB",
-      },
-      {
-        id: "f5",
-        name: "Meeting audio — Dylan.m4a",
-        type: "audio",
-        category: "Work",
-        context: { kind: "personal" },
-        createdAt: now - 2 * 24 * 60 * 60 * 1000,
-        sizeLabel: "18.6 MB",
-      },
-      {
-        id: "f6",
-        name: "Useful article — scheduling psychology",
-        type: "link",
-        category: "Work",
-        context: { kind: "personal" },
-        createdAt: now - 5 * 24 * 60 * 60 * 1000,
-        sizeLabel: "Link",
-        url: "https://example.com",
-      },
-    ];
-  });
+  const [files, setFiles] = useState<FileItem[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(true);
+
+  // Map API File → UI FileItem
+  function mapApiFile(f: any): FileItem {
+    const ctx: FileContext = f.groupId
+      ? { kind: "group", groupId: f.groupId, groupName: f.group?.name ?? "Group" }
+      : { kind: "personal" };
+    return {
+      id: f.id,
+      name: f.name,
+      type: inferType(f.name) as FileType,
+      category: (f.category as FileCategory) ?? "Other",
+      context: ctx,
+      createdAt: new Date(f.createdAt).getTime(),
+      sizeLabel: f.size ? prettySize(f.size) : f.type === "note" ? "Note" : "—",
+      pinned: f.pinned ?? false,
+      notes: f.notes ?? undefined,
+      url: f.url ?? undefined,
+    };
+  }
+
+  useEffect(() => {
+    fetch("/api/files")
+      .then((r) => r.json())
+      .then((res) => {
+        const raw: any[] = res?.data ?? res ?? [];
+        setFiles(raw.map(mapApiFile));
+      })
+      .catch(console.error)
+      .finally(() => setLoadingFiles(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // UI states
   const [query, setQuery] = useState("");
@@ -337,27 +301,36 @@ export default function FilesPage() {
     setPendingFiles([]);
   }
 
-  function addLinkNow() {
+  async function addLinkNow() {
     const url = uLinkUrl.trim();
     if (!url) return;
 
-    const now = Date.now();
     const ctx = buildContext();
+    const name = (uLinkName.trim() || url).slice(0, 120);
 
-    const item: FileItem = {
-      id: uid(),
-      name: (uLinkName.trim() || url).slice(0, 120),
-      type: "link",
-      category: uCategory,
-      context: ctx,
-      createdAt: now,
-      sizeLabel: "Link",
-      pinned: uPinned,
-      notes: uNotes.trim() ? uNotes.trim() : undefined,
-      url,
-    };
+    try {
+      const res = await fetch("/api/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          type: "link",
+          url,
+          category: uCategory,
+          pinned: uPinned,
+          notes: uNotes.trim() || null,
+          groupId: ctx.kind === "group" ? ctx.groupId : null,
+        }),
+      });
+      const body = await res.json();
+      const created = body?.data ?? body;
+      if (created?.id) {
+        setFiles((prev) => [mapApiFile(created), ...prev]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
 
-    setFiles((prev) => [item, ...prev]);
     setUploadOpen(false);
     setAddingLink(false);
     setULinkUrl("");
@@ -366,11 +339,20 @@ export default function FilesPage() {
   }
 
   function togglePin(id: string) {
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, pinned: !f.pinned } : f)));
+    const current = files.find((f) => f.id === id)?.pinned ?? false;
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, pinned: !current } : f)));
+    fetch(`/api/files/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned: !current }),
+    }).catch(() => {
+      setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, pinned: current } : f)));
+    });
   }
 
   function deleteFile(id: string) {
     setFiles((prev) => prev.filter((f) => f.id !== id));
+    fetch(`/api/files/${id}`, { method: "DELETE" }).catch(console.error);
   }
 
   function openFileUI(f: FileItem) {
@@ -526,7 +508,11 @@ export default function FilesPage() {
                   </div>
 
                   <div className="p-4">
-                    {filtered.length === 0 ? (
+                    {loadingFiles ? (
+                      <div className={cx(panelInner, "px-3 py-4")} style={surfaceSoftStyle}>
+                        <div className="text-sm text-neutral-500">Loading files…</div>
+                      </div>
+                    ) : filtered.length === 0 ? (
                       <div className={cx(panelInner, "px-3 py-4")} style={surfaceSoftStyle}>
                         <div className="text-sm text-neutral-700">No matches. Try clearing filters.</div>
                       </div>
