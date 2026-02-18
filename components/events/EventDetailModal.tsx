@@ -47,6 +47,7 @@ type EventDetailModalProps = {
   event: EventData;
   dark?: boolean;
   onClose: () => void;
+  onDrop?: () => void;
 };
 
 const BRAND_RGB = { r: 31, g: 138, b: 91 };
@@ -82,7 +83,7 @@ function getEventTypeColor(type: EventType): string {
   return colors[type] || rgbaBrand(0.12);
 }
 
-export function EventDetailModal({ event, dark = false, onClose }: EventDetailModalProps) {
+export function EventDetailModal({ event, dark = false, onClose, onDrop }: EventDetailModalProps) {
   const adjustW = "min(840px, calc(100vw - 48px))";
   const adjustH = "min(680px, calc(100vh - 48px))";
 
@@ -147,17 +148,32 @@ export function EventDetailModal({ event, dark = false, onClose }: EventDetailMo
                 </div>
               </div>
 
-              <button
-                onClick={onClose}
-                className="rounded-xl px-2 py-1 text-xs border transition shrink-0"
-                style={{
-                  borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
-                  background: dark ? "rgba(255,255,255,0.04)" : "white",
-                  color: dark ? "rgba(240,240,240,0.85)" : "rgba(0,0,0,0.85)",
-                }}
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {onDrop && (
+                  <button
+                    onClick={onDrop}
+                    className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
+                    style={{
+                      borderColor: "rgba(220,38,38,0.25)",
+                      background: "rgba(220,38,38,0.07)",
+                      color: dark ? "rgba(252,165,165,0.90)" : "rgba(185,28,28,0.90)",
+                    }}
+                  >
+                    Drop
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="rounded-xl px-2 py-1 text-xs border transition"
+                  style={{
+                    borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+                    background: dark ? "rgba(255,255,255,0.04)" : "white",
+                    color: dark ? "rgba(240,240,240,0.85)" : "rgba(0,0,0,0.85)",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           </div>
 

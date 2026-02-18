@@ -63,6 +63,7 @@ type BaseEvent = {
 
   // internal only
   isFree?: boolean;
+  _startAt?: string; // ISO string, used for date filtering
 };
 
 type ClassDetails = {
@@ -198,6 +199,54 @@ function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
+// Format a Date to "9:30 AM" string (local time)
+function formatTime(d: Date): string {
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  if (h > 12) h -= 12;
+  if (h === 0) h = 12;
+  return `${h}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
+
+// Parse "3:30 PM" + "2026-01-12" → Date (local time)
+function timeStringToDate(time: string, dateStr: string): Date {
+  const m = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  const base = new Date(dateStr + "T00:00:00");
+  if (!m) return base;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const ap = m[3].toUpperCase();
+  if (ap === "PM" && h !== 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  base.setHours(h, min, 0, 0);
+  return base;
+}
+
+// Convert API ScheduleBlock to EventRecord
+function mapApiEvent(e: any): EventRecord {
+  const startDate = new Date(e.startAt);
+  const endDate = new Date(e.endAt);
+  const type = (e.eventType ?? "work") as EventType;
+  const tagMap: Record<EventType, string> = {
+    class: "Class", work: "Work", health: "Health",
+    prep: "Prep", study: "Study", life: "Life", free: "Flexible",
+  };
+  return {
+    id: e.id,
+    type,
+    tag: tagMap[type] ?? "Work",
+    title: e.title,
+    meta: e.description ?? "",
+    time: formatTime(startDate),
+    endTime: formatTime(endDate),
+    location: e.location ?? undefined,
+    completed: false,
+    importance: 3,
+    _startAt: e.startAt,
+  };
+}
+
 type ViewSpan = "Day" | "Week";
 type ViewFormat = "Timeline" | "List";
 
@@ -214,143 +263,21 @@ export default function Home() {
   const { dark } = useTheme();
 
   // ---------------------------
-  // Demo schedule data (UI shell)
+  // Events — fetched from API
   // ---------------------------
-  const [todayEvents, setTodayEvents] = useState<EventRecord[]>([
-    {
-      id: "e1",
-      type: "class",
-      tag: "Class",
-      time: "9:30 AM",
-      endTime: "10:45 AM",
-      title: "F305 — Intermediate Investments",
-      meta: "Hodge Hall 2056 · Exam 1 review",
-      location: "Hodge Hall 2056",
-      completed: false,
-      importance: 4,
-      details: {
-        class: {
-          courseCode: "F305",
-          instructor: "Prof. Kim",
-          email: "kim@iu.edu",
-          room: "Hodge Hall 2056",
-          meetingPattern: "Tue/Thu · 9:30–10:45 AM",
-          shortSummary:
-            "Covers portfolio theory, CAPM, risk/return, fixed income basics, and practical investment decision-making.",
-          syllabusFiles: [
-            { name: "F305 Syllabus (PDF)", href: "/files" },
-            { name: "Exam 1 Review Sheet", href: "/files" },
-          ],
-          assignmentsDue: [
-            { title: "Problem Set 3", due: "Before next class", points: "10 pts" },
-            { title: "Reading: Ch. 7", due: "Tonight", points: "—" },
-          ],
-          nextTopics: ["CAPM intuition", "Efficient frontier", "Beta estimation"],
-        },
-      },
-    },
-    {
-      id: "e2",
-      type: "work",
-      tag: "Work",
-      time: "11:00 AM",
-      endTime: "12:30 PM",
-      title: "Deep Work — Problem Set",
-      meta: "Focus block · 90 min",
-      completed: false,
-      importance: 5,
-      details: {
-        work: {
-          owner: "You",
-          priority: "High",
-          deliverables: ["Finish PS3 Q1–Q8", "Check answers against formula sheet"],
-          links: [
-            { name: "Problem Set Doc", href: "/files" },
-            { name: "Formula Sheet", href: "/files" },
-          ],
-        },
-      },
-    },
-    {
-      id: "e3",
-      type: "health",
-      tag: "Health",
-      time: "2:00 PM",
-      endTime: "3:00 PM",
-      title: "Gym",
-      meta: "Chest + tris · 60 min",
-      completed: false,
-      importance: 3,
-      details: {
-        health: {
-          duration: "60 min",
-          plan: ["Incline chest press", "Cable fly", "Triceps pushdown", "Incline walk 10 min"],
-          notes: "Keep it crisp. Leave 1–2 reps in the tank on first sets.",
-        },
-      },
-    },
-    {
-      id: "e4",
-      type: "prep",
-      tag: "Prep",
-      time: "7:00 PM",
-      endTime: "7:25 PM",
-      title: "Prep — F305 reading",
-      meta: "Ch. 7 · 25 min",
-      completed: false,
-      importance: 2,
-    },
-  ]);
+  const [allEvents, setAllEvents] = useState<EventRecord[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
-  const [tomorrowEvents, setTomorrowEvents] = useState<EventRecord[]>([
-    {
-      id: "t1",
-      type: "class",
-      tag: "Class",
-      time: "10:00 AM",
-      endTime: "10:45 AM",
-      title: "F305 — Lecture",
-      meta: "Portfolio theory",
-      location: "Hodge Hall 2056",
-      completed: false,
-      importance: 3,
-      details: {
-        class: {
-          courseCode: "F305",
-          instructor: "Prof. Kim",
-          email: "kim@iu.edu",
-          room: "Hodge Hall 2056",
-          meetingPattern: "Tue/Thu · 9:30–10:45 AM",
-          shortSummary:
-            "Portfolio construction, diversification, efficient frontier, and how risk factors drive returns.",
-          syllabusFiles: [{ name: "F305 Syllabus (PDF)", href: "/files" }],
-          assignmentsDue: [{ title: "Reading: Ch. 7", due: "Before class", points: "—" }],
-        },
-      },
-    },
-    {
-      id: "t2",
-      type: "study",
-      tag: "Study",
-      time: "1:00 PM",
-      endTime: "2:00 PM",
-      title: "Study — F305",
-      meta: "Review notes · 60 min",
-      completed: false,
-      importance: 3,
-    },
-    {
-      id: "t3",
-      type: "life",
-      tag: "Life",
-      time: "6:30 PM",
-      endTime: "7:15 PM",
-      title: "Dinner + reset",
-      meta: "Light night · 45 min",
-      completed: false,
-      importance: 2,
-    },
-  ]);
+  useEffect(() => {
+    fetch("/api/events")
+      .then((r) => r.json())
+      .then((res) => {
+        const raw: any[] = res?.data ?? res ?? [];
+        setAllEvents(raw.map(mapApiEvent));
+      })
+      .catch(console.error)
+      .finally(() => setLoadingEvents(false));
+  }, []);
 
   // Reminders (UI shell)
   const [reminders, setReminders] = useState<Reminder[]>([
@@ -362,7 +289,7 @@ export default function Home() {
   // ---------------------------
   // Day selection (every day clickable)
   // ---------------------------
-  const seed = useMemo(() => new Date(2026, 0, 1), []); // Jan 2026 like your screenshot
+  const seed = useMemo(() => { const d = new Date(); d.setDate(1); return d; }, []);
   const [miniMonthOffset, setMiniMonthOffset] = useState(0);
 
   const displayMonthDate = useMemo(() => {
@@ -372,7 +299,7 @@ export default function Home() {
     return d;
   }, [seed, miniMonthOffset]);
 
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 0, 12)); // default demo day
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   function sameYMD(a: Date, b: Date) {
     return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -404,31 +331,16 @@ export default function Home() {
     };
   }, [selectedDate]);
 
-  // Which events for this day?
+  // Which events for the selected day?
   const activeEvents = useMemo(() => {
-    // Only demo data for Jan 12 + Jan 13 (blank for all other days)
-    const y = selectedDate.getFullYear();
-    const m = selectedDate.getMonth();
-    const d = selectedDate.getDate();
+    return allEvents
+      .filter((e) => e._startAt && sameYMD(new Date(e._startAt), selectedDate))
+      .sort((a, b) => timeSort(a.time) - timeSort(b.time));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allEvents, selectedDate]);
 
-    if (y === 2026 && m === 0 && d === 12) return todayEvents;
-    if (y === 2026 && m === 0 && d === 13) return tomorrowEvents;
-    return [] as EventRecord[];
-  }, [selectedDate, todayEvents, tomorrowEvents]);
-
-  // For toggleComplete, we only affect those two demo days
   function toggleComplete(id: string) {
-    const y = selectedDate.getFullYear();
-    const m = selectedDate.getMonth();
-    const d = selectedDate.getDate();
-    if (y === 2026 && m === 0 && d === 12) {
-      setTodayEvents((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
-      return;
-    }
-    if (y === 2026 && m === 0 && d === 13) {
-      setTomorrowEvents((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
-      return;
-    }
+    setAllEvents((prev) => prev.map((e) => (e.id === id ? { ...e, completed: !e.completed } : e)));
   }
 
   // ---------------------------
@@ -472,8 +384,75 @@ export default function Home() {
   const adjustW = "min(96vw, 1160px)";
   const adjustH = "min(86vh, 760px)";
 
-  // Add-event form (inside Adjust) — UI shell only
+  // Staged changes — committed only when Apply is pressed
+  type StagedAddition = { ev: EventRecord; date: string };
+  const [stagedAdditions, setStagedAdditions] = useState<StagedAddition[]>([]);
+  const [stagedRemovals, setStagedRemovals] = useState<string[]>([]);
+
+  // Reset staged state when Adjust opens; pre-fill date to selected day
+  useEffect(() => {
+    if (adjustOpen) {
+      setStagedAdditions([]);
+      setStagedRemovals([]);
+      const y = selectedDate.getFullYear();
+      const mo = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const d = String(selectedDate.getDate()).padStart(2, "0");
+      setAddForm((p) => ({ ...p, date: `${y}-${mo}-${d}` }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adjustOpen]);
+
+  async function applyAdjust() {
+    // Apply removals
+    const toRemove = new Set(stagedRemovals);
+    if (toRemove.size > 0) {
+      setAllEvents((prev) => prev.filter((e) => !toRemove.has(e.id)));
+      if (selected && toRemove.has(selected.id)) closeDrawer();
+      for (const id of toRemove) {
+        fetch(`/api/events/${id}`, { method: "DELETE" }).catch(console.error);
+      }
+    }
+
+    // Apply additions — POST each to the API
+    for (const { ev, date } of stagedAdditions) {
+      if (!ev.title.trim() || !date) continue;
+      const start = timeStringToDate(ev.time, date);
+      const end = timeStringToDate(ev.endTime ?? ev.time, date);
+      try {
+        const res = await fetch("/api/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: ev.title,
+            eventType: ev.type,
+            startAt: start.toISOString(),
+            endAt: end.toISOString(),
+            description: ev.meta && ev.meta !== "—" ? ev.meta : null,
+          }),
+        });
+        const body = await res.json();
+        if (body?.data) {
+          setAllEvents((prev) => [...prev, mapApiEvent(body.data)]);
+        }
+      } catch (err) {
+        console.error("Failed to create event:", err);
+      }
+    }
+
+    setStagedAdditions([]);
+    setStagedRemovals([]);
+    setAdjustOpen(false);
+  }
+
+  function closeAdjust() {
+    setStagedAdditions([]);
+    setStagedRemovals([]);
+    setAdjustOpen(false);
+  }
+
+  // Add-event form (inside Adjust)
   const [addForm, setAddForm] = useState<{
+    date: string;
     time: string;
     endTime: string;
     title: string;
@@ -482,8 +461,9 @@ export default function Home() {
     type: EventType;
     importance: 1 | 2 | 3 | 4 | 5;
   }>({
+    date: "2026-01-12",
     time: "3:30 PM",
-    endTime: "3:50 PM",
+    endTime: "4:00 PM",
     title: "",
     meta: "",
     tag: "Work",
@@ -560,7 +540,7 @@ export default function Home() {
         if (addGoalOpen) { setAddGoalOpen(false); return; }
         if (goalsModalWindow) { setGoalsModalWindow(null); return; }
         if (todayOpen) { setTodayOpen(false); return; }
-        if (adjustOpen) setAdjustOpen(false);
+        if (adjustOpen) { closeAdjust(); return; }
         if (drawerOpen) closeDrawer();
       }
     }
@@ -571,24 +551,13 @@ export default function Home() {
 
 
   function removeEvent(id: string) {
-    const y = selectedDate.getFullYear();
-    const m = selectedDate.getMonth();
-    const d = selectedDate.getDate();
-
-    if (y === 2026 && m === 0 && d === 12) setTodayEvents((prev) => prev.filter((e) => e.id !== id));
-    if (y === 2026 && m === 0 && d === 13) setTomorrowEvents((prev) => prev.filter((e) => e.id !== id));
+    setAllEvents((prev) => prev.filter((e) => e.id !== id));
     if (selected?.id === id) closeDrawer();
+    fetch(`/api/events/${id}`, { method: "DELETE" }).catch(console.error);
   }
 
-  function addEvent() {
+  function stageAddEvent() {
     if (!addForm.title.trim()) return;
-
-    // UI shell: only add to demo days
-    const y = selectedDate.getFullYear();
-    const m = selectedDate.getMonth();
-    const d = selectedDate.getDate();
-    if (!(y === 2026 && m === 0 && (d === 12 || d === 13))) return;
-
     const newEv: EventRecord = {
       id: uid(),
       type: addForm.type,
@@ -600,12 +569,7 @@ export default function Home() {
       completed: false,
       importance: addForm.importance,
     };
-
-    if (d === 12) {
-      setTodayEvents((prev) => [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time)));
-    } else {
-      setTomorrowEvents((prev) => [...prev, newEv].sort((a, b) => timeSort(a.time) - timeSort(b.time)));
-    }
+    setStagedAdditions((prev) => [...prev, { ev: newEv, date: addForm.date }]);
     setAddForm((p) => ({ ...p, title: "", meta: "" }));
   }
 
@@ -688,12 +652,7 @@ export default function Home() {
   }, [selectedDate]);
 
   function eventsForDate(d: Date) {
-    const y = d.getFullYear();
-    const m = d.getMonth();
-    const day = d.getDate();
-    if (y === 2026 && m === 0 && day === 12) return todayEvents;
-    if (y === 2026 && m === 0 && day === 13) return tomorrowEvents;
-    return [] as EventRecord[];
+    return allEvents.filter((e) => e._startAt && sameYMD(new Date(e._startAt), d));
   }
 
   function openDayFromWeek(d: Date) {
@@ -1009,7 +968,9 @@ export default function Home() {
                           </div>
 
                           <div className="mt-5">
-                            {activeBlocks.length ? (
+                            {loadingEvents ? (
+                              <div className="text-sm py-4" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>Loading…</div>
+                            ) : activeBlocks.length ? (
                               <TimelineWithDaypartsLight
                                 blocks={activeBlocks}
                                 olive={JYNX_GREEN}
@@ -1256,6 +1217,7 @@ export default function Home() {
             }}
             dark={dark}
             onClose={closeDrawer}
+            onDrop={() => { removeEvent(selected.id); closeDrawer(); }}
           />
         )}
 
@@ -1424,7 +1386,7 @@ export default function Home() {
             <button
               className="fixed inset-0 bg-black/35 backdrop-blur-[1px] z-[60]"
               style={{ animation: "fadeIn 180ms ease-out" }}
-              onClick={() => setAdjustOpen(false)}
+              onClick={closeAdjust}
               aria-label="Close adjust"
             />
             <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
@@ -1441,12 +1403,12 @@ export default function Home() {
               >
                 <div className="px-5 py-4 border-b flex items-center" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
                   <div>
-                    <div className="text-sm font-semibold">Adjust</div>
-                    <div className="text-xs text-neutral-500 mt-0.5">Focus protection and quick edits (UI shell).</div>
+                    <div className="text-sm font-semibold">Adjust schedule</div>
+                    <div className="text-xs text-neutral-500 mt-0.5">Add or drop events. Changes apply when you press Apply.</div>
                   </div>
                   <button
-                    onClick={() => setAdjustOpen(false)}
-                    className="ml-auto rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
+                    onClick={closeAdjust}
+                    className="ml-auto rounded-xl px-2 py-1 text-xs border hover:bg-black/[0.03] transition"
                     style={getSurfaceSoftStyle(dark)}
                   >
                     ✕
@@ -1456,7 +1418,7 @@ export default function Home() {
                 {/* scroll area */}
                 <div className="p-5 h-[calc(100%-56px-64px)] overflow-y-auto">
                   <div className="grid grid-cols-12 gap-4">
-                    {/* Controls */}
+                    {/* Left: preferences + drop */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
                       <div className="rounded-3xl border p-4 space-y-3" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <ToggleRowLight
@@ -1467,7 +1429,7 @@ export default function Home() {
                         />
                         <ToggleRowLight
                           label="Auto rebalance"
-                          desc="When you add/drop, the day gets re-packed."
+                          desc="When you add or drop events, the day gets re-packed."
                           value={autoRebalance}
                           onChange={setAutoRebalance}
                         />
@@ -1476,57 +1438,80 @@ export default function Home() {
                       {/* Drop an event */}
                       <div className="rounded-3xl border p-4" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <div className="text-sm font-semibold">Drop an event</div>
-                        <div className="text-xs text-neutral-500 mt-1">Quick remove (UI shell).</div>
                         <div className="mt-3 space-y-2 max-h-[260px] overflow-auto pr-1">
-                          {activeEvents.map((e) => (
-                            <div
-                              key={e.id}
-                              className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2"
-                              style={getSurfaceSoftStyle(dark)}
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs text-neutral-800 truncate">
-                                  {formatRange(e.time, e.endTime)} · {e.title}
-                                </div>
-                                <div className="text-[11px] text-neutral-500 truncate">{e.meta}</div>
-                              </div>
-                              <button
-                                onClick={() => removeEvent(e.id)}
-                                className="rounded-xl px-2 py-1 text-[11px] font-semibold border bg-white hover:bg-black/[0.03] transition"
-                                style={getSurfaceSoftStyle(dark)}
+                          {activeEvents.map((e) => {
+                            const isStaged = stagedRemovals.includes(e.id);
+                            return (
+                              <div
+                                key={e.id}
+                                className={cx("flex items-center gap-2 rounded-2xl border px-3 py-2 transition", isStaged ? "opacity-50" : "")}
+                                style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
                               >
-                                Drop
-                              </button>
-                            </div>
-                          ))}
-                          {!activeEvents.length ? <div className="text-xs text-neutral-500">No events on this day (yet).</div> : null}
+                                <div className="min-w-0 flex-1">
+                                  <div className={cx("text-xs truncate", isStaged ? "line-through text-neutral-400" : "text-neutral-800")}>
+                                    {formatRange(e.time, e.endTime)} · {e.title}
+                                  </div>
+                                  <div className="text-[11px] text-neutral-500 truncate">{e.meta}</div>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    if (isStaged) {
+                                      setStagedRemovals((prev) => prev.filter((id) => id !== e.id));
+                                    } else {
+                                      setStagedRemovals((prev) => [...prev, e.id]);
+                                    }
+                                  }}
+                                  className="rounded-xl px-2 py-1 text-[11px] font-semibold border transition shrink-0"
+                                  style={isStaged
+                                    ? { borderColor: rgbaBrand(0.22), background: rgbaBrand(0.08), color: dark ? "rgba(200,240,220,0.80)" : "rgba(25,100,60,0.80)" }
+                                    : { ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }
+                                  }
+                                >
+                                  {isStaged ? "Undo" : "Drop"}
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {!activeEvents.length && <div className="text-xs text-neutral-500">No events on this day.</div>}
                         </div>
                       </div>
                     </div>
 
-                    {/* Add / Info */}
+                    {/* Right: add */}
                     <div className="col-span-12 md:col-span-6 space-y-4">
                       <div className="rounded-3xl border p-4" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                         <div className="text-sm font-semibold">Add an event</div>
-                        <div className="text-xs text-neutral-500 mt-1">UI shell: only adds to demo days (Jan 12–13).</div>
 
                         <div className="mt-3 grid grid-cols-12 gap-2">
+                          <div className="col-span-12">
+                            <Label>Date</Label>
+                            <input
+                              type="date"
+                              value={addForm.date}
+                              onChange={(e) => setAddForm((p) => ({ ...p, date: e.target.value }))}
+                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              style={getSurfaceSoftStyle(dark)}
+                            />
+                          </div>
+
                           <div className="col-span-6">
-                            <Label>Start</Label>
+                            <Label>Start time</Label>
                             <input
                               value={addForm.time}
                               onChange={(e) => setAddForm((p) => ({ ...p, time: e.target.value }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
+                              placeholder="e.g., 3:30 PM"
                             />
                           </div>
                           <div className="col-span-6">
-                            <Label>End</Label>
+                            <Label>End time</Label>
                             <input
                               value={addForm.endTime}
                               onChange={(e) => setAddForm((p) => ({ ...p, endTime: e.target.value }))}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
+                              placeholder="e.g., 4:00 PM"
                             />
                           </div>
 
@@ -1542,7 +1527,7 @@ export default function Home() {
                           </div>
 
                           <div className="col-span-12">
-                            <Label>Meta</Label>
+                            <Label>Notes</Label>
                             <input
                               value={addForm.meta}
                               onChange={(e) => setAddForm((p) => ({ ...p, meta: e.target.value }))}
@@ -1552,42 +1537,29 @@ export default function Home() {
                             />
                           </div>
 
-                          <div className="col-span-6">
-                            <Label>Type</Label>
+                          <div className="col-span-12">
+                            <Label>Category</Label>
                             <select
                               value={addForm.type}
-                              onChange={(e) => setAddForm((p) => ({ ...p, type: e.target.value as EventType }))}
+                              onChange={(e) => {
+                                const t = e.target.value as EventType;
+                                const tagMap: Record<EventType, string> = { class: "Class", work: "Work", health: "Health", prep: "Prep", study: "Study", life: "Life", free: "Flexible" };
+                                setAddForm((p) => ({ ...p, type: t, tag: tagMap[t] ?? "Work" }));
+                              }}
                               className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
                             >
-                              <option value="class">class</option>
-                              <option value="work">work</option>
-                              <option value="health">health</option>
-                              <option value="prep">prep</option>
-                              <option value="study">study</option>
-                              <option value="life">life</option>
-                            </select>
-                          </div>
-
-                          <div className="col-span-6">
-                            <Label>Tag</Label>
-                            <select
-                              value={addForm.tag}
-                              onChange={(e) => setAddForm((p) => ({ ...p, tag: e.target.value as any }))}
-                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                              style={getSurfaceSoftStyle(dark)}
-                            >
-                              <option>Class</option>
-                              <option>Work</option>
-                              <option>Health</option>
-                              <option>Prep</option>
-                              <option>Study</option>
-                              <option>Life</option>
+                              <option value="class">Class</option>
+                              <option value="work">Work</option>
+                              <option value="health">Health</option>
+                              <option value="prep">Prep</option>
+                              <option value="study">Study</option>
+                              <option value="life">Life</option>
                             </select>
                           </div>
 
                           <div className="col-span-12">
-                            <Label>Importance</Label>
+                            <Label>Priority</Label>
                             <div className="mt-1 flex items-center gap-3">
                               <input
                                 type="range"
@@ -1603,69 +1575,89 @@ export default function Home() {
                                 className="flex-1"
                                 style={{ accentColor: JYNX_GREEN }}
                               />
-                              <span className="text-sm text-neutral-800 w-16 text-right">{getImportanceLabel(addForm.importance)}</span>
+                              <span className="text-sm w-16 text-right" style={{ color: dark ? "rgba(240,240,240,0.80)" : "rgba(0,0,0,0.70)" }}>{getImportanceLabel(addForm.importance)}</span>
                             </div>
                           </div>
                         </div>
 
                         <div className="mt-4 flex gap-2">
                           <button
-                            onClick={addEvent}
+                            onClick={stageAddEvent}
                             disabled={!addForm.title.trim()}
                             className={cx(
                               "rounded-2xl px-3 py-2 text-xs font-semibold border transition",
-                              addForm.title.trim() ? "bg-white hover:bg-black/[0.03]" : "bg-white text-neutral-400 cursor-not-allowed"
+                              addForm.title.trim() ? "hover:bg-black/[0.03]" : "text-neutral-400 cursor-not-allowed"
                             )}
                             style={getSurfaceSoftStyle(dark)}
                           >
-                            Add
+                            Queue
                           </button>
                           <button
                             onClick={() => setAddForm((p) => ({ ...p, title: "", meta: "" }))}
-                            className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                            className="rounded-2xl px-3 py-2 text-xs font-semibold border transition hover:bg-black/[0.03]"
                             style={getSurfaceSoftStyle(dark)}
                           >
                             Clear
                           </button>
                         </div>
-                      </div>
 
-                      <div className="rounded-3xl border p-4" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
-                        <div className="text-sm font-semibold">What this is (for now)</div>
-                        <div className="mt-2 text-sm text-neutral-800 leading-relaxed">
-                          This “Adjust” panel is the control center. Later it becomes the place where Jynx actually rebalances your day.
-                        </div>
-                        <div className="mt-3 text-xs text-neutral-500">
-                          UI shell: protectFocus={String(protectFocus)} · autoRebalance={String(autoRebalance)}
-                        </div>
+                        {/* Pending additions */}
+                        {stagedAdditions.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(0,0,0,0.40)" }}>Queued to add</div>
+                            {stagedAdditions.map((sa, i) => (
+                              <div key={sa.ev.id} className="flex items-center gap-2 rounded-2xl border px-3 py-2" style={{ ...getSurfaceSoftStyle(dark), background: rgbaBrand(0.05), borderColor: rgbaBrand(0.18) }}>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs truncate" style={{ color: dark ? "rgba(200,240,220,0.90)" : "rgba(20,80,50,0.90)" }}>
+                                    {sa.date} · {sa.ev.time}–{sa.ev.endTime} · {sa.ev.title}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setStagedAdditions((prev) => prev.filter((_, j) => j !== i))}
+                                  className="text-[11px] transition shrink-0"
+                                  style={{ color: "rgba(0,0,0,0.40)" }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div
-                  className="px-5 py-4 border-t flex items-center justify-end gap-2"
-                  style={{ borderColor: "rgba(0,0,0,0.08)" }}
+                  className="px-5 py-4 border-t flex items-center justify-between"
+                  style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}
                 >
-                  <button
-                    onClick={() => setAdjustOpen(false)}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-                    style={getSurfaceSoftStyle(dark)}
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={() => alert("UI shell — would apply rebalance")}
-                    className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
-                    style={{
-                      ...getSurfaceSoftStyle(dark),
-                      background: dark ? "var(--surface)" : "white",
-                      borderColor: rgbaBrand(0.22),
-                      boxShadow: `0 0 0 1px ${rgbaBrand(0.08)}`,
-                    }}
-                  >
-                    Apply
-                  </button>
+                  <div className="text-xs" style={{ color: "rgba(0,0,0,0.40)" }}>
+                    {stagedRemovals.length > 0 || stagedAdditions.length > 0
+                      ? `${stagedAdditions.length} to add · ${stagedRemovals.length} to drop`
+                      : "No pending changes"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={closeAdjust}
+                      className="rounded-2xl px-3 py-2 text-xs font-semibold border transition hover:bg-black/[0.03]"
+                      style={getSurfaceSoftStyle(dark)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={applyAdjust}
+                      className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
+                      style={{
+                        background: JYNX_GREEN,
+                        borderColor: "transparent",
+                        color: "white",
+                        opacity: stagedAdditions.length === 0 && stagedRemovals.length === 0 ? 0.5 : 1,
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2306,15 +2298,14 @@ function ListRow({
 function BlankDayCard({ dark = false }: { dark?: boolean }) {
   return (
     <div className="rounded-3xl border p-6" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "var(--surface)" : "white" }}>
-      <div className="text-sm font-semibold text-neutral-900">No events yet</div>
+      <div className="text-sm font-semibold text-neutral-900">No events</div>
       <div className="mt-1 text-sm text-neutral-600 leading-relaxed">
-        This day is blank right now. Later this will populate from your real schedule data.
+        Nothing scheduled for this day. Use Adjust to add events.
       </div>
       <div className="mt-4 flex gap-2">
         <button
           className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
           style={getSurfaceSoftStyle(dark)}
-          onClick={() => alert("UI shell — add event")}
         >
           Add event
         </button>
