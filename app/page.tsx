@@ -263,6 +263,23 @@ export default function Home() {
   const { dark } = useTheme();
   const router = useRouter();
 
+  // Onboarding gate
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data?.dbUser?.onboardingCompleted) {
+          router.replace("/onboarding");
+        } else {
+          setOnboardingChecked(true);
+        }
+      })
+      .catch(() => setOnboardingChecked(true));
+  }, [isLoaded, isSignedIn, router]);
+
   // ---------------------------
   // Events — fetched from API
   // ---------------------------
@@ -683,7 +700,39 @@ export default function Home() {
     setViewSpan("Day");
   }
 
+  // Quick Add — detect recurring patterns from event history (2+ same title on same weekday)
+  const quickAddSuggestions = useMemo(() => {
+    type Entry = { title: string; type: EventType; dayOfWeek: number; times: string[]; count: number };
+    const map = new Map<string, Entry>();
+
+    for (const e of allEvents) {
+      if (!e._startAt) continue;
+      const dow = new Date(e._startAt).getDay();
+      const key = `${e.title.trim().toLowerCase()}|${dow}`;
+      if (!map.has(key)) map.set(key, { title: e.title, type: e.type, dayOfWeek: dow, times: [], count: 0 });
+      const entry = map.get(key)!;
+      entry.count++;
+      if (e.time) entry.times.push(e.time);
+    }
+
+    return Array.from(map.values())
+      .filter((p) => p.count >= 2)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [allEvents]);
+
+  function nextDateForDow(dow: number): string {
+    const today = new Date();
+    const diff = ((dow - today.getDay()) + 7) % 7 || 7;
+    const next = new Date(today);
+    next.setDate(today.getDate() + diff);
+    return next.toISOString().slice(0, 10);
+  }
+
+  const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
   if (!isLoaded || !isSignedIn) return <LandingPage />;
+  if (isSignedIn && !onboardingChecked) return null;
 
   return (
     <main className="h-screen overflow-hidden" style={{ background: dark ? "var(--background)" : "#f8f9fa", color: dark ? "var(--foreground)" : "rgba(0,0,0,0.95)" }}>
@@ -1497,6 +1546,50 @@ export default function Home() {
                           })}
                           {!activeEvents.length && <div className="text-xs text-neutral-500">No events on this day.</div>}
                         </div>
+                      </div>
+                      {/* Quick Add */}
+                      <div className="rounded-3xl border p-4" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold">Quick Add</div>
+                          {quickAddSuggestions.length > 0 && (
+                            <div className="text-[11px]" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.35)" }}>
+                              Learned from your schedule
+                            </div>
+                          )}
+                        </div>
+
+                        {quickAddSuggestions.length === 0 ? (
+                          <div className="mt-3 rounded-2xl border px-3 py-3" style={getSurfaceSoftStyle(dark)}>
+                            <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.45)" }}>
+                              Jynx is learning your patterns. As you add events, recurring ones will appear here for one-tap scheduling.
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {quickAddSuggestions.map((s) => (
+                              <button
+                                key={`${s.title}|${s.dayOfWeek}`}
+                                onClick={() => setAddForm((p) => ({
+                                  ...p,
+                                  title: s.title,
+                                  type: s.type,
+                                  tag: s.title,
+                                  date: nextDateForDow(s.dayOfWeek),
+                                  time: s.times[0] ?? p.time,
+                                }))}
+                                className="rounded-2xl border px-3 py-2 text-left transition hover:opacity-80"
+                                style={getSurfaceSoftStyle(dark)}
+                              >
+                                <div className="text-xs font-semibold" style={{ color: dark ? "rgba(240,240,240,0.88)" : "rgba(17,17,17,0.88)" }}>
+                                  {s.title}
+                                </div>
+                                <div className="text-[11px] mt-0.5" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>
+                                  {DOW_LABELS[s.dayOfWeek]}s{s.times[0] ? ` · ${s.times[0]}` : ""} · {s.count}×
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 

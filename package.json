@@ -10,6 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.77.0",
     "@clerk/nextjs": "^6.36.5",
     "@prisma/client": "^6.19.1",
     "lucide-react": "^0.562.0",

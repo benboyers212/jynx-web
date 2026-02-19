@@ -11,6 +11,7 @@ type Message = {
   role: Role;
   content: string;
   createdAt: number;
+  isStreaming?: boolean;
 };
 
 type Thread = {
@@ -82,6 +83,7 @@ export default function ChatPage() {
 
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Files (composer)
@@ -270,29 +272,10 @@ export default function ChatPage() {
     setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function appendMessageToDB(role: Role, content: string) {
-    if (!activeThreadId) {
-      const created = await apiPost<{ ok: true; conversation: Thread }>("/api/conversations", {
-        title: null,
-      });
-      const t = created.conversation;
-      setThreads((prev) => [t, ...prev]);
-      setActiveThreadId(t.id);
-      return apiPost<{ ok: true; message: Message }>(`/api/conversations/${t.id}`, {
-        role,
-        content,
-      });
-    }
-
-    return apiPost<{ ok: true; message: Message }>(`/api/conversations/${activeThreadId}`, {
-      role,
-      content,
-    });
-  }
-
   async function onSend() {
     const text = input.trim();
     if (!text && attachedFiles.length === 0) return;
+    if (streaming) return;
 
     setError(null);
 
@@ -302,43 +285,131 @@ export default function ChatPage() {
         : "";
 
     const userContent = (text || "(sent files)") + filesLine;
+    const tempUserId = `temp_${uid()}`;
+    const tempAssistantId = `streaming_${uid()}`;
 
-    const tempUser: Message = {
-      id: `temp_${uid()}`,
-      role: "user",
-      content: userContent,
-      createdAt: Date.now(),
-    };
-    setMessages((prev) => [...prev, tempUser]);
+    // Optimistic: show user message + empty streaming assistant message immediately
+    setMessages((prev) => [
+      ...prev,
+      { id: tempUserId, role: "user", content: userContent, createdAt: Date.now() },
+      { id: tempAssistantId, role: "assistant", content: "", createdAt: Date.now(), isStreaming: true },
+    ]);
 
     setThreads((prev) =>
       prev.map((t) => {
         if (t.id !== activeThreadId) return t;
-
         const baseTitle =
           t.title === "New chat" || t.title === ""
             ? shortPreview(text || "Files", 34)
             : t.title;
-
         const previewBase =
           text || (attachedFiles.length ? `Attached ${attachedFiles.length} file(s)` : "");
         const preview =
           attachedFiles.length && text
             ? `${shortPreview(text, 52)} • +${attachedFiles.length} file(s)`
             : shortPreview(previewBase, 70);
-
         return { ...t, title: baseTitle, lastMessagePreview: preview, updatedAt: Date.now() };
       })
     );
 
     setInput("");
     setAttachedFiles([]);
+    setStreaming(true);
 
+    // Resolve conversation ID — create one if the user hasn't started a thread yet
+    let threadId = activeThreadId;
+    if (!threadId) {
+      try {
+        const created = await apiPost<{ ok: true; conversation: Thread }>("/api/conversations", {
+          title: null,
+        });
+        threadId = created.conversation.id;
+        setThreads((prev) => [created.conversation, ...prev]);
+        setActiveThreadId(threadId);
+      } catch (e: any) {
+        setError(e?.message || "Failed to create conversation");
+        setStreaming(false);
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempUserId && m.id !== tempAssistantId)
+        );
+        return;
+      }
+    }
+
+    // Stream the send request
     try {
-      const savedUser = await appendMessageToDB("user", userContent);
-      setMessages((prev) => prev.map((m) => (m.id === tempUser.id ? savedUser.message : m)));
+      const res = await fetch(`/api/conversations/${threadId}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: userContent }),
+      });
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as any)?.error || `Request failed: ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event: any;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            continue;
+          }
+
+          if (event.type === "chunk") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempAssistantId
+                  ? { ...m, content: m.content + event.text }
+                  : m
+              )
+            );
+          } else if (event.type === "done") {
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id === tempUserId) {
+                  return { ...m, id: event.userId, createdAt: event.userCreatedAt };
+                }
+                if (m.id === tempAssistantId) {
+                  return {
+                    ...m,
+                    id: event.assistantId,
+                    createdAt: event.assistantCreatedAt,
+                    isStreaming: false,
+                  };
+                }
+                return m;
+              })
+            );
+            setThreads((prev) =>
+              prev.map((t) => (t.id === threadId ? { ...t, updatedAt: Date.now() } : t))
+            );
+          } else if (event.type === "error") {
+            throw new Error(event.error);
+          }
+        }
+      }
     } catch (e: any) {
-      setError(e?.message || "Failed to send message");
+      setError(e?.message || "Failed to get response");
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== tempAssistantId)
+      );
+    } finally {
+      setStreaming(false);
     }
   }
 
@@ -609,13 +680,21 @@ export default function ChatPage() {
                             style={{ color: "rgba(17,17,17,0.92)" }}
                           >
                             {m.content}
+                            {m.isStreaming && (
+                              <span
+                                className="inline-block w-[2px] h-[14px] ml-[2px] align-middle animate-pulse"
+                                style={{ background: OLIVE, borderRadius: 1 }}
+                              />
+                            )}
                           </div>
 
-                          <div className="mt-2 text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
-                            <span suppressHydrationWarning>
-                              {mounted ? formatTime(m.createdAt) : ""}
-                            </span>
-                          </div>
+                          {!m.isStreaming && (
+                            <div className="mt-2 text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
+                              <span suppressHydrationWarning>
+                                {mounted ? formatTime(m.createdAt) : ""}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))
@@ -708,12 +787,12 @@ export default function ChatPage() {
 
                     <button
                       onClick={onSend}
-                      disabled={(!input.trim() && attachedFiles.length === 0) || loadingThread}
+                      disabled={(!input.trim() && attachedFiles.length === 0) || loadingThread || streaming}
                       className={cx(
                         "shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold transition border"
                       )}
                       style={
-                        input.trim() || attachedFiles.length
+                        (input.trim() || attachedFiles.length) && !streaming
                           ? {
                               borderColor: "rgba(75,94,60,0.30)",
                               background: "rgba(75,94,60,0.10)",
@@ -728,7 +807,7 @@ export default function ChatPage() {
                             }
                       }
                     >
-                      Send
+                      {streaming ? "…" : "Send"}
                     </button>
                   </div>
 
@@ -737,7 +816,7 @@ export default function ChatPage() {
                       Enter to send • Shift+Enter for a new line
                     </span>
                     <span className="ml-auto text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
-                      Saved to DB • threads won’t overwrite
+                      {streaming ? "Generating…" : "Saved to history"}
                     </span>
                   </div>
                 </div>

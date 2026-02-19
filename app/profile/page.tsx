@@ -8,7 +8,7 @@ import { useTheme } from "../ThemeContext";
 const OLIVE = "#556B2F";
 
 type TopTab = "preferences" | "settings";
-type PrefSection = "medication" | "reminders" | "health" | "study" | "scheduling";
+type PrefSection = "medication" | "reminders" | "health" | "study" | "scheduling" | "survey";
 type SettingsSection = "account" | "privacy" | "notifications" | "appearance";
 
 type MedRecurrence = "Daily" | "Weekdays" | "Custom";
@@ -448,6 +448,28 @@ export default function ProfilePage() {
     }
   }
 
+  // =========================
+  // Survey responses
+  // =========================
+  const [surveyAnswers, setSurveyAnswers] = useState<any>(null);
+  const [surveyLoading, setSurveyLoading] = useState(false);
+  const [surveyError, setSurveyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (topTab === "preferences" && prefSection === "survey") {
+      setSurveyError(null);
+      setSurveyLoading(true);
+      fetch("/api/onboarding/response")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.ok) setSurveyAnswers(data.answers ?? {});
+          else setSurveyError(data?.error ?? "Failed to load");
+        })
+        .catch((e) => setSurveyError(e?.message ?? "Failed to load"))
+        .finally(() => setSurveyLoading(false));
+    }
+  }, [topTab, prefSection]);
+
   const crumbs = useMemo(() => {
     const out: Array<{ label: string; onClick: () => void }> = [
       { label: "Profile", onClick: goStage1 },
@@ -645,6 +667,13 @@ export default function ProfilePage() {
                             label="Scheduling"
                             sub="Deep work rules, focus style"
                             onClick={() => choosePref("scheduling")}
+                            activeStyle={activeChipStyle}
+                          />
+                          <SubButton
+                            active={prefSection === "survey"}
+                            label="Initial Survey"
+                            sub="Your onboarding responses"
+                            onClick={() => choosePref("survey")}
                             activeStyle={activeChipStyle}
                           />
                         </>
@@ -1163,7 +1192,154 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {topTab === "preferences" && prefSection !== "medication" && prefSection !== "reminders" && (
+                {topTab === "preferences" && prefSection === "survey" && (
+                  <div className={panelBase} style={{ ...sectionCardStyle, background: dark ? "var(--surface)" : "white" }}>
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-semibold">Initial Survey</div>
+                          <div className="mt-0.5 text-xs text-neutral-500">Your onboarding responses — used by Jynx as a starting context.</div>
+                        </div>
+                      </div>
+
+                      {surveyLoading && (
+                        <div className="mt-4 text-xs text-neutral-500">Loading…</div>
+                      )}
+                      {surveyError && (
+                        <div className="mt-4 text-xs text-red-500">{surveyError}</div>
+                      )}
+
+                      {!surveyLoading && !surveyError && surveyAnswers && (
+                        <div className="mt-4 space-y-4">
+                          {/* Behavioral */}
+                          {surveyAnswers.behavioral && (
+                            <SurveySection title="Behavioral" surfaceSoftStyle={surfaceSoftStyle}>
+                              {[
+                                { label: "Consistency", value: surveyAnswers.behavioral.consistency },
+                                { label: "Motivation", value: surveyAnswers.behavioral.motivation },
+                                { label: "Openness to change", value: surveyAnswers.behavioral.opennessToChange },
+                                { label: "Follow-through under friction", value: surveyAnswers.behavioral.followThroughUnderFriction },
+                              ].map(({ label, value }) => (
+                                <div key={label} className="flex items-center justify-between gap-3">
+                                  <span className="text-xs text-neutral-600 min-w-0">{label}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <div className="w-28 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.07)" }}>
+                                      <div
+                                        className="h-full rounded-full"
+                                        style={{ width: `${((value ?? 0) / 10) * 100}%`, background: rgbaBrand(0.75) }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-semibold tabular-nums w-6 text-right" style={{ color: rgbaBrand(0.9) }}>{value ?? "?"}</span>
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="flex items-center justify-between gap-3 pt-1">
+                                <span className="text-xs text-neutral-600">Structure preference</span>
+                                <SurveyPill>{formatStructurePref(surveyAnswers.behavioral.structurePreference)}</SurveyPill>
+                              </div>
+                            </SurveySection>
+                          )}
+
+                          {/* Identity */}
+                          {surveyAnswers.identity && (
+                            <SurveySection title="Identity" surfaceSoftStyle={surfaceSoftStyle}>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(surveyAnswers.identity.adjectives ?? []).map((w: string) => (
+                                  <SurveyPill key={w}>{w}</SurveyPill>
+                                ))}
+                                {(!surveyAnswers.identity.adjectives?.length) && (
+                                  <span className="text-xs text-neutral-400">None selected</span>
+                                )}
+                              </div>
+                            </SurveySection>
+                          )}
+
+                          {/* Time reality */}
+                          {surveyAnswers.timeReality && (
+                            <SurveySection title="Time Reality" surfaceSoftStyle={surfaceSoftStyle}>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <div className="text-[11px] text-neutral-500 mb-1">Sleep</div>
+                                  <SurveyPill>{surveyAnswers.timeReality.sleepHours ?? "?"} hrs/night</SurveyPill>
+                                </div>
+                                <div>
+                                  <div className="text-[11px] text-neutral-500 mb-1">Occupation</div>
+                                  <SurveyPill>{formatOccupation(surveyAnswers.timeReality.occupation)}</SurveyPill>
+                                </div>
+                                <div>
+                                  <div className="text-[11px] text-neutral-500 mb-1">Free time</div>
+                                  <SurveyPill>{formatFreeTime(surveyAnswers.timeReality.freeTimeDesire)}</SurveyPill>
+                                </div>
+                              </div>
+                            </SurveySection>
+                          )}
+
+                          {/* Taste */}
+                          {surveyAnswers.taste && (
+                            <SurveySection title="Taste" surfaceSoftStyle={surfaceSoftStyle}>
+                              <div className="mb-2">
+                                <div className="text-[11px] text-neutral-500 mb-1.5">Activities</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(surveyAnswers.taste.preferredActivities ?? []).map((a: string) => (
+                                    <SurveyPill key={a}>{a}</SurveyPill>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[11px] text-neutral-500 mb-1.5">Entertainment</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {(surveyAnswers.taste.entertainmentGenres ?? []).map((g: string) => (
+                                    <SurveyPill key={g}>{g}</SurveyPill>
+                                  ))}
+                                  {(!surveyAnswers.taste.entertainmentGenres?.length) && (
+                                    <span className="text-xs text-neutral-400">None selected</span>
+                                  )}
+                                </div>
+                              </div>
+                            </SurveySection>
+                          )}
+
+                          {/* Context */}
+                          {surveyAnswers.context && (
+                            <SurveySection title="Context" surfaceSoftStyle={surfaceSoftStyle}>
+                              <div className="flex items-center gap-3 flex-wrap">
+                                <div>
+                                  <div className="text-[11px] text-neutral-500 mb-1">Age range</div>
+                                  <SurveyPill>{surveyAnswers.context.ageRange ?? "?"}</SurveyPill>
+                                </div>
+                                {surveyAnswers.context.location && (
+                                  <div>
+                                    <div className="text-[11px] text-neutral-500 mb-1">Location</div>
+                                    <SurveyPill>{surveyAnswers.context.location}</SurveyPill>
+                                  </div>
+                                )}
+                              </div>
+                            </SurveySection>
+                          )}
+
+                          {/* AI Profile preview */}
+                          {surveyAnswers.aiProfile && (
+                            <div>
+                              <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">AI Context (what Jynx sees)</div>
+                              <pre
+                                className="text-[11px] leading-relaxed rounded-2xl px-4 py-3 overflow-x-auto whitespace-pre-wrap"
+                                style={{ background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.07)", color: "rgba(0,0,0,0.65)", fontFamily: "ui-monospace, monospace" }}
+                              >
+                                {surveyAnswers.aiProfile}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {!surveyLoading && !surveyError && surveyAnswers && !Object.keys(surveyAnswers).length && (
+                        <div className="mt-4 text-xs text-neutral-400">No survey responses found.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {topTab === "preferences" && prefSection !== "medication" && prefSection !== "reminders" && prefSection !== "survey" && (
                   <ShellPanel
                     title={prettyPref(prefSection as PrefSection)}
                     subtitle="Coming soon"
@@ -1359,7 +1535,68 @@ function prettyPref(s: PrefSection) {
   if (s === "health") return "Health";
   if (s === "study") return "Study";
   if (s === "scheduling") return "Scheduling";
+  if (s === "survey") return "Initial Survey";
   return "Preferences";
+}
+
+function formatStructurePref(v: string) {
+  const map: Record<string, string> = {
+    strong_structure: "Strongly prefers structure",
+    lean_structure: "Leans toward structure",
+    neutral: "Neutral",
+    lean_flexibility: "Leans toward flexibility",
+    strong_flexibility: "Strongly prefers flexibility",
+  };
+  return map[v] ?? v;
+}
+
+function formatOccupation(v: string) {
+  const map: Record<string, string> = {
+    student: "Student",
+    working_full_time: "Full-time",
+    working_part_time: "Part-time",
+    between_things: "Between things",
+    other: "Other",
+  };
+  return map[v] ?? v;
+}
+
+function formatFreeTime(v: string) {
+  const map: Record<string, string> = {
+    very_little: "Very little",
+    some: "Some",
+    balanced: "Balanced",
+    a_lot: "A lot",
+  };
+  return map[v] ?? v;
+}
+
+function SurveySection({
+  title,
+  children,
+  surfaceSoftStyle,
+}: {
+  title: string;
+  children: React.ReactNode;
+  surfaceSoftStyle: React.CSSProperties;
+}) {
+  return (
+    <div className="rounded-2xl border px-4 py-3" style={surfaceSoftStyle}>
+      <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2.5">{title}</div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+function SurveyPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-full border bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700"
+      style={{ borderColor: "rgba(0,0,0,0.09)", boxShadow: "0 0 0 1px rgba(0,0,0,0.03)" }}
+    >
+      {children}
+    </span>
+  );
 }
 function prettySettings(s: SettingsSection) {
   if (s === "account") return "Account";
