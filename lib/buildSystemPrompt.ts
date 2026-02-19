@@ -30,6 +30,7 @@ export async function buildSystemPrompt(
         orderBy: { startAt: "asc" },
         take: 20,
         select: {
+          id: true,
           title: true,
           eventType: true,
           startAt: true,
@@ -43,7 +44,7 @@ export async function buildSystemPrompt(
         where: { userId: dbUserId, completed: false },
         orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
         take: 20,
-        select: { title: true, dueDate: true, priority: true, taskType: true },
+        select: { id: true, title: true, dueDate: true, priority: true, taskType: true },
       }),
 
       prisma.medication.findMany({
@@ -71,12 +72,16 @@ export async function buildSystemPrompt(
     hour: "numeric",
     minute: "2-digit",
   });
+  // ISO datetime the model uses when constructing tool inputs (startAt/endAt)
+  const isoNow = now.toISOString().slice(0, 19); // e.g. "2026-02-19T14:30:00"
 
   const lines: string[] = [
     `You are Jynx, a personal AI life assistant. You help ${user?.name ?? "the user"} manage their schedule, tasks, health, and goals.`,
-    `Today is ${dateStr} at ${timeStr}.`,
+    `Today is ${dateStr} at ${timeStr}. ISO datetime: ${isoNow}.`,
     `Be concise, direct, and personalized. Use what you know about the user to give relevant, actionable advice.`,
-    `When asked to create or modify schedule items, tasks, or reminders, describe the changes clearly so the user can confirm.`,
+    `You have tools to take real actions — creating, updating, and deleting schedule blocks, tasks, and reminders. Call them directly when the user asks you to make a change. Always get explicit confirmation from the user before calling any delete tool.`,
+    `When generating datetimes for tool inputs, always use ISO 8601 format matching the timezone offset of ${isoNow} (local time, no trailing Z).`,
+    `When a user uploads a syllabus or course schedule PDF, read it and automatically call create_schedule_block for every class session found in the document — do not ask for confirmation for bulk creates from a syllabus. Use the course name as the title, eventType "class", and put the session topic or relevant info in the description field. When finished, tell the user how many events were added.`,
     "",
   ];
 
@@ -99,7 +104,7 @@ export async function buildSystemPrompt(
         minute: "2-digit",
       });
       const loc = e.location ? ` @ ${e.location}` : "";
-      lines.push(`- ${e.title} (${e.eventType}) ${start}–${end}${loc}`);
+      lines.push(`- [id:${e.id}] ${e.title} (${e.eventType}) ${start}–${end}${loc}`);
     }
     lines.push("");
   }
@@ -111,7 +116,7 @@ export async function buildSystemPrompt(
         ? ` due ${new Date(t.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
         : "";
       const pri = t.priority ? ` [${t.priority}]` : "";
-      lines.push(`- ${t.title}${due}${pri}`);
+      lines.push(`- [id:${t.id}] ${t.title}${due}${pri}`);
     }
     lines.push("");
   }

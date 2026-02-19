@@ -297,6 +297,56 @@ export default function Home() {
       .finally(() => setLoadingEvents(false));
   }, []);
 
+  // Live refresh — triggered by jynx:refresh event from the chat modal after a tool runs
+  useEffect(() => {
+    function refresh() {
+      fetch("/api/events")
+        .then((r) => r.json())
+        .then((res) => {
+          const raw: any[] = res?.data ?? res ?? [];
+          setAllEvents(raw.map(mapApiEvent));
+        })
+        .catch(console.error);
+
+      fetch("/api/reminders")
+        .then((r) => r.json())
+        .then((res) => {
+          const raw: any[] = Array.isArray(res?.reminders) ? res.reminders : [];
+          setReminders(
+            raw.filter((r) => r.enabled !== false).map((r) => ({
+              id: r.id,
+              title: r.title,
+              due: r.date ? r.date : r.schedule ?? "",
+              severity: undefined,
+              completed: false,
+            }))
+          );
+        })
+        .catch(console.error);
+
+      fetch("/api/tasks?taskType=goal")
+        .then((r) => r.json())
+        .then((res) => {
+          const raw: any[] = res?.data ?? res ?? [];
+          setGoals(
+            raw.map((t) => ({
+              id: t.id,
+              title: t.title,
+              description: t.description ?? "",
+              targetDate: t.dueDate ? t.dueDate.slice(0, 10) : "",
+              timeWindow: (["Week", "Month", "Year"].includes(t.priority)
+                ? t.priority
+                : "Week") as "Week" | "Month" | "Year",
+            }))
+          );
+        })
+        .catch(console.error);
+    }
+
+    window.addEventListener("jynx:refresh", refresh);
+    return () => window.removeEventListener("jynx:refresh", refresh);
+  }, []);
+
   // Reminders — fetched from API
   const [reminders, setReminders] = useState<Reminder[]>([]);
 

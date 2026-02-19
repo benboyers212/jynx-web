@@ -12,6 +12,7 @@ type Message = {
   content: string;
   createdAt: number;
   isStreaming?: boolean;
+  actionLabel?: string; // shown while a tool call is executing
 };
 
 type Thread = {
@@ -46,6 +47,29 @@ function shortPreview(s: string, n = 58) {
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
+type Attachment = { name: string; mediaType: string; data: string };
+
+const SUPPORTED_MEDIA_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+function readFileAsBase64(file: File): Promise<Attachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const data = result.split(",")[1] ?? "";
+      resolve({ name: file.name, mediaType: file.type, data });
+    };
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function apiGet<T>(url: string): Promise<T> {
@@ -336,12 +360,31 @@ export default function ChatPage() {
       }
     }
 
+    // Read supported files as base64 before the API call
+    let attachments: Attachment[] = [];
+    const supportedFiles = attachedFiles.filter((f) => SUPPORTED_MEDIA_TYPES.has(f.type));
+    if (supportedFiles.length > 0) {
+      try {
+        attachments = await Promise.all(supportedFiles.map(readFileAsBase64));
+      } catch (e: any) {
+        setError(e?.message || "Failed to read attached file");
+        setStreaming(false);
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempUserId && m.id !== tempAssistantId)
+        );
+        return;
+      }
+    }
+
     // Stream the send request
     try {
       const res = await fetch(`/api/conversations/${threadId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: userContent }),
+        body: JSON.stringify({
+          content: userContent,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        }),
       });
 
       if (!res.ok || !res.body) {
@@ -374,10 +417,26 @@ export default function ChatPage() {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempAssistantId
-                  ? { ...m, content: m.content + event.text }
+                  ? { ...m, content: m.content + event.text, actionLabel: undefined }
                   : m
               )
             );
+          } else if (event.type === "tool_start") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempAssistantId
+                  ? { ...m, actionLabel: event.label ?? event.tool }
+                  : m
+              )
+            );
+          } else if (event.type === "tool_done") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempAssistantId ? { ...m, actionLabel: undefined } : m
+              )
+            );
+            // Notify other pages (schedule, tasks) to re-fetch their data
+            window.dispatchEvent(new CustomEvent("jynx:refresh"));
           } else if (event.type === "done") {
             setMessages((prev) =>
               prev.map((m) => {
@@ -680,13 +739,26 @@ export default function ChatPage() {
                             style={{ color: "rgba(17,17,17,0.92)" }}
                           >
                             {m.content}
-                            {m.isStreaming && (
+                            {m.isStreaming && !m.actionLabel && (
                               <span
                                 className="inline-block w-[2px] h-[14px] ml-[2px] align-middle animate-pulse"
                                 style={{ background: OLIVE, borderRadius: 1 }}
                               />
                             )}
                           </div>
+
+                          {m.actionLabel && (
+                            <div
+                              className="mt-1.5 flex items-center gap-1.5 text-xs"
+                              style={{ color: OLIVE }}
+                            >
+                              <span
+                                className="inline-block w-[6px] h-[6px] rounded-full animate-pulse"
+                                style={{ background: OLIVE }}
+                              />
+                              {m.actionLabel}
+                            </div>
+                          )}
 
                           {!m.isStreaming && (
                             <div className="mt-2 text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
