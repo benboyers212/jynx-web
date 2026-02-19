@@ -12,17 +12,6 @@ import {
 } from "lucide-react";
 import { useTheme } from "../ThemeContext";
 
-/**
- * Groups page (UI shell) — based on the newer layout, with old interactions restored:
- * - Clicking a group opens a Group modal (class overview / private chat / org people + DM)
- * - Pinned toggles work (pin icon on rows + pinned list in left rail)
- * - Quick actions work (Create group / Find group / Invites)
- * - Notifications clear + small toast pops
- * - My groups vs Discover actually swaps lists
- * - Invite to group button (email input) in group modal
- *
- * NOTE: This is still a UI shell (no backend). All actions are stateful in-memory.
- */
 
 const BRAND_RGB = { r: 31, g: 138, b: 91 };
 function rgbaBrand(a: number) {
@@ -165,9 +154,6 @@ function badgeStyle(kind: "Verified" | "Private" | "Public" | "Active" | "Chat" 
   return base;
 }
 
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
 
 type MainTab = "My groups" | "Discover";
 type GroupModalTab = "Overview" | "Chat" | "Assignments" | "People" | "Files" | "Schedule";
@@ -220,27 +206,11 @@ export default function GroupsPage() {
   const [showInbox, setShowInbox] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<GroupEvent | null>(null);
 
-  // Inbox mock data
-  const inboxInvitations: { id: string; group: string; from: string; when: string }[] = [
-    { id: "inv1", group: "F305 — Financial Management", from: "Prof. Alvarez", when: "2h ago" },
-    { id: "inv2", group: "Weekend Study Circle", from: "Maya Chen", when: "Yesterday" },
-  ];
-  const inboxRequests: { id: string; group: string; who: string; when: string }[] = [
-    { id: "req1", group: "Morning Deep Work", who: "Jordan K.", when: "1d ago" },
-  ];
-  const inboxSuggestions: { id: string; group: string; reason: string }[] = [
-    { id: "sug1", group: "Calc II — Verified Hub", reason: "Popular in your major" },
-    { id: "sug2", group: "Sunday Reset Crew", reason: "3 friends are members" },
-  ];
-  const inboxCount = inboxInvitations.length + inboxRequests.length;
+  // Inbox — no hardcoded data
+  const inboxCount = 0;
 
-  // Upcoming group events
-  const upcomingEvents: GroupEvent[] = [
-    { id: "ev1", title: "Study Session — CAPM Review", group: "F305 Study Group", time: "Today · 8:00 PM", required: true, duration: "90 min", location: "Room 204, Business Hall", notes: "Bring problem set 3. Focus on CAPM derivation." },
-    { id: "ev2", title: "Weekly Check-in", group: "Gym Accountability", time: "Tomorrow · 7:00 AM", required: false, duration: "15 min", location: "Virtual (Zoom)", notes: "Quick wins from last week + goals for this week." },
-    { id: "ev3", title: "Midterm Prep Workshop", group: "F305 — Financial Management", time: "Fri · 3:00 PM", required: true, duration: "2 hrs", location: "Library, Room 3B", notes: "Professor will walk through past exam questions." },
-    { id: "ev4", title: "Weekend Hike", group: "Sunday Reset Crew", time: "Sun · 9:00 AM", required: false, duration: "3 hrs", location: "Riverside Trail, Main Entrance", notes: "Optional — just show up. No gear needed." },
-  ];
+  // Upcoming group events — none yet (no cross-group event API)
+  const upcomingEvents: GroupEvent[] = [];
 
   // Create modal fields (simple)
   const [newName, setNewName] = useState("");
@@ -257,18 +227,14 @@ export default function GroupsPage() {
   const [groupTab, setGroupTab] = useState<GroupModalTab>("Overview");
   const [groupExpanded, setGroupExpanded] = useState(false);
 
-  // Chat state per-group (UI shell)
-  const [chatByGroup, setChatByGroup] = useState<Record<string, ChatMsg[]>>({
-    g2: [
-      { id: "m1", who: "You", text: "Quick check-in: when are we meeting?", ts: "Today 2:14 PM" },
-      { id: "m2", who: "Dylan", text: "I can do 6:30 after class.", ts: "Today 2:16 PM" },
-    ],
-    g3: [
-      { id: "m3", who: "You", text: "Leg day today — anyone in?", ts: "Today 9:41 AM" },
-      { id: "m4", who: "Dylan", text: "I’m down. 4:30?", ts: "Today 9:43 AM" },
-    ],
-  });
+  // Chat state — backed by Conversations API
+  const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
+
+  // Group detail state (for Files + Assignments tabs)
+  const [groupFiles, setGroupFiles] = useState<any[]>([]);
+  const [groupTasks, setGroupTasks] = useState<any[]>([]);
 
   // My groups — fetched from API
   const [loadingGroups, setLoadingGroups] = useState(true);
@@ -294,7 +260,7 @@ export default function GroupsPage() {
       chatEnabled: true,
       description: g.description ?? "",
       expectations: "",
-      pinned: false,
+      pinned: g.memberPinned === true,
       unread: 0,
       lastActivity: "Recently",
       lastActivityText: "",
@@ -318,123 +284,11 @@ export default function GroupsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Discover groups (separate list)
-  const [discoverGroups] = useState<Group[]>([
-    {
-      id: "d1",
-      name: "Kelley — Finance Grind",
-      type: "Organization",
-      visibility: "Public",
-      category: "Study",
-      active: true,
-      memberCount: 128,
-      chatEnabled: false,
-      description: "Study blocks, recruiting prep, accountability",
-      expectations: "Weekdays · 45–90 min · Moderate",
-      pinned: false,
-      unread: 0,
-      lastActivity: "Today",
-      lastActivityText: "New: IB technicals sheet shared",
-      membersList: [
-        { id: "m1", name: "Sasha", email: "sasha@kelley.edu" },
-        { id: "m2", name: "Andrew", email: "andrew@kelley.edu" },
-        { id: "m3", name: "Priya", email: "priya@kelley.edu" },
-        { id: "m4", name: "Max", email: "max@kelley.edu" },
-      ],
-    },
-    {
-      id: "d2",
-      name: "Morning Deep Work",
-      type: "Accountability",
-      visibility: "Public",
-      category: "Work",
-      active: true,
-      memberCount: 62,
-      chatEnabled: false,
-      description: "9–11 AM focus blocks. Minimal distractions.",
-      expectations: "Weekdays · 60–120 min · Structured",
-      pinned: false,
-      unread: 0,
-      lastActivity: "2d ago",
-      lastActivityText: "Schedule template updated",
-    },
-    {
-      id: "d3",
-      name: "Sunday Reset Crew",
-      type: "Organization",
-      visibility: "Public",
-      category: "Life",
-      active: true,
-      memberCount: 41,
-      chatEnabled: false,
-      description: "Plan week, batch chores, light cardio",
-      expectations: "Weekly · 30–60 min · Loose",
-      pinned: false,
-      unread: 0,
-      lastActivity: "This week",
-      lastActivityText: "New weekly checklist posted",
-      membersList: [
-        { id: "x1", name: "Jordan" },
-        { id: "x2", name: "Leah" },
-        { id: "x3", name: "Kevin" },
-      ],
-    },
-    {
-      id: "d4",
-      name: "Calc II — Verified Hub",
-      type: "Class hub",
-      visibility: "Verified",
-      category: "Study",
-      verified: true,
-      active: true,
-      memberCount: 212,
-      chatEnabled: false,
-      description: "Assignments + pacing insights (verified)",
-      expectations: "Weekly rhythm · ~3–5 hrs/week · Structured",
-      pinned: false,
-      unread: 0,
-      lastActivity: "5h ago",
-      lastActivityText: "New homework posted",
-      classStats: {
-        avgTimePerWeek: "3.7 hrs",
-        exam1Avg: "6.4 hrs",
-        exam2Avg: "7.6 hrs",
-        difficulty: "Hard",
-      },
-      upcomingAssignments: [
-        { title: "Problem Set 5", due: "Fri 5:00 PM", estTime: "~60–90 min" },
-        { title: "Quiz — Sequences", due: "Tue 9:00 AM", estTime: "~15 min" },
-      ],
-    },
-  ]);
+  // Discover groups — no public group discovery API yet
+  const discoverGroups: Group[] = [];
 
-  // Demo “recent activity” (left rail)
-  const [activity] = useState<Activity[]>([
-    {
-      id: "a1",
-      groupId: "g1",
-      groupName: "F305 — Financial Management",
-      kind: "update",
-      text: "Problem Set 3 posted · due before next class",
-      when: "1h",
-    },
-    {
-      id: "a2",
-      groupId: "g2",
-      groupName: "F305 Study Group",
-      kind: "chat",
-      text: "“Anyone want to meet 8pm to review CAPM?”",
-      when: "2h",
-    },
-    {
-      id: "a3",
-      groupId: "g3",
-      groupName: "Gym Accountability",
-      kind: "reminder",
-      text: "Check-in: what’s the plan for today?",
-      when: "1d",
-    },
-  ]);
+  // Activity feed — empty for now (no real-time feed yet)
+  const activity: Activity[] = [];
 
   const list = useMemo(() => (tab === "My groups" ? myGroups : discoverGroups), [tab, myGroups, discoverGroups]);
 
@@ -469,9 +323,47 @@ export default function GroupsPage() {
 
   const maxW = "max-w-[1600px]";
 
+  async function loadGroupChat(groupId: string) {
+    setChatLoading(true);
+    try {
+      const res = await fetch(`/api/groups/${groupId}/chat`);
+      const body = await res.json();
+      if (body?.success && body.data) {
+        setChatMsgs(body.data.messages ?? []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  async function loadGroupFiles(groupId: string) {
+    try {
+      const res = await fetch(`/api/files?groupId=${groupId}`);
+      const body = await res.json();
+      setGroupFiles(body?.data ?? []);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadGroupTasks(groupId: string) {
+    try {
+      const res = await fetch(`/api/tasks?groupId=${groupId}`);
+      const body = await res.json();
+      setGroupTasks(body?.data ?? []);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   function openGroupModal(g: Group) {
     setOpenGroup(g);
     setGroupExpanded(false);
+    setChatMsgs([]);
+    setGroupFiles([]);
+    setGroupTasks([]);
 
     // Default tab based on group type
     if (g.type === "Class hub") setGroupTab("Assignments");
@@ -479,11 +371,10 @@ export default function GroupsPage() {
     else if (g.type === "Organization") setGroupTab("People");
     else setGroupTab("Overview");
 
-    // Clear unread if it’s one of *your* groups
-    if (tab === "My groups" && g.unread && g.unread > 0) {
-      setMyGroups((prev) => prev.map((x) => (x.id === g.id ? { ...x, unread: 0, lastActivityText: "Opened" } : x)));
-      showToast("Marked as read");
-    }
+    // Load backend data
+    loadGroupChat(g.id);
+    loadGroupFiles(g.id);
+    loadGroupTasks(g.id);
   }
 
   function closeGroupModal() {
@@ -491,10 +382,28 @@ export default function GroupsPage() {
     setGroupExpanded(false);
     setChatDraft("");
     setInviteEmail("");
+    setChatMsgs([]);
+    setGroupFiles([]);
+    setGroupTasks([]);
   }
 
-  function togglePin(groupId: string) {
-    setMyGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, pinned: !g.pinned } : g)));
+  async function togglePin(groupId: string) {
+    const g = myGroups.find((x) => x.id === groupId);
+    if (!g) return;
+    const nextPinned = !g.pinned;
+    // Optimistic update
+    setMyGroups((prev) => prev.map((x) => (x.id === groupId ? { ...x, pinned: nextPinned } : x)));
+    try {
+      await fetch(`/api/groups/${groupId}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: nextPinned }),
+      });
+    } catch (err) {
+      console.error(err);
+      // Revert on failure
+      setMyGroups((prev) => prev.map((x) => (x.id === groupId ? { ...x, pinned: g.pinned } : x)));
+    }
   }
 
   async function createGroupNow() {
@@ -541,25 +450,32 @@ export default function GroupsPage() {
     setNewVisibility("Private");
   }
 
-  function sendChat() {
+  async function sendChat() {
     if (!openGroup) return;
     if (!(openGroup.visibility === "Private" && openGroup.chatEnabled)) return;
 
     const txt = chatDraft.trim();
     if (!txt) return;
 
-    setChatByGroup((prev) => {
-      const cur = prev[openGroup.id] ?? [];
-      return {
-        ...prev,
-        [openGroup.id]: [...cur, { id: uid(), who: "You", text: txt, ts: "Just now" }],
-      };
-    });
-
     setChatDraft("");
+
+    try {
+      const res = await fetch(`/api/groups/${openGroup.id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: txt }),
+      });
+      const body = await res.json();
+      if (body?.success && body.data) {
+        setChatMsgs((prev) => [...prev, body.data as ChatMsg]);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to send message");
+    }
   }
 
-  function inviteToGroup() {
+  async function inviteToGroup() {
     if (!openGroup) return;
     const email = inviteEmail.trim();
     if (!email || !email.includes("@")) {
@@ -567,26 +483,47 @@ export default function GroupsPage() {
       return;
     }
 
-    // UI shell: add member count + member list entry for private groups
-    if (tab === "My groups") {
+    try {
+      // Look up user by email
+      const searchRes = await fetch(`/api/users/search?email=${encodeURIComponent(email)}`);
+      const searchBody = await searchRes.json();
+      if (!searchBody?.success || !searchBody.data?.id) {
+        showToast(searchBody?.error ?? "No Jynx account found with that email");
+        return;
+      }
+
+      const targetUserId = searchBody.data.id;
+
+      // Add as member
+      const addRes = await fetch(`/api/groups/${openGroup.id}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: targetUserId }),
+      });
+      const addBody = await addRes.json();
+      if (!addBody?.success) {
+        showToast(addBody?.error ?? "Failed to invite");
+        return;
+      }
+
+      // Update local member list
       setMyGroups((prev) =>
         prev.map((g) => {
           if (g.id !== openGroup.id) return g;
-          const nextMembers = (g.membersList ?? []).some((m) => m.email === email)
+          const alreadyIn = (g.membersList ?? []).some((m) => m.email === email);
+          const nextMembers = alreadyIn
             ? g.membersList ?? []
-            : [...(g.membersList ?? []), { id: uid(), name: email.split("@")[0], email }];
-          return {
-            ...g,
-            memberCount: g.memberCount + 1,
-            membersList: nextMembers,
-            lastActivity: "Just now",
-            lastActivityText: `Invited ${email}`,
-          };
+            : [...(g.membersList ?? []), { id: targetUserId, name: searchBody.data.name ?? email.split("@")[0], email }];
+          return { ...g, memberCount: alreadyIn ? g.memberCount : g.memberCount + 1, membersList: nextMembers };
         })
       );
+
+      showToast("Invited!");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to send invite");
     }
 
-    showToast("Invite sent");
     setInviteEmail("");
   }
 
@@ -967,7 +904,7 @@ export default function GroupsPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <Modal onClose={() => setShowCreate(false)} title="Create group" subtitle="UI shell — creates a new group in My groups." dark={dark}>
+        <Modal onClose={() => setShowCreate(false)} title="Create group" subtitle="Creates a new private group." dark={dark}>
           <div className="space-y-3">
             <Field label="Group name">
               <input
@@ -1075,7 +1012,7 @@ export default function GroupsPage() {
         <Modal
           onClose={() => setShowFind(false)}
           title="Find a group"
-          subtitle="UI shell — browse Discover. (Public groups have no chat.)"
+          subtitle="Browse public and verified groups."
           maxWidthClass="max-w-4xl"
           dark={dark}
         >
@@ -1190,97 +1127,8 @@ export default function GroupsPage() {
           dark={dark}
           maxWidthClass="max-w-md"
         >
-          {/* Invitations */}
-          <div>
-            <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Invitations</div>
-            {inboxInvitations.length === 0 ? (
-              <div className="text-[12px] text-neutral-500 px-1">None</div>
-            ) : (
-              <div className="space-y-1.5">
-                {inboxInvitations.map((inv) => (
-                  <div
-                    key={inv.id}
-                    className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
-                    style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)" }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[12px] font-semibold text-neutral-900">{inv.group}</div>
-                      <div className="text-[11px] text-neutral-500 mt-0.5">From {inv.from} · {inv.when}</div>
-                    </div>
-                    <button
-                      onClick={() => showToast("Accepted (UI shell)")}
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
-                      style={{ background: "#1F8A5B", color: "#fff" }}
-                    >
-                      Accept
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Requests to join */}
-          <div className="mt-4">
-            <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Requests to join</div>
-            {inboxRequests.length === 0 ? (
-              <div className="text-[12px] text-neutral-500 px-1">None</div>
-            ) : (
-              <div className="space-y-1.5">
-                {inboxRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
-                    style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)" }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[12px] font-semibold text-neutral-900">{req.group}</div>
-                      <div className="text-[11px] text-neutral-500 mt-0.5">{req.who} wants to join · {req.when}</div>
-                    </div>
-                    <button
-                      onClick={() => showToast("Approved (UI shell)")}
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
-                      style={{ background: "#1F8A5B", color: "#fff" }}
-                    >
-                      Approve
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Suggested groups */}
-          <div className="mt-4">
-            <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Suggested groups</div>
-            {inboxSuggestions.length === 0 ? (
-              <div className="text-[12px] text-neutral-500 px-1">None</div>
-            ) : (
-              <div className="space-y-1.5">
-                {inboxSuggestions.map((sug) => (
-                  <div
-                    key={sug.id}
-                    className="flex items-start gap-3 px-3 py-2.5 rounded-xl"
-                    style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)" }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[12px] font-semibold text-neutral-900">{sug.group}</div>
-                      <div className="text-[11px] text-neutral-500 mt-0.5">{sug.reason}</div>
-                    </div>
-                    <button
-                      onClick={() => showToast("Joined (UI shell)")}
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
-                      style={{
-                        background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-                        color: dark ? "rgba(240,240,240,0.80)" : "rgba(0,0,0,0.70)",
-                      }}
-                    >
-                      Join
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="text-sm text-neutral-600">
+            No pending invitations or requests.
           </div>
         </Modal>
       )}
@@ -1347,7 +1195,7 @@ export default function GroupsPage() {
         <Modal
           onClose={() => setShowInvites(false)}
           title="Invites / requests"
-          subtitle="UI shell — this becomes your group invites inbox."
+          subtitle="Group invitations and join requests."
           dark={dark}
         >
           <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
@@ -1560,33 +1408,33 @@ export default function GroupsPage() {
 
                     {/* Content */}
                     <div className="mt-4 space-y-4">
-                      {/* Assignments (class) */}
-                      {groupTab === "Assignments" && openGroup.type === "Class hub" && (
+                      {/* Assignments */}
+                      {groupTab === "Assignments" && (
                         <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-semibold text-neutral-900">Upcoming assignments</div>
-                              <div className="mt-1 text-xs text-neutral-600">UI shell — sync later from syllabus/LMS.</div>
-                            </div>
-                            <span className="text-[11px] text-neutral-500">Focus</span>
-                          </div>
+                          <div className="text-sm font-semibold text-neutral-900">Assignments</div>
 
                           <div className="mt-4 space-y-2">
-                            {(openGroup.upcomingAssignments ?? []).length === 0 ? (
-                              <div className="text-sm text-neutral-600">No assignments added yet.</div>
+                            {groupTasks.length === 0 ? (
+                              <div className="text-sm text-neutral-600">No assignments yet.</div>
                             ) : (
-                              (openGroup.upcomingAssignments ?? []).map((a) => (
+                              groupTasks.map((t: any) => (
                                 <div
-                                  key={a.title + a.due}
+                                  key={t.id}
                                   className="rounded-2xl border bg-white px-3 py-3"
                                   style={surfaceSoftStyle}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <div className="text-sm font-semibold text-neutral-900 truncate">{a.title}</div>
-                                      <div className="mt-1 text-xs text-neutral-600">Due {a.due}</div>
+                                      <div className="text-sm font-semibold text-neutral-900 truncate">{t.title}</div>
+                                      {t.dueDate && (
+                                        <div className="mt-1 text-xs text-neutral-600">
+                                          Due {new Date(t.dueDate).toLocaleDateString()}
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="text-[11px] text-neutral-600 whitespace-nowrap">{a.estTime}</div>
+                                    {t.priority && (
+                                      <div className="text-[11px] text-neutral-600 whitespace-nowrap capitalize">{t.priority}</div>
+                                    )}
                                   </div>
                                 </div>
                               ))
@@ -1598,37 +1446,39 @@ export default function GroupsPage() {
                       {/* Chat (private only) */}
                       {groupTab === "Chat" && openGroup.visibility === "Private" && openGroup.chatEnabled && (
                         <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-semibold text-neutral-900">Group chat</div>
-                              <div className="text-xs text-neutral-600 mt-1">Private groups only (max 20). UI shell.</div>
-                            </div>
-                            <div className="text-[11px] text-neutral-500">MVP</div>
-                          </div>
+                          <div className="text-sm font-semibold text-neutral-900 mb-4">Group chat</div>
 
-                          <div className="mt-4 rounded-2xl border bg-white p-3 h-[320px] overflow-y-auto" style={surfaceSoftStyle}>
-                            <div className="space-y-3">
-                              {(chatByGroup[openGroup.id] ?? []).map((m) => (
-                                <div key={m.id} className="flex items-start gap-3">
-                                  <div
-                                    className="h-8 w-8 rounded-xl border bg-white flex items-center justify-center text-[10px] font-semibold text-neutral-800"
-                                    style={{
-                                      ...surfaceSoftStyle,
-                                      borderColor: m.who === "You" ? rgbaBrand(0.30) : "rgba(0,0,0,0.10)",
-                                    }}
-                                  >
-                                    {m.who === "You" ? "YOU" : "MEM"}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <div className="text-xs font-semibold text-neutral-900">{m.who}</div>
-                                      <div className="text-[11px] text-neutral-500">{m.ts}</div>
+                          <div className="rounded-2xl border bg-white p-3 h-[320px] overflow-y-auto" style={surfaceSoftStyle}>
+                            {chatLoading ? (
+                              <div className="text-sm text-neutral-500 text-center mt-6">Loading…</div>
+                            ) : chatMsgs.length === 0 ? (
+                              <div className="text-sm text-neutral-500 text-center mt-6">No messages yet. Say hello!</div>
+                            ) : (
+                              <div className="space-y-3">
+                                {chatMsgs.map((m) => (
+                                  <div key={m.id} className="flex items-start gap-3">
+                                    <div
+                                      className="h-8 w-8 rounded-xl border bg-white flex items-center justify-center text-[10px] font-semibold text-neutral-800 shrink-0"
+                                      style={{
+                                        ...surfaceSoftStyle,
+                                        borderColor: rgbaBrand(0.30),
+                                      }}
+                                    >
+                                      {m.who.slice(0, 3).toUpperCase()}
                                     </div>
-                                    <div className="mt-1 text-sm text-neutral-900 leading-relaxed">{m.text}</div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-xs font-semibold text-neutral-900">{m.who}</div>
+                                        <div className="text-[11px] text-neutral-500">
+                                          {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                        </div>
+                                      </div>
+                                      <div className="mt-1 text-sm text-neutral-900 leading-relaxed">{m.text}</div>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
 
                           <div className="mt-3 flex gap-2">
@@ -1664,7 +1514,7 @@ export default function GroupsPage() {
                                   ? "Class hubs don’t show member lists (privacy by design)."
                                   : openGroup.type === "Organization"
                                   ? "Organizations: view members + message people."
-                                  : "Private groups: view members (UI shell)."}
+                                  : "Private groups: view members."}
                               </div>
                             </div>
                             <div className="text-[11px] text-neutral-500">{openGroup.memberCount} total</div>
@@ -1694,7 +1544,7 @@ export default function GroupsPage() {
 
                                     {openGroup.type === "Organization" ? (
                                       <button
-                                        onClick={() => showToast(`DM to ${m.name} (UI shell)`)}
+                                        onClick={() => showToast(`DM coming soon`)}
                                         className="h-9 rounded-2xl px-3 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
                                         style={{
                                           ...surfaceSoftStyle,
@@ -1736,9 +1586,6 @@ export default function GroupsPage() {
                             )}
                           </div>
 
-                          <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                            <div className="text-xs text-neutral-600">UI shell: schedule suggestions + files attach later.</div>
-                          </div>
                         </div>
                       )}
 
@@ -1746,12 +1593,35 @@ export default function GroupsPage() {
                       {groupTab === "Files" && (
                         <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
                           <div className="text-sm font-semibold text-neutral-900">Files</div>
-                          <div className="mt-2 text-sm text-neutral-700">
-                            UI shell — connects to your Files tab and adds group context.
-                          </div>
 
-                          <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                            <div className="text-xs text-neutral-600">No files yet.</div>
+                          <div className="mt-4 space-y-2">
+                            {groupFiles.length === 0 ? (
+                              <div className="text-sm text-neutral-600">No files yet. Add files from the Files page and tag them to this group.</div>
+                            ) : (
+                              groupFiles.map((f: any) => (
+                                <div
+                                  key={f.id}
+                                  className="rounded-2xl border bg-white px-3 py-3 flex items-center justify-between gap-3"
+                                  style={surfaceSoftStyle}
+                                >
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-neutral-900 truncate">{f.name}</div>
+                                    <div className="text-[11px] text-neutral-500 mt-0.5 uppercase">{f.type}</div>
+                                  </div>
+                                  {f.url && (
+                                    <a
+                                      href={f.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
+                                      style={{ background: rgbaBrand(0.10), color: "#1F8A5B" }}
+                                    >
+                                      Open
+                                    </a>
+                                  )}
+                                </div>
+                              ))
+                            )}
                           </div>
                         </div>
                       )}
@@ -1761,13 +1631,7 @@ export default function GroupsPage() {
                         <div className="rounded-3xl border bg-white p-5" style={surfaceSoftStyle}>
                           <div className="text-sm font-semibold text-neutral-900">Schedule</div>
                           <div className="mt-2 text-sm text-neutral-700">
-                            UI shell — opt-in schedule suggestions only. Nothing forced.
-                          </div>
-
-                          <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                            <div className="text-xs text-neutral-600">
-                              Example: “Suggest a 60-min block Sunday afternoon” based on pacing.
-                            </div>
+                            Opt-in schedule suggestions — coming soon.
                           </div>
                         </div>
                       )}
@@ -1781,14 +1645,7 @@ export default function GroupsPage() {
                     <div className="rounded-3xl border bg-white p-4" style={surfaceSoftStyle}>
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">At a glance</div>
-                        <button
-                          onClick={() => showToast("Notifications (UI shell)")}
-                          className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
-                          style={surfaceSoftStyle}
-                          title="Notifications"
-                        >
-                          <Bell size={16} />
-                        </button>
+                        <Bell size={16} style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.35)" }} />
                       </div>
 
                       <div className="mt-3 space-y-2">
@@ -1798,9 +1655,6 @@ export default function GroupsPage() {
                         <InfoLine label="Chat" value={openGroup.chatEnabled ? "Enabled (private only)" : "Off"} dark={dark} />
                       </div>
 
-                      <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                        <div className="text-xs text-neutral-600">Design rule: no feeds, no streak pressure, no noise.</div>
-                      </div>
                     </div>
 
                     {openGroup.visibility === "Private" ? (

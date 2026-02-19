@@ -44,10 +44,6 @@ function formatTime(ts: number) {
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
 function typeIcon(t: FileType) {
   if (t === "pdf") return "PDF";
   if (t === "doc") return "DOC";
@@ -121,15 +117,21 @@ export default function FilesPage() {
   const panelInner = "rounded-2xl border bg-white";
   const buttonBase = "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
 
-  // Mock groups (for context filter + upload modal)
-  const groups = useMemo(
-    () => [
-      { id: "g1", name: "Study Group — F303" },
-      { id: "g2", name: "Startup Team — Jynx" },
-      { id: "g3", name: "Roommates — Spring" },
-    ],
-    []
-  );
+  // Real groups from API
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/groups")
+      .then(async (r) => {
+        if (!r.ok) return { data: [] };
+        const text = await r.text();
+        return text ? JSON.parse(text) : { data: [] };
+      })
+      .then((res) => {
+        const raw: any[] = Array.isArray(res?.data) ? res.data : [];
+        setGroups(raw.map((g: any) => ({ id: g.id, name: g.name })));
+      })
+      .catch(console.error);
+  }, []);
 
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
@@ -180,6 +182,13 @@ export default function FilesPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [addingLink, setAddingLink] = useState(false);
+
+  // Move/Tag modal
+  const [moveTagFile, setMoveTagFile] = useState<FileItem | null>(null);
+  const [mtCategory, setMtCategory] = useState<FileCategory>("Other");
+  const [mtContextKind, setMtContextKind] = useState<"personal" | "group">("personal");
+  const [mtGroupId, setMtGroupId] = useState<string>("");
+  const [mtSaving, setMtSaving] = useState(false);
 
   const [uContextKind, setUContextKind] = useState<"personal" | "group">("personal");
   const [uGroupId, setUGroupId] = useState<string>(groups[0]?.id ?? "g1");
@@ -280,23 +289,37 @@ export default function FilesPage() {
     };
   }
 
-  function addFilesNow() {
-    const now = Date.now();
+  async function addFilesNow() {
+    if (pendingFiles.length === 0) return;
     const ctx = buildContext();
 
-    const newOnes: FileItem[] = pendingFiles.map((f) => ({
-      id: uid(),
-      name: f.name,
-      type: inferType(f.name),
-      category: uCategory,
-      context: ctx,
-      createdAt: now,
-      sizeLabel: prettySize(f.size),
-      pinned: uPinned,
-      notes: uNotes.trim() ? uNotes.trim() : undefined,
-    }));
+    const saved: FileItem[] = [];
+    for (const f of pendingFiles) {
+      try {
+        const res = await fetch("/api/files", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: f.name,
+            type: inferType(f.name),
+            size: f.size || null,
+            category: uCategory,
+            pinned: uPinned,
+            notes: uNotes.trim() || null,
+            groupId: ctx.kind === "group" ? ctx.groupId : null,
+          }),
+        });
+        const body = await res.json();
+        const created = body?.data ?? body;
+        if (created?.id) {
+          saved.push(mapApiFile(created));
+        }
+      } catch (err) {
+        console.error("Failed to save file metadata:", err);
+      }
+    }
 
-    setFiles((prev) => [...newOnes, ...prev]);
+    setFiles((prev) => [...saved, ...prev]);
     setUploadOpen(false);
     setPendingFiles([]);
   }
@@ -356,11 +379,42 @@ export default function FilesPage() {
   }
 
   function openFileUI(f: FileItem) {
-    if (f.type === "link" && f.url) {
+    if (f.url) {
       window.open(f.url, "_blank", "noopener,noreferrer");
-      return;
     }
-    alert("UI shell — open");
+    // No URL means file metadata only (no cloud storage yet) — button is disabled below
+  }
+
+  function openMoveTag(f: FileItem) {
+    setMoveTagFile(f);
+    setMtCategory(f.category);
+    setMtContextKind(f.context.kind === "group" ? "group" : "personal");
+    setMtGroupId(f.context.kind === "group" ? f.context.groupId : (groups[0]?.id ?? ""));
+  }
+
+  async function saveMoveTag() {
+    if (!moveTagFile) return;
+    setMtSaving(true);
+    try {
+      const res = await fetch(`/api/files/${moveTagFile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: mtCategory,
+          groupId: mtContextKind === "group" ? mtGroupId : null,
+        }),
+      });
+      const body = await res.json();
+      const updated = body?.data ?? body;
+      if (updated?.id) {
+        setFiles((prev) => prev.map((f) => f.id === moveTagFile.id ? mapApiFile(updated) : f));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setMtSaving(false);
+      setMoveTagFile(null);
+    }
   }
 
   return (
@@ -386,12 +440,12 @@ export default function FilesPage() {
                 className="h-9 w-9 rounded-xl border bg-white flex items-center justify-center text-[10px] font-semibold"
                 style={surfaceSoftStyle}
               >
-                LOGO
+                J
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-semibold tracking-wide truncate">Files</div>
                 <div className="text-xs text-neutral-500 mt-0.5 truncate">
-                  One list • search + filters • light context on upload
+                  All your files in one place
                 </div>
               </div>
             </div>
@@ -504,7 +558,7 @@ export default function FilesPage() {
                       <div className="text-sm font-semibold">All files</div>
                       <div className="ml-auto text-[11px] text-neutral-500">{filtered.length}</div>
                     </div>
-                    <div className="mt-1 text-xs text-neutral-500">One list. Use filters when it grows.</div>
+                    <div className="mt-1 text-xs text-neutral-500">Use filters to narrow down.</div>
                   </div>
 
                   <div className="p-4">
@@ -549,9 +603,10 @@ export default function FilesPage() {
 
                                 <div className="mt-3 flex flex-wrap gap-2">
                                   <button
-                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                    className={cx(buttonBase, f.url ? "bg-white hover:bg-black/[0.03]" : "opacity-40 cursor-not-allowed bg-white")}
                                     style={brandSoftStyle}
-                                    onClick={() => openFileUI(f)}
+                                    onClick={() => f.url && openFileUI(f)}
+                                    title={f.url ? "Open file" : "No download URL (metadata only)"}
                                   >
                                     Open
                                   </button>
@@ -567,7 +622,7 @@ export default function FilesPage() {
                                   <button
                                     className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
                                     style={surfaceSoftStyle}
-                                    onClick={() => alert("UI shell — move/tag modal later")}
+                                    onClick={() => openMoveTag(f)}
                                   >
                                     Move / Tag
                                   </button>
@@ -718,7 +773,7 @@ export default function FilesPage() {
                     <div className="p-4">
                       <div className="text-sm font-semibold">How this stays simple</div>
                       <div className="mt-2 text-sm text-neutral-700 leading-relaxed">
-                        One list. Light context on upload. Search when you don’t feel like organizing.
+                        Upload files, add context, and use search and filters to find anything fast.
                       </div>
                       <div className="mt-3 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
                         <div className="text-xs text-neutral-500">
@@ -732,6 +787,75 @@ export default function FilesPage() {
             </div>
           </div>
         </div>
+
+        {/* Move / Tag Modal */}
+        {moveTagFile && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setMoveTagFile(null)} />
+            <div
+              className="relative w-full max-w-[480px] rounded-3xl border bg-white p-5"
+              style={{ borderColor: "rgba(0,0,0,0.10)", boxShadow: "0 28px 90px rgba(0,0,0,0.12)" }}
+            >
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <div className="text-sm font-semibold">Move / Tag</div>
+                  <div className="mt-0.5 text-xs text-neutral-500 truncate">{moveTagFile.name}</div>
+                </div>
+                <button className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")} style={surfaceSoftStyle} onClick={() => setMoveTagFile(null)}>✕</button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs font-semibold text-neutral-600 mb-2">Category</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["School", "Work", "Life", "Finance", "Health", "Fitness", "Other"] as const).map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setMtCategory(c)}
+                        className={cx(buttonBase, "text-left")}
+                        style={mtCategory === c ? brandSoftStyle : surfaceSoftStyle}
+                      >{c}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-semibold text-neutral-600 mb-2">Context</div>
+                  <div className="flex gap-2">
+                    {(["personal", "group"] as const).map((k) => (
+                      <button key={k} onClick={() => setMtContextKind(k)} className={cx(buttonBase)} style={mtContextKind === k ? brandSoftStyle : surfaceSoftStyle}>
+                        {k === "personal" ? "Personal" : "Group"}
+                      </button>
+                    ))}
+                  </div>
+                  {mtContextKind === "group" && groups.length > 0 && (
+                    <select
+                      value={mtGroupId}
+                      onChange={(e) => setMtGroupId(e.target.value)}
+                      className="mt-2 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                      style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                    >
+                      {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  )}
+                  {mtContextKind === "group" && groups.length === 0 && (
+                    <div className="mt-2 text-xs text-neutral-500">No groups yet.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")} style={surfaceSoftStyle} onClick={() => setMoveTagFile(null)}>Cancel</button>
+                <button
+                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                  style={brandSoftStyle}
+                  onClick={saveMoveTag}
+                  disabled={mtSaving}
+                >{mtSaving ? "Saving…" : "Save"}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Upload Modal */}
         {uploadOpen && (

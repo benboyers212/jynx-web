@@ -209,6 +209,24 @@ export default function ChatPage() {
     return Array.from(groups.entries()).map(([day, items]) => ({ day, items }));
   }, [threads, historyQuery]);
 
+  async function deleteThread(threadId: string) {
+    try {
+      await fetch(`/api/conversations/${threadId}`, { method: "DELETE" });
+      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      if (activeThreadId === threadId) {
+        const remaining = threads.filter((t) => t.id !== threadId);
+        if (remaining.length > 0) {
+          setActiveThreadId(remaining[0].id);
+        } else {
+          setActiveThreadId("");
+          setMessages([]);
+        }
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to delete conversation");
+    }
+  }
+
   async function newChat() {
     setError(null);
     try {
@@ -319,21 +337,6 @@ export default function ChatPage() {
     try {
       const savedUser = await appendMessageToDB("user", userContent);
       setMessages((prev) => prev.map((m) => (m.id === tempUser.id ? savedUser.message : m)));
-
-      // UI shell assistant response (persisted)
-      const assistantText =
-        "Got it. (UI shell) — files are attached in the UI for now. Once wired, this will upload + reference them in the thread.";
-
-      const savedAssistant = await appendMessageToDB("assistant", assistantText);
-      setMessages((prev) => [...prev, savedAssistant.message]);
-
-      setThreads((prev) =>
-        prev.map((t) =>
-          t.id === (activeThreadId || t.id)
-            ? { ...t, lastMessagePreview: shortPreview(assistantText, 70), updatedAt: Date.now() }
-            : t
-        )
-      );
     } catch (e: any) {
       setError(e?.message || "Failed to send message");
     }
@@ -426,15 +429,10 @@ export default function ChatPage() {
                         const active = t.id === activeThreadId;
 
                         return (
-                          <button
+                          <div
                             key={t.id}
-                            onClick={() => {
-                              setActiveThreadId(t.id);
-                              setInput("");
-                              setAttachedFiles([]);
-                            }}
                             className={cx(
-                              "w-full text-left rounded-2xl px-3 py-3 border transition relative hover:bg-black/[0.03]"
+                              "group relative rounded-2xl border transition",
                             )}
                             style={{
                               borderColor: border,
@@ -449,21 +447,38 @@ export default function ChatPage() {
                               />
                             )}
 
-                            <div className="flex items-start gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-semibold truncate">{t.title}</div>
-                                <div className="mt-1 text-xs truncate" style={{ color: muted }}>
-                                  {t.lastMessagePreview || "—"}
+                            <button
+                              onClick={() => {
+                                setActiveThreadId(t.id);
+                                setInput("");
+                                setAttachedFiles([]);
+                              }}
+                              className="w-full text-left px-3 py-3 hover:bg-black/[0.03] transition rounded-2xl"
+                            >
+                              <div className="flex items-start gap-2 pr-6">
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-semibold truncate">{t.title}</div>
+                                  <div className="mt-1 text-xs truncate" style={{ color: muted }}>
+                                    {t.lastMessagePreview || "—"}
+                                  </div>
+                                </div>
+                                <div className="text-[11px] whitespace-nowrap" style={{ color: muted }}>
+                                  <span suppressHydrationWarning>
+                                    {mounted ? formatTime(t.createdAt) : ""}
+                                  </span>
                                 </div>
                               </div>
+                            </button>
 
-                              <div className="text-[11px] whitespace-nowrap" style={{ color: muted }}>
-                                <span suppressHydrationWarning>
-                                  {mounted ? formatTime(t.createdAt) : ""}
-                                </span>
-                              </div>
-                            </div>
-                          </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-black/[0.06]"
+                              style={{ color: "rgba(17,17,17,0.50)" }}
+                              title="Delete conversation"
+                            >
+                              ×
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -484,15 +499,10 @@ export default function ChatPage() {
                   {threads.find((t) => t.id === activeThreadId)?.title || "Chat"}
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: muted }}>
-                  Simple thread view — left history, right conversation.
+                  {threads.length > 0 ? `${threads.length} conversation${threads.length !== 1 ? "s" : ""}` : "Start a conversation"}
                 </div>
               </div>
 
-              <div className="ml-auto hidden sm:flex items-center gap-2 rounded-full border px-3 py-1 text-[11px]"
-                   style={{ borderColor: border, background: "rgba(0,0,0,0.02)", color: "rgba(17,17,17,0.70)" }}>
-                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: "rgba(16,185,129,0.85)" }} />
-                UI shell
-              </div>
             </div>
           </header>
 

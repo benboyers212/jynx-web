@@ -8,6 +8,25 @@ function jsonError(message: string, status = 400) {
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+// GET /api/onboarding/response -> fetch current answers
+export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return jsonError("Unauthorized", 401);
+
+  const dbUser = await prisma.user.findUnique({
+    where: { clerkUserId: userId },
+    select: { id: true },
+  });
+  if (!dbUser) return jsonError("User not found in DB", 404);
+
+  const record = await prisma.onboardingResponse.findUnique({
+    where: { userId: dbUser.id },
+    select: { answers: true },
+  });
+
+  return NextResponse.json({ ok: true, answers: record?.answers ?? {} });
+}
+
 // POST /api/onboarding/response -> upsert survey answers + mark complete
 export async function POST(req: Request) {
   const { userId } = await auth();

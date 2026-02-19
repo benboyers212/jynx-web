@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { Menu, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useTheme } from "./ThemeContext";
@@ -58,7 +59,6 @@ type BaseEvent = {
   location?: string;
   completed?: boolean;
 
-  // importance 1–5 (UI shell)
   importance?: 1 | 2 | 3 | 4 | 5;
 
   // internal only
@@ -253,7 +253,7 @@ type ViewFormat = "Timeline" | "List";
 type Reminder = {
   id: string;
   title: string;
-  due: string; // UI shell
+  due: string;
   severity?: "High" | "Medium" | "Low";
   completed?: boolean;
 };
@@ -261,6 +261,7 @@ type Reminder = {
 export default function Home() {
   const { isSignedIn, isLoaded } = useAuth();
   const { dark } = useTheme();
+  const router = useRouter();
 
   // ---------------------------
   // Events — fetched from API
@@ -279,12 +280,24 @@ export default function Home() {
       .finally(() => setLoadingEvents(false));
   }, []);
 
-  // Reminders (UI shell)
-  const [reminders, setReminders] = useState<Reminder[]>([
-    { id: "r1", title: "Submit PS3", due: "Tonight", severity: "High" },
-    { id: "r2", title: "Email Prof. Kim", due: "Tomorrow", severity: "Medium" },
-    { id: "r3", title: "Order protein", due: "This week", severity: "Low" },
-  ]);
+  // Reminders — fetched from API
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+
+  useEffect(() => {
+    fetch("/api/reminders")
+      .then((r) => r.json())
+      .then((res) => {
+        const raw: any[] = Array.isArray(res?.reminders) ? res.reminders : [];
+        setReminders(raw.filter((r) => r.enabled !== false).map((r) => ({
+          id: r.id,
+          title: r.title,
+          due: r.date ? r.date : r.schedule ?? "",
+          severity: undefined,
+          completed: false,
+        })));
+      })
+      .catch(console.error);
+  }, []);
 
   // ---------------------------
   // Day selection (every day clickable)
@@ -471,20 +484,30 @@ export default function Home() {
     importance: 3,
   });
 
-  // Goals (control center)
+  // Goals (control center) — fetched from API (taskType="goal", priority stores "Week"/"Month"/"Year")
   const [goals, setGoals] = useState<Array<{
     id: string;
     title: string;
     description: string;
     targetDate: string;
     timeWindow: "Week" | "Month" | "Year";
-  }>>([
-    { id: "g3", title: "Submit assignment before Friday", description: "Upload PS3 before the deadline.", targetDate: "2026-01-16", timeWindow: "Week" },
-    { id: "g4", title: "Study for midterm prep", description: "Cover Ch. 6–8 and work through practice problems.", targetDate: "2026-01-17", timeWindow: "Week" },
-    { id: "g5", title: "Raise GPA to 3.8", description: "Stay on track with assignments and exams this semester.", targetDate: "2026-04-30", timeWindow: "Month" },
-    { id: "g6", title: "Land a summer internship", description: "Apply to at least 10 positions and prepare for interviews.", targetDate: "2026-12-31", timeWindow: "Year" },
-    { id: "g7", title: "Graduate with honors", description: "Maintain a 3.7+ GPA through the end of the program.", targetDate: "2027-05-15", timeWindow: "Year" },
-  ]);
+  }>>([]);
+
+  useEffect(() => {
+    fetch("/api/tasks?taskType=goal")
+      .then((r) => r.json())
+      .then((res) => {
+        const raw: any[] = res?.data ?? res ?? [];
+        setGoals(raw.map((t) => ({
+          id: t.id,
+          title: t.title,
+          description: t.description ?? "",
+          targetDate: t.dueDate ? t.dueDate.slice(0, 10) : "",
+          timeWindow: (["Week", "Month", "Year"].includes(t.priority) ? t.priority : "Week") as "Week" | "Month" | "Year",
+        })));
+      })
+      .catch(console.error);
+  }, []);
 
   const [goalsModalWindow, setGoalsModalWindow] = useState<"Week" | "Month" | "Year" | null>(null);
   const [addGoalOpen, setAddGoalOpen] = useState(false);
@@ -577,7 +600,7 @@ export default function Home() {
     const text = quickChat.trim();
     if (!text) return;
     setQuickChat("");
-    alert(`UI shell — would send to assistant:\n\n"${text}"`);
+    router.push("/chat");
   }
 
   // NO FREE TIME BLOCKS: just sorted events
@@ -978,7 +1001,7 @@ export default function Home() {
                                 onOpen={openDrawer}
                               />
                             ) : (
-                              <BlankDayCard dark={dark} />
+                              <BlankDayCard dark={dark} onAddEvent={() => setAdjustOpen(true)} onBuildBlocks={() => router.push("/chat")} />
                             )}
                           </div>
                         </div>
@@ -1749,7 +1772,10 @@ export default function Home() {
                             </div>
                           )}
                           <button
-                            onClick={() => setGoals((prev) => prev.filter((g) => g.id !== goal.id))}
+                            onClick={() => {
+                              setGoals((prev) => prev.filter((g) => g.id !== goal.id));
+                              fetch(`/api/tasks/${goal.id}`, { method: "DELETE" }).catch(console.error);
+                            }}
                             className="absolute top-3 right-3 text-[12px] text-neutral-300 hover:text-neutral-500 transition"
                             title="Remove goal"
                           >
@@ -1878,18 +1904,34 @@ export default function Home() {
 
               <div className="mt-5 flex gap-2">
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!addGoalForm.title.trim()) return;
-                    setGoals((prev) => [
-                      ...prev,
-                      {
-                        id: uid(),
-                        title: addGoalForm.title.trim(),
-                        description: addGoalForm.description.trim(),
-                        targetDate: addGoalForm.targetDate,
-                        timeWindow: addGoalForm.timeWindow,
-                      },
-                    ]);
+                    try {
+                      const res = await fetch("/api/tasks", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          title: addGoalForm.title.trim(),
+                          description: addGoalForm.description.trim() || null,
+                          dueDate: addGoalForm.targetDate || null,
+                          taskType: "goal",
+                          priority: addGoalForm.timeWindow,
+                        }),
+                      });
+                      const body = await res.json();
+                      const created = body?.data ?? body;
+                      if (created?.id) {
+                        setGoals((prev) => [...prev, {
+                          id: created.id,
+                          title: created.title,
+                          description: created.description ?? "",
+                          targetDate: created.dueDate ? created.dueDate.slice(0, 10) : "",
+                          timeWindow: addGoalForm.timeWindow,
+                        }]);
+                      }
+                    } catch (err) {
+                      console.error(err);
+                    }
                     setAddGoalForm({ title: "", description: "", targetDate: "", timeWindow: "Week" });
                     setAddGoalOpen(false);
                   }}
@@ -2295,7 +2337,7 @@ function ListRow({
   );
 }
 
-function BlankDayCard({ dark = false }: { dark?: boolean }) {
+function BlankDayCard({ dark = false, onAddEvent, onBuildBlocks }: { dark?: boolean; onAddEvent?: () => void; onBuildBlocks?: () => void }) {
   return (
     <div className="rounded-3xl border p-6" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "var(--surface)" : "white" }}>
       <div className="text-sm font-semibold text-neutral-900">No events</div>
@@ -2306,13 +2348,14 @@ function BlankDayCard({ dark = false }: { dark?: boolean }) {
         <button
           className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
           style={getSurfaceSoftStyle(dark)}
+          onClick={onAddEvent}
         >
           Add event
         </button>
         <button
           className="rounded-2xl px-3 py-2 text-xs font-semibold border transition"
           style={getSurfaceSoftStyle(dark)}
-          onClick={() => alert("UI shell — build blocks")}
+          onClick={onBuildBlocks}
         >
           Build blocks
         </button>

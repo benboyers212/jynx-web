@@ -46,6 +46,32 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   return NextResponse.json({ success: true, data: member }, { status: 201 });
 }
 
+// PATCH /api/groups/[id]/members — update current user's membership (e.g. pinned)
+export async function PATCH(req: NextRequest, ctx: Ctx) {
+  const dbUserId = await getDbUserId();
+  if (!dbUserId) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+  const { id: groupId } = await ctx.params;
+
+  const membership = await prisma.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId: dbUserId } },
+    select: { id: true },
+  });
+  if (!membership) return NextResponse.json({ success: false, error: "Not a member" }, { status: 404 });
+
+  const body = await req.json().catch(() => ({}));
+  const data: any = {};
+  if (body.pinned !== undefined) data.pinned = Boolean(body.pinned);
+
+  const updated = await prisma.groupMember.update({
+    where: { groupId_userId: { groupId, userId: dbUserId } },
+    data,
+    select: { id: true, pinned: true, role: true },
+  });
+
+  return NextResponse.json({ success: true, data: updated });
+}
+
 // DELETE /api/groups/[id]/members — leave group (or owner removes member)
 export async function DELETE(req: NextRequest, ctx: Ctx) {
   const dbUserId = await getDbUserId();

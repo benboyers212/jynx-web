@@ -20,7 +20,11 @@ export async function GET() {
 
   const memberships = await prisma.groupMember.findMany({
     where: { userId: dbUserId },
-    include: {
+    orderBy: { joinedAt: "desc" },
+    select: {
+      role: true,
+      pinned: true,
+      joinedAt: true,
       group: {
         include: {
           members: {
@@ -32,12 +36,12 @@ export async function GET() {
         },
       },
     },
-    orderBy: { joinedAt: "desc" },
   });
 
   const groups = memberships.map((m) => ({
     ...m.group,
     memberRole: m.role,
+    memberPinned: m.pinned,
     joinedAt: m.joinedAt,
   }));
 

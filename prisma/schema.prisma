@@ -365,8 +365,9 @@ model Message {
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  role    String @db.Text // "user" | "assistant"
-  content String @db.Text
+  role       String  @db.Text // "user" | "assistant"
+  content    String  @db.Text
+  senderName String? // display name for group chat messages
 
   createdAt DateTime @default(now())
 
@@ -451,6 +452,7 @@ model GroupMember {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   role     String   @default("member") // "owner" | "admin" | "member"
+  pinned   Boolean  @default(false)
   joinedAt DateTime @default(now())
 
   @@unique([groupId, userId])

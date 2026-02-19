@@ -52,6 +52,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (body.pinned !== undefined) data.pinned = Boolean(body.pinned);
   if (body.category !== undefined) data.category = body.category ?? null;
   if (body.notes !== undefined) data.notes = body.notes ?? null;
+  if ("groupId" in body) data.groupId = body.groupId ?? null;
 
   const file = await prisma.file.update({ where: { id }, data });
 

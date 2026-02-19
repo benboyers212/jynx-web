@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { Menu, Check, Circle } from "lucide-react";
 import { useTheme } from "../ThemeContext";
 
@@ -13,7 +14,7 @@ type Question = {
 type Goal = {
   id: string;
   title: string;
-  window: string;
+  dueDate: string; // "YYYY-MM-DD" or ""
   items: Array<{ id: string; text: string; completed: boolean }>;
   progress: number;
 };
@@ -148,147 +149,173 @@ function buildReflectionText(consistency: CategoryConsistency, lens: Lens): stri
   }
 }
 
-/* ---------- Mock Insights Data ---------- */
+/* ---------- Default (empty) lens data ---------- */
 
-const MOCK_INSIGHTS: Insight[] = [
-  // Week insights
-  {
-    id: "i1",
-    title: "Strong Study Momentum",
-    description: "Your study consistency is at 78% this week, up from 64% last week. You're building a solid routine around morning deep work sessions.",
-    confidence: "High",
-    lens: "week",
-    type: "summary",
-    pinned: false,
-  },
-  {
-    id: "i2",
-    title: "Fitness Routine Fragile",
-    description: "Your fitness consistency dropped to 58% this week. Consider scheduling workouts earlier in the day when energy is higher.",
-    confidence: "Medium",
-    lens: "week",
-    type: "patterns",
-    pinned: false,
-  },
-  {
-    id: "i3",
-    title: "Peak Focus: 9-11 AM",
-    description: "Data shows your most productive deep work happens between 9-11 AM. Consider protecting this time block for high-priority tasks.",
-    confidence: "High",
-    lens: "week",
-    type: "patterns",
-    pinned: true,
-  },
-  {
-    id: "i4",
-    title: "Add Buffer Time",
-    description: "You've had 3 schedule conflicts this week. Try adding 10-minute buffers between back-to-back meetings.",
-    confidence: "Medium",
-    lens: "week",
-    type: "suggestions",
-    pinned: false,
-  },
-  // Today insights
-  {
-    id: "i5",
-    title: "Today's Intentional Minutes: On Track",
-    description: "You've completed 120 intentional minutes so far today, matching your daily target. You're on pace for a strong day.",
-    confidence: "High",
-    lens: "today",
-    type: "summary",
-    pinned: false,
-  },
-  {
-    id: "i6",
-    title: "Energy Dip After Lunch",
-    description: "Your activity shows reduced focus between 2-3 PM. Consider a short walk or switching to lighter tasks during this window.",
-    confidence: "Medium",
-    lens: "today",
-    type: "patterns",
-    pinned: false,
-  },
-  // Month insights
-  {
-    id: "i7",
-    title: "Consistency Trending Up",
-    description: "Overall consistency improved to 82% this month, up from 68% last month. All major categories show positive momentum.",
-    confidence: "High",
-    lens: "month",
-    type: "summary",
-    pinned: false,
-  },
-  {
-    id: "i8",
-    title: "Weekend Planning Gap",
-    description: "Weekends show 40% less intentional time. Consider adding 1-2 weekend routines to maintain momentum.",
-    confidence: "High",
-    lens: "month",
-    type: "suggestions",
-    pinned: false,
-  },
-];
-
-/* ---------- Mock Data by Lens ---------- */
-
-const MOCK_DATA: Record<Lens, LensData> = {
-  today: {
-    intentionalMinutesTotal: 120,
-    today: 120,
-    sevenDayAvg: 597,
-    streak: "6 days",
-    weekTrend: [520, 580, 610, 590, 620, 640, 120],
-    consistencyByCategory: {
-      study: 75,
-      work: 60,
-      fitness: 55,
-      life: 42,
-    },
-    previous: {
-      intentionalMinutesTotal: 110,
-      today: 110,
-      sevenDayAvg: 580,
-      streak: "5 days",
-    },
-  },
-  week: {
-    intentionalMinutesTotal: 620,
-    today: 120,
-    sevenDayAvg: 597,
-    streak: "6 days",
-    weekTrend: [520, 580, 610, 590, 620, 640, 620],
-    consistencyByCategory: {
-      study: 78,
-      work: 64,
-      fitness: 58,
-      life: 46,
-    },
-    previous: {
-      intentionalMinutesTotal: 575,
-      today: 115,
-      sevenDayAvg: 550,
-      streak: "5 days",
-    },
-  },
-  month: {
-    intentionalMinutesTotal: 2480,
-    today: 120,
-    sevenDayAvg: 597,
-    streak: "18 days",
-    weekTrend: [2100, 2200, 2250, 2300, 2350, 2400, 2480],
-    consistencyByCategory: {
-      study: 82,
-      work: 68,
-      fitness: 62,
-      life: 51,
-    },
-    previous: {
-      intentionalMinutesTotal: 2200,
-      today: 105,
-      sevenDayAvg: 530,
-      streak: "15 days",
-    },
-  },
+const DEFAULT_LENS_DATA: LensData = {
+  intentionalMinutesTotal: 0,
+  today: 0,
+  sevenDayAvg: 0,
+  streak: "0 days",
+  weekTrend: [0, 0, 0, 0, 0, 0, 0],
+  consistencyByCategory: { study: 0, work: 0, fitness: 0, life: 0 },
+  previous: { intentionalMinutesTotal: 0, today: 0, sevenDayAvg: 0, streak: "0 days" },
 };
+
+/* ---------- Compute lens data from real events ---------- */
+
+function computeLensData(events: any[], lens: Lens): LensData {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  function eventMins(e: any) {
+    const s = new Date(e.startAt);
+    const end = new Date(e.endAt);
+    return Math.max(0, (end.getTime() - s.getTime()) / 60000);
+  }
+
+  function dayKey(d: Date) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
+  }
+
+  function eventCategory(type: string): keyof CategoryConsistency | null {
+    if (["study", "class", "prep"].includes(type)) return "study";
+    if (["work", "meeting"].includes(type)) return "work";
+    if (["health"].includes(type)) return "fitness";
+    if (["life"].includes(type)) return "life";
+    return null;
+  }
+
+  const intentional = events.filter((e) => e.eventType !== "free");
+
+  // Build daily minutes map for last 30 days
+  const dailyMins: Record<string, number> = {};
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(todayStart.getTime() - i * 86400000);
+    dailyMins[dayKey(d)] = 0;
+  }
+  for (const e of intentional) {
+    const k = dayKey(new Date(e.startAt));
+    if (k in dailyMins) dailyMins[k] += eventMins(e);
+  }
+
+  const todayKey = dayKey(todayStart);
+  const todayMins = dailyMins[todayKey] ?? 0;
+
+  // Last 7 days ending today
+  const last7Keys = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(todayStart.getTime() - (6 - i) * 86400000);
+    return dayKey(d);
+  });
+  const last7Mins = last7Keys.map((k) => dailyMins[k] ?? 0);
+  const sevenDayAvg = last7Mins.reduce((a, b) => a + b, 0) / 7;
+
+  // Current calendar week (Mon–Sun)
+  const dow = todayStart.getDay();
+  const weekStartOffset = dow === 0 ? 6 : dow - 1;
+  const weekStart = new Date(todayStart.getTime() - weekStartOffset * 86400000);
+  const weekKeys = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart.getTime() + i * 86400000);
+    return dayKey(d);
+  });
+  const weekTotal = weekKeys.reduce((sum, k) => sum + (dailyMins[k] ?? 0), 0);
+
+  // Current calendar month
+  const monthStartKey = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const monthTotal = Object.entries(dailyMins).reduce((sum, [k, v]) => (k >= monthStartKey ? sum + v : sum), 0);
+
+  // Streak (consecutive days from today backward)
+  let streak = 0;
+  for (let i = 0; i < 30; i++) {
+    const k = dayKey(new Date(todayStart.getTime() - i * 86400000));
+    if ((dailyMins[k] ?? 0) > 0) streak++;
+    else break;
+  }
+  const streakStr = streak === 1 ? "1 day" : `${streak} days`;
+
+  // Category consistency for last 7 days
+  const catDays: Record<keyof CategoryConsistency, number> = { study: 0, work: 0, fitness: 0, life: 0 };
+  for (const k of last7Keys) {
+    const cats = new Set(
+      intentional
+        .filter((e) => dayKey(new Date(e.startAt)) === k)
+        .map((e) => eventCategory(e.eventType))
+        .filter(Boolean) as (keyof CategoryConsistency)[]
+    );
+    for (const cat of cats) catDays[cat]++;
+  }
+  const consistency: CategoryConsistency = {
+    study: Math.round((catDays.study / 7) * 100),
+    work: Math.round((catDays.work / 7) * 100),
+    fitness: Math.round((catDays.fitness / 7) * 100),
+    life: Math.round((catDays.life / 7) * 100),
+  };
+
+  // Previous period
+  let prevTotal = 0;
+  let prevToday = 0;
+  let prevSevenAvg = sevenDayAvg;
+  let prevStreak = 0;
+
+  if (lens === "today") {
+    const yKey = dayKey(new Date(todayStart.getTime() - 86400000));
+    prevToday = dailyMins[yKey] ?? 0;
+    prevTotal = prevToday;
+    const prev7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(todayStart.getTime() - (13 - i) * 86400000);
+      return dailyMins[dayKey(d)] ?? 0;
+    });
+    prevSevenAvg = prev7.reduce((a, b) => a + b, 0) / 7;
+  } else if (lens === "week") {
+    const prevWeekKeys = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekStart.getTime() - (7 - i) * 86400000);
+      return dayKey(d);
+    });
+    prevTotal = prevWeekKeys.reduce((sum, k) => sum + (dailyMins[k] ?? 0), 0);
+    prevToday = dailyMins[dayKey(new Date(todayStart.getTime() - 7 * 86400000))] ?? 0;
+    prevSevenAvg = prevTotal / 7;
+  } else {
+    const prevMonthStartKey = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
+    prevTotal = Object.entries(dailyMins).reduce(
+      (sum, [k, v]) => (k >= prevMonthStartKey && k < monthStartKey ? sum + v : sum),
+      0
+    );
+    prevToday = 0;
+  }
+
+  for (let i = 8; i < 38; i++) {
+    const k = dayKey(new Date(todayStart.getTime() - i * 86400000));
+    if ((dailyMins[k] ?? 0) > 0) prevStreak++;
+    else break;
+  }
+  const prevStreakStr = prevStreak === 1 ? "1 day" : `${prevStreak} days`;
+
+  let intentionalMinutesTotal = 0;
+  let weekTrendData = last7Mins;
+
+  if (lens === "today") {
+    intentionalMinutesTotal = todayMins;
+  } else if (lens === "week") {
+    intentionalMinutesTotal = weekTotal;
+    weekTrendData = weekKeys.map((k) => dailyMins[k] ?? 0);
+  } else {
+    intentionalMinutesTotal = monthTotal;
+  }
+
+  return {
+    intentionalMinutesTotal: Math.round(intentionalMinutesTotal),
+    today: Math.round(todayMins),
+    sevenDayAvg: Math.round(sevenDayAvg),
+    streak: streakStr,
+    weekTrend: weekTrendData.map(Math.round),
+    consistencyByCategory: consistency,
+    previous: {
+      intentionalMinutesTotal: Math.round(prevTotal),
+      today: Math.round(prevToday),
+      sevenDayAvg: Math.round(prevSevenAvg),
+      streak: prevStreakStr,
+    },
+  };
+}
 
 /* ---------- Enhanced SimpleBars with Qualitative Labels ---------- */
 
@@ -333,12 +360,24 @@ function SimpleBars({
 
 export default function MyTimePage() {
   const { dark } = useTheme();
+  const router = useRouter();
 
   // Lens state
   const [lens, setLens] = useState<Lens>("week");
 
+  // Real events (last 30 days) used to compute metrics
+  const [allTimeEvents, setAllTimeEvents] = useState<any[]>([]);
+  useEffect(() => {
+    const start = new Date(Date.now() - 30 * 86400000).toISOString();
+    const end = new Date(Date.now() + 86400000).toISOString();
+    fetch(`/api/events?startAt=${encodeURIComponent(start)}&endAt=${encodeURIComponent(end)}`)
+      .then((r) => r.json())
+      .then((res) => setAllTimeEvents(res?.data ?? []))
+      .catch(console.error);
+  }, []);
+
   // Derived data from lens
-  const lensData = MOCK_DATA[lens];
+  const lensData = allTimeEvents.length > 0 ? computeLensData(allTimeEvents, lens) : DEFAULT_LENS_DATA;
   const intentionalMinutes = lensData.intentionalMinutesTotal;
   const weekTrend = lensData.weekTrend;
   const consistencyByCategory = lensData.consistencyByCategory;
@@ -377,9 +416,34 @@ export default function MyTimePage() {
 
   const [showCheckIn] = useState(true);
 
-  const answer = (questionId: string, value: string) => {
-    console.log("Answer:", questionId, value);
-    // Wire to backend later
+  const [checkInAnswers, setCheckInAnswers] = useState<Record<string, string>>({});
+
+  const answer = async (questionId: string, value: string) => {
+    const next = { ...checkInAnswers, [questionId]: value };
+    setCheckInAnswers(next);
+
+    try {
+      // Fetch existing answers so we don't overwrite onboarding data
+      const getRes = await fetch("/api/onboarding/response");
+      const existing = getRes.ok ? ((await getRes.json()).answers ?? {}) : {};
+
+      const today = new Date().toISOString().slice(0, 10);
+      const merged = {
+        ...existing,
+        checkIns: {
+          ...((existing as any).checkIns ?? {}),
+          [today]: { ...((existing as any).checkIns?.[today] ?? {}), ...next },
+        },
+      };
+
+      await fetch("/api/onboarding/response", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: merged }),
+      });
+    } catch (err) {
+      console.error("Failed to save check-in answer:", err);
+    }
   };
 
   // Goals — fetched from Task API (taskType="goal")
@@ -387,19 +451,19 @@ export default function MyTimePage() {
   const [loadingGoals, setLoadingGoals] = useState(true);
   const [showNewGoalForm, setShowNewGoalForm] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState("");
-  const [newGoalWindow, setNewGoalWindow] = useState("");
+  const [newGoalDueDate, setNewGoalDueDate] = useState("");
   const [creatingGoal, setCreatingGoal] = useState(false);
 
   useEffect(() => {
     fetch("/api/tasks?taskType=goal")
       .then((r) => r.json())
       .then((res) => {
-        const raw: any[] = res?.data ?? res ?? [];
+        const raw: any[] = Array.isArray(res?.data) ? res.data : [];
         setGoals(
           raw.map((t) => ({
             id: t.id,
             title: t.title,
-            window: t.description ?? "",
+            dueDate: t.dueDate ? t.dueDate.slice(0, 10) : "",
             items: [],
             progress: t.completed ? 100 : 0,
           }))
@@ -420,7 +484,7 @@ export default function MyTimePage() {
         body: JSON.stringify({
           title: newGoalTitle.trim(),
           taskType: "goal",
-          description: newGoalWindow.trim() || null,
+          dueDate: newGoalDueDate || null,
         }),
       });
       const body = await res.json();
@@ -428,10 +492,10 @@ export default function MyTimePage() {
       if (created?.id) {
         setGoals((prev) => [
           ...prev,
-          { id: created.id, title: created.title, window: created.description ?? "", items: [], progress: 0 },
+          { id: created.id, title: created.title, dueDate: created.dueDate ? created.dueDate.slice(0, 10) : "", items: [], progress: 0 },
         ]);
         setNewGoalTitle("");
-        setNewGoalWindow("");
+        setNewGoalDueDate("");
         setShowNewGoalForm(false);
       }
     } catch (err) {
@@ -489,7 +553,7 @@ export default function MyTimePage() {
 
   // Insights state
   const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(null);
-  const [insights, setInsights] = useState<Insight[]>(MOCK_INSIGHTS);
+  const [insights, setInsights] = useState<Insight[]>([]);
   const [expandedInsightId, setExpandedInsightId] = useState<string | null>(null);
 
   // Filter insights by lens and type
@@ -625,7 +689,7 @@ export default function MyTimePage() {
                           disabled={!aiChat.trim()}
                           onClick={() => {
                             if (aiChat.trim()) {
-                              console.log("Send:", aiChat);
+                              router.push("/chat");
                               setAiChat("");
                             }
                           }}
@@ -792,7 +856,7 @@ export default function MyTimePage() {
 
                     {/* Week trend sparkline */}
                     <div className="flex-1 flex items-end gap-1.5 pb-1" style={{ maxHeight: "60px" }}>
-                      {weekTrend.map((val, i) => {
+                      {weekTrend.map((val: number, i: number) => {
                         const max = Math.max(...weekTrend);
                         const pct = (val / max) * 100;
                         const isCurrent = i === weekTrend.length - 1;
@@ -884,10 +948,9 @@ export default function MyTimePage() {
                         }}
                       />
                       <input
-                        type="text"
-                        value={newGoalWindow}
-                        onChange={(e) => setNewGoalWindow(e.target.value)}
-                        placeholder='Timeframe (e.g. "Q1 2026", "This Month")'
+                        type="date"
+                        value={newGoalDueDate}
+                        onChange={(e) => setNewGoalDueDate(e.target.value)}
                         className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
                         style={{
                           borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
@@ -938,8 +1001,10 @@ export default function MyTimePage() {
                                   className="flex-1 min-w-0 text-left"
                                 >
                                   <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)", textDecoration: goal.progress >= 100 ? "line-through" : "none" }}>{goal.title}</div>
-                                  {goal.window && (
-                                    <div className="text-[11px] mt-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>{goal.window}</div>
+                                  {goal.dueDate && (
+                                    <div className="text-[11px] mt-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                                      Due {new Date(goal.dueDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                                    </div>
                                   )}
                                   <div className="mt-3 flex items-center gap-2.5">
                                     <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>

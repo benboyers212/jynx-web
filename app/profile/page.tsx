@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { SignOutButton } from "@clerk/nextjs";
+import { SignOutButton, useUser } from "@clerk/nextjs";
 import AccountPanel from "./AccountPanel";
 import { useTheme } from "../ThemeContext";
 
@@ -132,6 +132,7 @@ const brandSoftStyle: CSSProperties = {
 
 export default function ProfilePage() {
   const { dark } = useTheme();
+  const { user: clerkUser } = useUser();
 
   // === style tokens aligned to your NEW shell ===
   const surfaceStyle = getSurfaceStyle(dark);
@@ -176,8 +177,10 @@ export default function ProfilePage() {
     setPrefSection(null);
   }
 
-  // Header mock
-  const userInitial = "B";
+  const userInitial =
+    clerkUser?.firstName?.[0]?.toUpperCase() ??
+    clerkUser?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() ??
+    "?";
 
   // =========================
   // ✅ Medication DB wiring
@@ -546,7 +549,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="text-[11px] text-neutral-500 pt-1">UI shell</div>
         </div>
       </div>
 
@@ -760,7 +762,7 @@ export default function ProfilePage() {
                                 <button
                                   className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
                                   style={brandSoftStyle}
-                                  onClick={() => alert("UI shell — remind")}
+                                  onClick={() => { choosePref("reminders"); }}
                                 >
                                   Remind
                                 </button>
@@ -876,7 +878,7 @@ export default function ProfilePage() {
                               <button
                                 className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
                                 style={surfaceSoftStyle}
-                                onClick={() => alert("UI shell — reminders")}
+                                onClick={() => { choosePref("reminders"); }}
                               >
                                 Reminders
                               </button>
@@ -1164,7 +1166,7 @@ export default function ProfilePage() {
                 {topTab === "preferences" && prefSection !== "medication" && prefSection !== "reminders" && (
                   <ShellPanel
                     title={prettyPref(prefSection as PrefSection)}
-                    subtitle="UI shell — add fields later"
+                    subtitle="Coming soon"
                     surfaceStyle={surfaceStyle}
                     surfaceSoftStyle={surfaceSoftStyle}
                   />
@@ -1199,7 +1201,7 @@ export default function ProfilePage() {
                 ) : topTab === "settings" ? (
                   <ShellPanel
                     title={prettySettings(settingsSection as SettingsSection)}
-                    subtitle="UI shell — add options later"
+                    subtitle="Coming soon"
                     surfaceStyle={surfaceStyle}
                     surfaceSoftStyle={surfaceSoftStyle}
                   />
@@ -1345,7 +1347,6 @@ function ShellPanel({
 
         <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
           <div className="text-sm text-neutral-800">Coming soon.</div>
-          <div className="mt-1 text-[11px] text-neutral-500">Keep this PS-style: list → subsection → details.</div>
         </div>
       </div>
     </div>
