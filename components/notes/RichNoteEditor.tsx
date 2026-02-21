@@ -52,15 +52,6 @@ export function RichNoteEditor({
     },
   });
 
-  // Auto-save every 3 seconds if there are changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      handleSave();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [handleSave]);
-
   const handleSave = useCallback(async () => {
     if (!editor || !title.trim()) return;
 
@@ -83,6 +74,15 @@ export function RichNoteEditor({
       setSaving(false);
     }
   }, [editor, title, onSave]);
+
+  // Auto-save every 3 seconds if there are changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      handleSave();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [handleSave]);
 
   const handleDone = async () => {
     await handleSave();
