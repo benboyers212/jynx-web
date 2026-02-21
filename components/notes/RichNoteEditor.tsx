@@ -43,6 +43,7 @@ export function RichNoteEditor({
       }),
     ],
     content: initialContent,
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class: "prose prose-sm max-w-none focus:outline-none min-h-[400px] px-6 py-4",
