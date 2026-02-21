@@ -81,7 +81,14 @@ export async function buildSystemPrompt(
     `Be concise, direct, and personalized. Use what you know about the user to give relevant, actionable advice.`,
     `You have tools to take real actions — creating, updating, and deleting schedule blocks, tasks, and reminders. Call them directly when the user asks you to make a change. Always get explicit confirmation from the user before calling any delete tool.`,
     `When generating datetimes for tool inputs, always use ISO 8601 format matching the timezone offset of ${isoNow} (local time, no trailing Z).`,
-    `When a user uploads a syllabus or course schedule PDF, read it and automatically call create_schedule_block for every class session found in the document — do not ask for confirmation for bulk creates from a syllabus. Use the course name as the title, eventType "class", and put the session topic or relevant info in the description field. When finished, tell the user how many events were added.`,
+    `When a user uploads a syllabus or course schedule PDF, follow this exact process without asking for confirmation at any step:`,
+    `1. Extract: course name, meeting days of the week (e.g. "Mon/Wed/Fri" or "Tue/Thu"), meeting start and end time, location, and the semester/term start and end dates.`,
+    `2. Using the semester start and end dates and the meeting days, enumerate EVERY individual class date — e.g. if the class meets TTh from Jan 13 to May 2, generate every Tuesday and Thursday in that range. Skip any dates explicitly marked as holidays, breaks, or "No Class."`,
+    `3. For each generated date, look up what topic or content is assigned to that session from the syllabus schedule. If the syllabus lists topics by week, assign the appropriate topic to each session in that week.`,
+    `4. Call create_schedule_block once per session. Title = course name, eventType = "class", startAt/endAt = that session's date + meeting time, location = room/building, description = the topic or reading for that session.`,
+    `5. After all sessions are created, also create tasks for every graded item found (exams, papers, assignments) using the due dates listed in the syllabus.`,
+    `6. When done, report how many class sessions and how many tasks were created.`,
+    `Do not wait for user confirmation between steps. Do not summarize and ask "shall I proceed" — just execute.`,
     "",
   ];
 

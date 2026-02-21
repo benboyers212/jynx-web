@@ -89,6 +89,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
       p === "/sign-up" ||
       p.startsWith("/sign-up/") ||
       p === "/about" ||
+      p === "/how-it-works" ||
+      p === "/our-story" ||
+      p === "/pricing" ||
       p === "/onboarding" ||
       p.startsWith("/onboarding/")
     );

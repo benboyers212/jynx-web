@@ -290,8 +290,9 @@ export default function Home() {
     fetch("/api/events")
       .then((r) => r.json())
       .then((res) => {
-        const raw: any[] = res?.data ?? res ?? [];
-        setAllEvents(raw.map(mapApiEvent));
+        const raw = res?.data ?? res;
+        const events = Array.isArray(raw) ? raw : [];
+        setAllEvents(events.map(mapApiEvent));
       })
       .catch(console.error)
       .finally(() => setLoadingEvents(false));
@@ -303,8 +304,9 @@ export default function Home() {
       fetch("/api/events")
         .then((r) => r.json())
         .then((res) => {
-          const raw: any[] = res?.data ?? res ?? [];
-          setAllEvents(raw.map(mapApiEvent));
+          const raw = res?.data ?? res;
+          const events = Array.isArray(raw) ? raw : [];
+          setAllEvents(events.map(mapApiEvent));
         })
         .catch(console.error);
 
@@ -327,9 +329,10 @@ export default function Home() {
       fetch("/api/tasks?taskType=goal")
         .then((r) => r.json())
         .then((res) => {
-          const raw: any[] = res?.data ?? res ?? [];
+          const raw = res?.data ?? res;
+          const tasks = Array.isArray(raw) ? raw : [];
           setGoals(
-            raw.map((t) => ({
+            tasks.map((t) => ({
               id: t.id,
               title: t.title,
               description: t.description ?? "",
@@ -564,8 +567,9 @@ export default function Home() {
     fetch("/api/tasks?taskType=goal")
       .then((r) => r.json())
       .then((res) => {
-        const raw: any[] = res?.data ?? res ?? [];
-        setGoals(raw.map((t) => ({
+        const raw = res?.data ?? res;
+        const tasks = Array.isArray(raw) ? raw : [];
+        setGoals(tasks.map((t) => ({
           id: t.id,
           title: t.title,
           description: t.description ?? "",

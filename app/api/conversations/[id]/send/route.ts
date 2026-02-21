@@ -9,8 +9,10 @@ import { executeToolCall } from "@/lib/ai/toolHandlers";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Model to use for all chat responses.
-const MODEL = "claude-sonnet-4-5-20250929";
+// Use Sonnet for file-heavy requests (PDFs, images); Haiku for regular chat.
+// Haiku is ~4x cheaper and handles conversational tool use well.
+const MODEL_SONNET = "claude-sonnet-4-5-20250929";
+const MODEL_HAIKU = "claude-haiku-4-5-20251001";
 
 // Maximum agentic rounds before we stop to avoid infinite loops.
 // Higher value needed for bulk operations like semester syllabus parsing.
@@ -146,8 +148,9 @@ export async function POST(
 
       try {
         for (let round = 0; round < MAX_ROUNDS; round++) {
+          const model = attachments.length > 0 ? MODEL_SONNET : MODEL_HAIKU;
           const apiStream = anthropic.messages.stream({
-            model: MODEL,
+            model,
             max_tokens: 8192,
             system: systemPrompt,
             tools: JYNX_TOOLS,
