@@ -7,6 +7,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useTheme } from "./ThemeContext";
 import LandingPage from "./landing";
 import { EventDetailModal } from "@/components/events/EventDetailModal";
+import { useChatPanel } from "@/contexts/ChatPanelContext";
 
 /**
  * Brand green pulled to match your logo vibe (darker teal-green).
@@ -64,6 +65,7 @@ type BaseEvent = {
   // internal only
   isFree?: boolean;
   _startAt?: string; // ISO string, used for date filtering
+  _endAt?: string; // ISO string, used for completion tracking
 };
 
 type ClassDetails = {
@@ -244,6 +246,7 @@ function mapApiEvent(e: any): EventRecord {
     completed: false,
     importance: 3,
     _startAt: e.startAt,
+    _endAt: e.endAt,
   };
 }
 
@@ -262,6 +265,7 @@ export default function Home() {
   const { isSignedIn, isLoaded } = useAuth();
   const { dark } = useTheme();
   const router = useRouter();
+  const { openPanel } = useChatPanel();
 
   // Onboarding gate
   const [onboardingChecked, setOnboardingChecked] = useState(false);
@@ -670,8 +674,8 @@ export default function Home() {
   function sendQuickChat() {
     const text = quickChat.trim();
     if (!text) return;
+    openPanel(text);
     setQuickChat("");
-    router.push("/chat");
   }
 
   // NO FREE TIME BLOCKS: just sorted events
@@ -1335,6 +1339,8 @@ export default function Home() {
               meta: selected.meta,
               time: selected.time,
               endTime: selected.endTime,
+              startAt: selected._startAt ? new Date(selected._startAt) : undefined,
+              endAt: selected._endAt ? new Date(selected._endAt) : undefined,
               location: selected.location,
               tag: selected.tag,
               assignments: eventData?.assignments || [],

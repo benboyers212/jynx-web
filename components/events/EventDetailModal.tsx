@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { ClassEventDetail } from "./ClassEventDetail";
 import { WorkoutEventDetail } from "./WorkoutEventDetail";
 import { WorkEventDetail } from "./WorkEventDetail";
+import { CompletionModal } from "../CompletionModal";
 
 type EventType = "class" | "work" | "health" | "meeting" | "prep" | "study" | "life" | "free";
 
@@ -14,6 +15,8 @@ type EventData = {
   meta?: string;
   time: string;
   endTime?: string;
+  startAt?: Date;
+  endAt?: Date;
   location?: string;
   tag?: string;
   // Pre-loaded event bundle (from /api/events/[id])
@@ -84,8 +87,40 @@ function getEventTypeColor(type: EventType): string {
 }
 
 export function EventDetailModal({ event, dark = false, onClose, onDrop }: EventDetailModalProps) {
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
   const adjustW = "min(840px, calc(100vw - 48px))";
   const adjustH = "min(680px, calc(100vh - 48px))";
+
+  // Calculate scheduled duration in minutes
+  const scheduledDuration = event.startAt && event.endAt
+    ? Math.round((new Date(event.endAt).getTime() - new Date(event.startAt).getTime()) / (1000 * 60))
+    : 60; // Default to 60 minutes if not available
+
+  const handleComplete = async (data: {
+    variance: "just_right" | "shorter" | "longer";
+    actualDuration?: number;
+    notes?: string;
+  }) => {
+    try {
+      const res = await fetch(`/api/events/${event.id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || "Failed to mark complete");
+      }
+
+      // Success - could show a toast or just close
+      setShowCompletionModal(false);
+    } catch (error) {
+      console.error("Error marking event complete:", error);
+      alert("Failed to mark event complete");
+    }
+  };
 
   return (
     <>
@@ -149,6 +184,18 @@ export function EventDetailModal({ event, dark = false, onClose, onDrop }: Event
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setShowCompletionModal(true)}
+                  className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
+                  style={{
+                    borderColor: "rgba(75,94,60,0.30)",
+                    background: "rgba(75,94,60,0.10)",
+                    color: dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.92)",
+                    boxShadow: "0 0 0 1px rgba(75,94,60,0.14)",
+                  }}
+                >
+                  Complete
+                </button>
                 {onDrop && (
                   <button
                     onClick={onDrop}
@@ -244,6 +291,17 @@ export function EventDetailModal({ event, dark = false, onClose, onDrop }: Event
           to { opacity: 1; transform: scale(1); }
         }
       `}</style>
+
+      {/* Completion Modal */}
+      {showCompletionModal && (
+        <CompletionModal
+          eventId={event.id}
+          eventTitle={event.title}
+          scheduledDuration={scheduledDuration}
+          onClose={() => setShowCompletionModal(false)}
+          onSubmit={handleComplete}
+        />
+      )}
     </>
   );
 }

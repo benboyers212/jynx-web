@@ -72,12 +72,13 @@ model ScheduleBlock {
   workoutHub    WorkoutHub? @relation(fields: [workoutHubId], references: [id], onDelete: SetNull)
 
   // Relations
-  eventNotes  EventNote[]   // legacy – do not use for new code
-  notes       Note[]
-  tasks       Task[]
-  assignments Assignment[]  // legacy – new code uses tasks
-  workoutLogs WorkoutLog[]
-  files       File[]
+  eventNotes       EventNote[]       // legacy – do not use for new code
+  notes            Note[]
+  tasks            Task[]
+  assignments      Assignment[]      // legacy – new code uses tasks
+  workoutLogs      WorkoutLog[]
+  files            File[]
+  eventCompletions EventCompletion[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -87,6 +88,31 @@ model ScheduleBlock {
   @@index([eventType])
   @@index([classHubId])
   @@index([workoutHubId])
+}
+
+// ============================================================
+// EVENT COMPLETION TRACKING
+// ============================================================
+
+model EventCompletion {
+  id                String        @id @default(cuid())
+  eventId           String
+  event             ScheduleBlock @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId            String
+
+  // Time tracking
+  scheduledDuration Int           // minutes (from event start/end)
+  actualDuration    Int           // minutes (user reported)
+  variance          String        // "just_right" | "shorter" | "longer"
+
+  // AI learning notes
+  notes             String?       @db.Text  // Optional feedback for optimization
+
+  completedAt       DateTime      @default(now())
+
+  @@index([eventId])
+  @@index([userId])
+  @@index([completedAt])
 }
 
 // ============================================================

@@ -165,6 +165,47 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
       required: ["id"],
     },
   },
+
+  // ── Structured Questions ──────────────────────────────────────────────────
+  {
+    name: "ask_structured_questions",
+    description:
+      "Ask the user follow-up questions using structured inputs (dropdowns, date pickers, time pickers) instead of free-text responses. Use this to save costs by reducing text input. The AI should decide when structured questions make sense based on the context.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        questions: {
+          type: "array",
+          description: "Array of questions to ask the user",
+          items: {
+            type: "object",
+            properties: {
+              id: {
+                type: "string",
+                description: "Unique identifier for this question",
+              },
+              question: {
+                type: "string",
+                description: "The question text to display to the user",
+              },
+              type: {
+                type: "string",
+                enum: ["yesno", "date", "time", "text", "recurring"],
+                description:
+                  "Input type: 'yesno' for yes/no dropdown, 'date' for date picker, 'time' for time picker, 'text' for short text input, 'recurring' for once/daily/weekdays/custom",
+              },
+              required: {
+                type: "boolean",
+                description: "Whether this question must be answered",
+              },
+            },
+            required: ["id", "question", "type"],
+          },
+        },
+      },
+      required: ["questions"],
+    },
+  },
 ];
 
 // Human-readable labels for tool action display in the UI
@@ -179,4 +220,5 @@ export const TOOL_LABELS: Record<string, string> = {
   delete_task: "Deleting task…",
   create_reminder: "Adding reminder…",
   delete_reminder: "Deleting reminder…",
+  ask_structured_questions: "Preparing questions…",
 };

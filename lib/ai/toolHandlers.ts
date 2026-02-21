@@ -181,6 +181,19 @@ export async function executeToolCall(
         return { success: true, data: { deleted: existing } };
       }
 
+      // ── Structured Questions ──────────────────────────────────────────────
+      case "ask_structured_questions": {
+        // This tool doesn't execute any database action - it just returns
+        // the questions data which the frontend will render as UI components
+        return {
+          success: true,
+          data: {
+            type: "structured_questions",
+            questions: toolInput.questions,
+          },
+        };
+      }
+
       default:
         return { success: false, error: `Unknown tool: ${toolName}` };
     }

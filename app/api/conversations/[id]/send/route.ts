@@ -9,14 +9,122 @@ import { executeToolCall } from "@/lib/ai/toolHandlers";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Use Sonnet for file-heavy requests (PDFs, images); Haiku for regular chat.
-// Haiku is ~4x cheaper and handles conversational tool use well.
+// Model selection strategy:
+// - Sonnet: Complex reasoning, file reading, schedule optimization, problem-solving
+// - Haiku: Simple CRUD operations, basic queries, most conversational tasks (4x cheaper)
 const MODEL_SONNET = "claude-sonnet-4-5-20250929";
 const MODEL_HAIKU = "claude-haiku-4-5-20251001";
 
 // Maximum agentic rounds before we stop to avoid infinite loops.
 // Higher value needed for bulk operations like semester syllabus parsing.
 const MAX_ROUNDS = 10;
+
+/**
+ * Determines which model to use based on request complexity.
+ * Sonnet for complex reasoning/files, Haiku for simple operations.
+ */
+function selectModel(content: string, hasAttachments: boolean): string {
+  // Always use Sonnet for file attachments (PDFs, images need strong comprehension)
+  if (hasAttachments) return MODEL_SONNET;
+
+  const contentLower = content.toLowerCase();
+
+  // Complex reasoning indicators → use Sonnet
+  const complexityIndicators = [
+    // Problem-solving & reasoning
+    "help me figure out",
+    "work through",
+    "thinking through",
+    "struggling with",
+    "having trouble",
+    "can't decide",
+    "not sure how to",
+    "what's the best way",
+    "how should i",
+    "help me understand",
+    "explain why",
+    "why is",
+
+    // Schedule optimization & conflicts
+    "optimize my",
+    "reorganize my",
+    "adjust my schedule",
+    "reschedule everything",
+    "fit everything in",
+    "too much to do",
+    "overwhelmed",
+    "behind on",
+    "conflict",
+    "overlap",
+    "prioritize",
+    "what should i focus",
+
+    // Planning & strategy
+    "plan my",
+    "strategy for",
+    "approach to",
+    "best approach",
+    "recommend",
+    "suggest how",
+    "advice on",
+    "guidance on",
+
+    // Analysis & insights
+    "analyze my",
+    "patterns in",
+    "insights about",
+    "how am i doing",
+    "am i on track",
+    "review my",
+    "assess my",
+
+    // Complex multi-step requests
+    "and then",
+    "after that",
+    "but also",
+    "however",
+    "given that",
+    "considering",
+  ];
+
+  // Check if request contains complexity indicators
+  if (complexityIndicators.some((indicator) => contentLower.includes(indicator))) {
+    return MODEL_SONNET;
+  }
+
+  // Simple CRUD operations → use Haiku
+  const simpleOperations = [
+    // Direct commands
+    "add a",
+    "create a",
+    "schedule a",
+    "delete",
+    "remove",
+    "cancel",
+    "update",
+    "change",
+    "move to",
+    "set to",
+    "mark as",
+    "complete",
+
+    // Simple queries
+    "what's on my",
+    "show me my",
+    "list my",
+    "what do i have",
+    "when is",
+    "do i have",
+  ];
+
+  if (simpleOperations.some((op) => contentLower.includes(op))) {
+    return MODEL_HAIKU;
+  }
+
+  // Default to Haiku for general conversation and unclear requests
+  // This keeps costs low while still handling most cases well
+  return MODEL_HAIKU;
+}
 
 function jsonError(message: string, status = 400) {
   return new Response(JSON.stringify({ ok: false, error: message }), {
@@ -26,9 +134,11 @@ function jsonError(message: string, status = 400) {
 }
 
 // POST /api/conversations/:id/send
-// Body: { content: string }
+// Body: { content: string, attachments?: Array<{ name, mediaType, data }> }
 // Response: NDJSON stream
+//   { type: "model_selected", model: "sonnet" | "haiku" }
 //   { type: "chunk", text: string }
+//   { type: "structured_questions", questions: Array<...> }
 //   { type: "tool_start", tool: string, label: string }
 //   { type: "tool_done", tool: string, success: boolean }
 //   { type: "done", userId: string, userCreatedAt: number, assistantId: string, assistantCreatedAt: number }
@@ -147,10 +257,18 @@ export async function POST(
       let accumulatedText = "";
 
       try {
+        // Select model once at the start based on the user's request
+        const selectedModel = selectModel(content, attachments.length > 0);
+
+        // Emit model selection for transparency (helpful for debugging)
+        emit({
+          type: "model_selected",
+          model: selectedModel === MODEL_SONNET ? "sonnet" : "haiku",
+        });
+
         for (let round = 0; round < MAX_ROUNDS; round++) {
-          const model = attachments.length > 0 ? MODEL_SONNET : MODEL_HAIKU;
           const apiStream = anthropic.messages.stream({
-            model,
+            model: selectedModel,
             max_tokens: 8192,
             system: systemPrompt,
             tools: JYNX_TOOLS,
@@ -237,6 +355,14 @@ export async function POST(
             });
 
             const result = await executeToolCall(tb.name, tb.input, dbUser.id);
+
+            // Check if this is a structured questions response
+            if (result.success && (result.data as any)?.type === "structured_questions") {
+              emit({
+                type: "structured_questions",
+                questions: (result.data as any).questions,
+              });
+            }
 
             emit({ type: "tool_done", tool: tb.name, success: result.success });
 

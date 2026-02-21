@@ -5,12 +5,14 @@ import { ClerkProvider, useAuth } from "@clerk/nextjs";
 import "./globals.css";
 import Link from "next/link";
 import { DM_Sans } from "next/font/google";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import ChatPage from "./chat/page";
 import FilesPage from "./files/page";
 import ProfilePage from "./profile/page";
 import { ThemeProvider, useTheme } from "./ThemeContext";
+import { ChatPanelProvider } from "@/contexts/ChatPanelContext";
+import { ChatPanel } from "@/components/ChatPanel";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -25,14 +27,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider signInUrl="/login" signUpUrl="/sign-up">
       <ThemeProvider>
-        <html lang="en" className={dmSans.variable}>
-          <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-          </head>
-          <body className="font-sans bg-[var(--background)] text-[var(--foreground)]">
-            <AppShell>{children}</AppShell>
-          </body>
-        </html>
+        <ChatPanelProvider>
+          <html lang="en" className={dmSans.variable}>
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+            </head>
+            <body className="font-sans bg-[var(--background)] text-[var(--foreground)]">
+              <AppShell>{children}</AppShell>
+            </body>
+          </html>
+        </ChatPanelProvider>
       </ThemeProvider>
     </ClerkProvider>
   );
@@ -40,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isSignedIn, isLoaded } = useAuth();
   const { dark } = useTheme();
 
@@ -257,23 +262,36 @@ function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      {/* Floating chat button (hide on auth/onboarding) */}
-      {!hideShell && (
+      {/* Floating Chat button (hide on auth/onboarding/chat page) */}
+      {!hideShell && pathname !== "/chat" && (
         <button
-          onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full border flex items-center justify-center transition"
+          onClick={() => router.push("/chat")}
+          className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full border flex items-center justify-center transition hover:scale-105"
           style={dark
-            ? { borderColor: "rgba(255,255,255,0.14)", background: "rgba(15,15,15,0.92)", boxShadow: "0 18px 55px rgba(0,0,0,0.40)" }
-            : { borderColor: "rgba(0,0,0,0.14)", background: "rgba(255,255,255,0.92)", boxShadow: "0 18px 55px rgba(0,0,0,0.18)" }
+            ? { borderColor: "rgba(75,94,60,0.30)", background: "rgba(75,94,60,0.12)", boxShadow: "0 18px 55px rgba(0,0,0,0.40)" }
+            : { borderColor: "rgba(75,94,60,0.30)", background: "rgba(75,94,60,0.10)", boxShadow: "0 18px 55px rgba(75,94,60,0.25)" }
           }
-          aria-label="Open chat"
+          aria-label="Open Chat"
           title="Chat"
         >
-          <span className="text-base" style={{ color: dark ? "rgba(240,240,240,0.9)" : "rgba(17,17,17,0.9)" }}>
-            💬
-          </span>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ color: dark ? "rgba(240,240,240,0.9)" : "rgba(17,17,17,0.9)" }}
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
         </button>
       )}
+
+      {/* Chat Panel */}
+      <ChatPanel />
 
       {/* Files modal */}
       {filesOpen && (

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Menu, Check, Circle } from "lucide-react";
 import { useTheme } from "../ThemeContext";
+import { useChatPanel } from "@/contexts/ChatPanelContext";
 
 type Question = {
   id: string;
@@ -361,6 +362,7 @@ function SimpleBars({
 export default function MyTimePage() {
   const { dark } = useTheme();
   const router = useRouter();
+  const { openPanel } = useChatPanel();
 
   // Lens state
   const [lens, setLens] = useState<Lens>("week");
@@ -689,7 +691,7 @@ export default function MyTimePage() {
                           disabled={!aiChat.trim()}
                           onClick={() => {
                             if (aiChat.trim()) {
-                              router.push("/chat");
+                              openPanel(aiChat.trim());
                               setAiChat("");
                             }
                           }}

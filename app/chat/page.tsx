@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { StructuredQuestions, type StructuredQuestion } from "@/components/StructuredQuestions";
 
 const OLIVE = "#4b5e3c";
+const MAX_CHARS = 200;
 
 type Role = "user" | "assistant";
 
@@ -13,6 +15,7 @@ type Message = {
   createdAt: number;
   isStreaming?: boolean;
   actionLabel?: string; // shown while a tool call is executing
+  structuredQuestions?: StructuredQuestion[];
 };
 
 type Thread = {
@@ -413,11 +416,22 @@ export default function ChatPage() {
             continue;
           }
 
-          if (event.type === "chunk") {
+          if (event.type === "model_selected") {
+            // Log model selection for debugging
+            console.log(`[Jynx AI] Using ${event.model === "sonnet" ? "Sonnet (complex reasoning)" : "Haiku (fast & efficient)"}`);
+          } else if (event.type === "chunk") {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempAssistantId
                   ? { ...m, content: m.content + event.text, actionLabel: undefined }
+                  : m
+              )
+            );
+          } else if (event.type === "structured_questions") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempAssistantId
+                  ? { ...m, structuredQuestions: event.questions }
                   : m
               )
             );
@@ -470,6 +484,29 @@ export default function ChatPage() {
     } finally {
       setStreaming(false);
     }
+  }
+
+  async function onAnswerStructuredQuestions(messageId: string, answers: Record<string, string>) {
+    // Format answers as a message
+    const answerText = Object.entries(answers)
+      .map(([id, value]) => {
+        const question = messages
+          .find((m) => m.id === messageId)
+          ?.structuredQuestions?.find((q) => q.id === id);
+        return `${question?.question}: ${value}`;
+      })
+      .join("\n");
+
+    // Remove structured questions from the message
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, structuredQuestions: undefined } : m
+      )
+    );
+
+    // Set input and send
+    setInput(answerText);
+    setTimeout(() => onSend(), 100);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -768,6 +805,15 @@ export default function ChatPage() {
                             </div>
                           )}
                         </div>
+
+                        {m.structuredQuestions && m.structuredQuestions.length > 0 && (
+                          <div className="mt-3">
+                            <StructuredQuestions
+                              questions={m.structuredQuestions}
+                              onSubmit={(answers) => onAnswerStructuredQuestions(m.id, answers)}
+                            />
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -846,10 +892,15 @@ export default function ChatPage() {
                     <textarea
                       ref={textareaRef}
                       value={input}
-                      onChange={(e) => setInput(e.target.value)}
+                      onChange={(e) => {
+                        if (e.target.value.length <= MAX_CHARS) {
+                          setInput(e.target.value);
+                        }
+                      }}
                       onKeyDown={onKeyDown}
                       placeholder="Message Jynx…"
                       rows={1}
+                      maxLength={MAX_CHARS}
                       className="w-full resize-none bg-transparent outline-none text-sm leading-relaxed px-2"
                       style={{
                         height: 0,
@@ -859,12 +910,12 @@ export default function ChatPage() {
 
                     <button
                       onClick={onSend}
-                      disabled={(!input.trim() && attachedFiles.length === 0) || loadingThread || streaming}
+                      disabled={(!input.trim() && attachedFiles.length === 0) || loadingThread || streaming || input.length > MAX_CHARS}
                       className={cx(
                         "shrink-0 rounded-2xl px-5 py-2.5 text-xs font-semibold transition border"
                       )}
                       style={
-                        (input.trim() || attachedFiles.length) && !streaming
+                        (input.trim() || attachedFiles.length) && !streaming && input.length <= MAX_CHARS
                           ? {
                               borderColor: "rgba(75,94,60,0.30)",
                               background: "rgba(75,94,60,0.10)",
@@ -884,8 +935,11 @@ export default function ChatPage() {
                   </div>
 
                   <div className="mt-2 flex items-center gap-2 px-1">
+                    <span className="text-[11px]" style={{ color: input.length > MAX_CHARS ? "rgba(239,68,68,0.85)" : "rgba(17,17,17,0.55)" }}>
+                      {input.length}/{MAX_CHARS}
+                    </span>
                     <span className="text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
-                      Enter to send • Shift+Enter for a new line
+                      • Enter to send • Shift+Enter for new line
                     </span>
                     <span className="ml-auto text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
                       {streaming ? "Generating…" : "Saved to history"}
