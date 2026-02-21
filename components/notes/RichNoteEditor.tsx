@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -32,6 +32,8 @@ export function RichNoteEditor({
   const [title, setTitle] = useState(initialTitle);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const lastSavedContentRef = useRef(initialContent);
+  const lastSavedTitleRef = useRef(initialTitle);
 
   const editor = useEditor({
     extensions: [
@@ -51,32 +53,35 @@ export function RichNoteEditor({
 
   // Auto-save every 3 seconds if there are changes
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (editor && title.trim()) {
-        const content = editor.getHTML();
-        if (content !== initialContent || title !== initialTitle) {
-          await handleSave();
-        }
-      }
+    const interval = setInterval(() => {
+      handleSave();
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [editor, title]);
+  }, [handleSave]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!editor || !title.trim()) return;
+
+    const content = editor.getHTML();
+
+    // Only save if content or title has changed
+    if (content === lastSavedContentRef.current && title === lastSavedTitleRef.current) {
+      return;
+    }
 
     setSaving(true);
     try {
-      const content = editor.getHTML();
       await onSave(title, content);
+      lastSavedContentRef.current = content;
+      lastSavedTitleRef.current = title;
       setLastSaved(new Date());
     } catch (error) {
       console.error("Failed to save note:", error);
     } finally {
       setSaving(false);
     }
-  };
+  }, [editor, title, onSave]);
 
   const handleDone = async () => {
     await handleSave();

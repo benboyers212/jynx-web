@@ -39,11 +39,15 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
     setLoading(true);
     try {
       const res = await fetch(`/api/events/${eventId}/notes`);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
       const notesList = Array.isArray(data) ? data : data?.data ?? [];
       setNotes(notesList);
     } catch (error) {
       console.error("Failed to load notes:", error);
+      setNotes([]); // Ensure we set empty array on error
     } finally {
       setLoading(false);
     }
