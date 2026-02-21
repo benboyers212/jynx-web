@@ -46,6 +46,14 @@ export async function PATCH(
     }
   });
 
+  // Update the file representation name if title changed
+  if (title !== undefined && updated.fileRepresentation) {
+    await prisma.file.update({
+      where: { id: updated.fileRepresentation.id },
+      data: { name: title },
+    });
+  }
+
   return NextResponse.json(updated);
 }
 

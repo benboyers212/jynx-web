@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { NotesEditor } from "./NotesEditor";
+import { NotesList } from "../notes/NotesList";
 import { FilesPanel } from "./FilesPanel";
 
 type Tab = "Overview" | "Tasks" | "Notes" | "Files";
@@ -27,6 +27,7 @@ type EventFile = {
 
 type WorkEventDetailProps = {
   eventId: string;
+  eventTitle?: string;
   eventTime: string;
   eventEndTime?: string;
   eventLocation?: string;
@@ -42,6 +43,7 @@ function rgbaBrand(a: number) {
 
 export function WorkEventDetail({
   eventId,
+  eventTitle = "Event",
   eventTime,
   eventEndTime,
   eventLocation,
@@ -304,10 +306,7 @@ export function WorkEventDetail({
 
         {/* ── NOTES ── */}
         {activeTab === "Notes" && (
-          <div className="rounded-3xl border p-4" style={cardStyle}>
-            <div className="text-sm font-semibold mb-4" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>Notes</div>
-            <NotesEditor eventId={eventId} dark={dark} />
-          </div>
+          <NotesList eventId={eventId} eventTitle={eventTitle} dark={dark} />
         )}
 
         {/* ── FILES ── */}

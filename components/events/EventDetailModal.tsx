@@ -243,6 +243,7 @@ export function EventDetailModal({ event, dark = false, onClose, onDrop }: Event
             {event.type === "health" && (
               <WorkoutEventDetail
                 eventId={event.id}
+                eventTitle={event.title}
                 eventTime={event.time}
                 eventEndTime={event.endTime}
                 eventLocation={event.location}
@@ -256,6 +257,7 @@ export function EventDetailModal({ event, dark = false, onClose, onDrop }: Event
             {(event.type === "work" || event.type === "meeting") && (
               <WorkEventDetail
                 eventId={event.id}
+                eventTitle={event.title}
                 eventTime={event.time}
                 eventEndTime={event.endTime}
                 eventLocation={event.location}
@@ -269,6 +271,7 @@ export function EventDetailModal({ event, dark = false, onClose, onDrop }: Event
             {!["class", "health", "work", "meeting"].includes(event.type) && (
               <WorkEventDetail
                 eventId={event.id}
+                eventTitle={event.title}
                 eventTime={event.time}
                 eventEndTime={event.endTime}
                 eventLocation={event.location}
