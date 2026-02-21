@@ -8,7 +8,7 @@ const anthropic = new Anthropic({
 });
 
 type RouteContext = {
-  params: Promise<{ noteId: string }>;
+  params: Promise<{ id: string }>;
 };
 
 export async function POST(req: NextRequest, context: RouteContext) {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
     }
 
-    const { noteId } = await context.params;
+    const { id: noteId } = await context.params;
 
     // Fetch the note
     const note = await prisma.note.findFirst({
