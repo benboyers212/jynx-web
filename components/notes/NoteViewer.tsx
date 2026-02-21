@@ -245,13 +245,19 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false }: Not
           margin-top: 1rem;
           margin-bottom: 0.5rem;
         }
-        .prose ul,
+        .prose ul {
+          list-style-type: disc;
+          padding-left: 1.5rem;
+          margin: 0.75rem 0;
+        }
         .prose ol {
+          list-style-type: decimal;
           padding-left: 1.5rem;
           margin: 0.75rem 0;
         }
         .prose li {
           margin: 0.25rem 0;
+          display: list-item;
         }
         .prose p {
           margin: 0.5rem 0;

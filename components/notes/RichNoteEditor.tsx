@@ -291,13 +291,19 @@ export function RichNoteEditor({
           margin-top: 1rem;
           margin-bottom: 0.5rem;
         }
-        .ProseMirror ul,
+        .ProseMirror ul {
+          list-style-type: disc;
+          padding-left: 1.5rem;
+          margin: 0.75rem 0;
+        }
         .ProseMirror ol {
+          list-style-type: decimal;
           padding-left: 1.5rem;
           margin: 0.75rem 0;
         }
         .ProseMirror li {
           margin: 0.25rem 0;
+          display: list-item;
         }
         .ProseMirror p {
           margin: 0.5rem 0;
