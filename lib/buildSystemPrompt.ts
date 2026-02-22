@@ -10,7 +10,7 @@ export async function buildSystemPrompt(
   const now = new Date();
   const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const [user, onboarding, upcomingEvents, openTasks, medications, memories, messages] =
+  const [user, onboarding, upcomingEvents, openTasks, medications, memories, messages, completions] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: dbUserId },
@@ -64,6 +64,29 @@ export async function buildSystemPrompt(
         where: { conversationId },
         orderBy: { createdAt: "asc" },
         select: { role: true, content: true },
+      }),
+
+      // Event completion feedback (last 30 days for pattern learning)
+      prisma.eventCompletion.findMany({
+        where: {
+          userId: dbUserId,
+          completedAt: { gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
+        },
+        orderBy: { completedAt: "desc" },
+        take: 50,
+        select: {
+          scheduledDuration: true,
+          actualDuration: true,
+          variance: true,
+          notes: true,
+          completedAt: true,
+          event: {
+            select: {
+              title: true,
+              eventType: true,
+            },
+          },
+        },
       }),
     ]);
 
@@ -188,6 +211,87 @@ export async function buildSystemPrompt(
       byCategory.insight.slice(0, 5).forEach((m) => lines.push(`  • ${m.content}`));
     }
 
+    lines.push("");
+  }
+
+  // Add event completion patterns for AI learning
+  if (completions.length > 0) {
+    lines.push("**Event completion patterns (last 30 days):**");
+    lines.push("Learn from these patterns when scheduling similar events:");
+
+    // Aggregate by event type
+    const byEventType: Record<string, {
+      count: number;
+      totalScheduled: number;
+      totalActual: number;
+      shorter: number;
+      justRight: number;
+      longer: number;
+      notableNotes: string[];
+    }> = {};
+
+    for (const c of completions) {
+      const type = c.event?.eventType || "unknown";
+      if (!byEventType[type]) {
+        byEventType[type] = {
+          count: 0,
+          totalScheduled: 0,
+          totalActual: 0,
+          shorter: 0,
+          justRight: 0,
+          longer: 0,
+          notableNotes: [],
+        };
+      }
+
+      const stats = byEventType[type];
+      stats.count++;
+      stats.totalScheduled += c.scheduledDuration;
+      stats.totalActual += c.actualDuration;
+
+      if (c.variance === "shorter") stats.shorter++;
+      else if (c.variance === "just_right") stats.justRight++;
+      else if (c.variance === "longer") stats.longer++;
+
+      if (c.notes && c.notes.trim() && stats.notableNotes.length < 3) {
+        stats.notableNotes.push(c.notes.trim());
+      }
+    }
+
+    // Display aggregated insights
+    for (const [eventType, stats] of Object.entries(byEventType)) {
+      if (stats.count < 2) continue; // Need at least 2 data points
+
+      const avgScheduled = Math.round(stats.totalScheduled / stats.count);
+      const avgActual = Math.round(stats.totalActual / stats.count);
+      const diff = avgActual - avgScheduled;
+      const diffPercent = Math.round((diff / avgScheduled) * 100);
+
+      let pattern = "";
+      if (stats.longer > stats.count * 0.6) {
+        pattern = `usually take longer than scheduled (avg +${Math.abs(diffPercent)}%)`;
+      } else if (stats.shorter > stats.count * 0.6) {
+        pattern = `usually finish faster than scheduled (avg ${diffPercent}%)`;
+      } else if (stats.justRight > stats.count * 0.6) {
+        pattern = "timing is usually accurate";
+      } else {
+        pattern = `mixed timing (${stats.shorter} shorter, ${stats.justRight} just right, ${stats.longer} longer)`;
+      }
+
+      lines.push(`  • ${eventType.toUpperCase()}: ${pattern} (${stats.count} completions)`);
+
+      if (stats.notableNotes.length > 0) {
+        stats.notableNotes.forEach((note) => {
+          lines.push(`    - Feedback: "${note}"`);
+        });
+      }
+    }
+
+    lines.push("");
+    lines.push("**Use this data to:**");
+    lines.push("  • Suggest more realistic durations when creating similar events");
+    lines.push("  • Warn the user if they're consistently under/over-estimating certain event types");
+    lines.push("  • Adjust time blocks based on actual completion patterns");
     lines.push("");
   }
 
