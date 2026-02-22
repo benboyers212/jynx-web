@@ -28,6 +28,7 @@ model User {
   files            File[]
   notes            Note[]
   tasks            Task[]
+  memories         UserMemory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -484,4 +485,37 @@ model GroupMember {
   @@unique([groupId, userId])
   @@index([groupId])
   @@index([userId])
+}
+
+// ============================================================
+// USER MEMORIES & PREFERENCES
+// ============================================================
+
+model UserMemory {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // What was said/learned
+  content String @db.Text
+
+  // Category for organization
+  category String // "preference" | "goal" | "habit" | "constraint" | "correction" | "insight" | "evolution"
+
+  // Metadata
+  source        String? // "conversation" | "onboarding" | "system_observation"
+  conversationId String? // Link to conversation where this was learned
+  importance    Int     @default(5) // 1-10, higher = more important
+
+  // For tracking evolution
+  replacedById  String? // If this memory was updated/replaced by another
+  isActive      Boolean @default(true) // False if superseded
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([isActive])
+  @@index([importance])
 }
