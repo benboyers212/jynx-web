@@ -10,7 +10,6 @@ type NotesEditorProps = {
 
 export function NotesEditor({ eventId, dark = false }: NotesEditorProps) {
   const [content, setContent] = useState("");
-  const [noteId, setNoteId] = useState<string | null>(null);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -20,6 +19,8 @@ export function NotesEditor({ eventId, dark = false }: NotesEditorProps) {
 
   // Track the last value that was actually persisted so we don't save identical content
   const persistedContentRef = useRef<string>("");
+  // Use ref for noteId to avoid any re-renders when noteId changes
+  const noteIdRef = useRef<string | null>(null);
 
   // Load the most recent note for this event on mount
   useEffect(() => {
@@ -35,7 +36,7 @@ export function NotesEditor({ eventId, dark = false }: NotesEditorProps) {
         if (notes.length > 0) {
           const latest = notes[0];
           setContent(latest.content ?? "");
-          setNoteId(latest.id);
+          noteIdRef.current = latest.id;
           persistedContentRef.current = latest.content ?? "";
         }
       })
@@ -52,32 +53,41 @@ export function NotesEditor({ eventId, dark = false }: NotesEditorProps) {
   // Auto-save on debounced content change
   const saveNote = useCallback(async (text: string) => {
     if (text === persistedContentRef.current) return; // no change
-    if (!text.trim() && !noteId) return; // don't create empty notes
+    if (!text.trim() && !noteIdRef.current) return; // don't create empty notes
 
     setSaving(true);
     setError(null);
 
     try {
-      if (noteId) {
+      if (noteIdRef.current) {
         // PATCH existing note
-        const res = await fetch(`/api/events/${eventId}/notes/${noteId}`, {
+        const res = await fetch(`/api/events/${eventId}/notes/${noteIdRef.current}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: text }),
         });
         if (!res.ok) throw new Error("Failed to save");
       } else {
-        // POST new note
+        // POST new note (skip matching to avoid disambiguation loop)
         const res = await fetch(`/api/events/${eventId}/notes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: text }),
+          body: JSON.stringify({ content: text, skipMatching: true }),
         });
         if (!res.ok) throw new Error("Failed to save");
         const body = await res.json();
-        // Support both old and new response shapes
-        const created = body?.data ?? body;
-        if (created?.id) setNoteId(created.id);
+
+        // Check if disambiguation is needed (shouldn't happen with skipMatching, but handle it)
+        if (body.needsDisambiguation) {
+          // This shouldn't happen with skipMatching: true, but handle gracefully
+          throw new Error("Unexpected disambiguation response");
+        } else {
+          // Normal response
+          const created = body?.data ?? body;
+          if (created?.id) {
+            noteIdRef.current = created.id;
+          }
+        }
       }
 
       persistedContentRef.current = text;
@@ -87,7 +97,7 @@ export function NotesEditor({ eventId, dark = false }: NotesEditorProps) {
     } finally {
       setSaving(false);
     }
-  }, [eventId, noteId]);
+  }, [eventId]);
 
   useEffect(() => {
     if (!loadingInitial) {
