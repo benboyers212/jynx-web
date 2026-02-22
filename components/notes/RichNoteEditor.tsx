@@ -35,6 +35,18 @@ export function RichNoteEditor({
   const lastSavedContentRef = useRef(initialContent);
   const lastSavedTitleRef = useRef(initialTitle);
 
+  // Use refs to avoid recreating handleSave on every title change
+  const titleRef = useRef(title);
+  const onSaveRef = useRef(onSave);
+
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -53,27 +65,30 @@ export function RichNoteEditor({
   });
 
   const handleSave = useCallback(async () => {
-    if (!editor || !title.trim()) return;
+    if (!editor) return;
+
+    const currentTitle = titleRef.current;
+    if (!currentTitle.trim()) return;
 
     const content = editor.getHTML();
 
     // Only save if content or title has changed
-    if (content === lastSavedContentRef.current && title === lastSavedTitleRef.current) {
+    if (content === lastSavedContentRef.current && currentTitle === lastSavedTitleRef.current) {
       return;
     }
 
     setSaving(true);
     try {
-      await onSave(title, content);
+      await onSaveRef.current(currentTitle, content);
       lastSavedContentRef.current = content;
-      lastSavedTitleRef.current = title;
+      lastSavedTitleRef.current = currentTitle;
       setLastSaved(new Date());
     } catch (error) {
       console.error("Failed to save note:", error);
     } finally {
       setSaving(false);
     }
-  }, [editor, title, onSave]);
+  }, [editor]);
 
   // Auto-save every 3 seconds if there are changes
   useEffect(() => {
