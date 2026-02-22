@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 
-type QuestionType = "yesno" | "date" | "time" | "text" | "recurring";
+type QuestionType = "yesno" | "date" | "time" | "text" | "recurring" | "choice";
 
 export type StructuredQuestion = {
   id: string;
   question: string;
   type: QuestionType;
   required?: boolean;
+  options?: string[];
 };
 
 type StructuredQuestionsProps = {
@@ -19,11 +20,28 @@ type StructuredQuestionsProps = {
 
 export function StructuredQuestions({ questions, onSubmit, onCancel }: StructuredQuestionsProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [otherTexts, setOtherTexts] = useState<Record<string, string>>({});
 
-  const handleSubmit = () => {
+  const handleSubmit = (e?: React.MouseEvent<HTMLButtonElement>) => {
+    // Prevent any default button/form behavior
+    e?.preventDefault();
+    e?.stopPropagation();
+
+    // Build final answers including "Other" text when selected
+    const finalAnswers: Record<string, string> = {};
+
+    for (const q of questions) {
+      const answer = answers[q.id];
+      if (answer === "Other" && otherTexts[q.id]) {
+        finalAnswers[q.id] = `Other: ${otherTexts[q.id]}`;
+      } else if (answer) {
+        finalAnswers[q.id] = answer;
+      }
+    }
+
     // Check if all required questions are answered
     const missingRequired = questions.some(
-      (q) => q.required && !answers[q.id]
+      (q) => q.required && !finalAnswers[q.id]
     );
 
     if (missingRequired) {
@@ -31,11 +49,23 @@ export function StructuredQuestions({ questions, onSubmit, onCancel }: Structure
       return;
     }
 
-    onSubmit(answers);
+    onSubmit(finalAnswers);
   };
 
   const updateAnswer = (id: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [id]: value }));
+    // Clear "Other" text if switching away from "Other"
+    if (value !== "Other") {
+      setOtherTexts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
+  const updateOtherText = (id: string, value: string) => {
+    setOtherTexts((prev) => ({ ...prev, [id]: value }));
   };
 
   return (
@@ -45,6 +75,8 @@ export function StructuredQuestions({ questions, onSubmit, onCancel }: Structure
         borderColor: "rgba(75,94,60,0.25)",
         background: "rgba(75,94,60,0.04)",
       }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="text-sm font-semibold mb-4" style={{ color: "rgba(17,17,17,0.92)" }}>
         Please answer the following:
@@ -136,6 +168,74 @@ export function StructuredQuestions({ questions, onSubmit, onCancel }: Structure
                 }}
               />
             )}
+
+            {q.type === "choice" && q.options && (
+              <div className="space-y-2">
+                {q.options.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      updateAnswer(q.id, option);
+                    }}
+                    className="w-full rounded-xl border px-4 py-3 text-sm text-left transition"
+                    style={{
+                      borderColor: answers[q.id] === option ? "rgba(75,94,60,0.30)" : "rgba(0,0,0,0.10)",
+                      background: answers[q.id] === option ? "rgba(75,94,60,0.08)" : "rgba(255,255,255,0.80)",
+                      color: "rgba(17,17,17,0.92)",
+                      boxShadow: answers[q.id] === option ? "0 0 0 1px rgba(75,94,60,0.14)" : "none",
+                    }}
+                  >
+                    {option}
+                  </button>
+                ))}
+
+                {/* Other option with text input */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      updateAnswer(q.id, "Other");
+                    }}
+                    className="w-full rounded-xl border px-4 py-3 text-sm text-left transition"
+                    style={{
+                      borderColor: answers[q.id] === "Other" ? "rgba(75,94,60,0.30)" : "rgba(0,0,0,0.10)",
+                      background: answers[q.id] === "Other" ? "rgba(75,94,60,0.08)" : "rgba(255,255,255,0.80)",
+                      color: "rgba(17,17,17,0.92)",
+                      boxShadow: answers[q.id] === "Other" ? "0 0 0 1px rgba(75,94,60,0.14)" : "none",
+                    }}
+                  >
+                    Other
+                  </button>
+
+                  {answers[q.id] === "Other" && (
+                    <input
+                      type="text"
+                      value={otherTexts[q.id] || ""}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value.length <= 100) {
+                          updateOtherText(q.id, value);
+                        }
+                      }}
+                      placeholder="Please specify (max 100 characters)..."
+                      maxLength={100}
+                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none mt-2"
+                      style={{
+                        borderColor: "rgba(75,94,60,0.22)",
+                        background: "rgba(255,255,255,0.90)",
+                        color: "rgba(17,17,17,0.92)",
+                      }}
+                      autoFocus
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -143,7 +243,12 @@ export function StructuredQuestions({ questions, onSubmit, onCancel }: Structure
       <div className="flex items-center gap-3 mt-6 pt-4" style={{ borderTop: "1px solid rgba(0,0,0,0.08)" }}>
         {onCancel && (
           <button
-            onClick={onCancel}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onCancel();
+            }}
             className="rounded-2xl px-4 py-2 text-xs font-semibold transition border"
             style={{
               borderColor: "rgba(0,0,0,0.10)",
@@ -155,6 +260,7 @@ export function StructuredQuestions({ questions, onSubmit, onCancel }: Structure
           </button>
         )}
         <button
+          type="button"
           onClick={handleSubmit}
           className="rounded-2xl px-5 py-2 text-xs font-semibold transition border"
           style={{

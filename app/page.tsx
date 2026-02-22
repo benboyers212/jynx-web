@@ -7,6 +7,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useTheme } from "./ThemeContext";
 import LandingPage from "./landing";
 import { EventDetailModal } from "@/components/events/EventDetailModal";
+import { EventDisambiguationModal } from "@/components/EventDisambiguationModal";
 import { useChatPanel } from "@/contexts/ChatPanelContext";
 
 /**
@@ -476,6 +477,19 @@ export default function Home() {
   const [stagedAdditions, setStagedAdditions] = useState<StagedAddition[]>([]);
   const [stagedRemovals, setStagedRemovals] = useState<string[]>([]);
 
+  // Disambiguation state for quick add
+  type EventMatch = {
+    id: string;
+    title: string;
+    type: "scheduleBlock" | "classHub" | "workoutHub";
+    confidence: "high" | "medium" | "low";
+    reason: string;
+  };
+  const [showQuickAddDisambiguation, setShowQuickAddDisambiguation] = useState(false);
+  const [quickAddMatches, setQuickAddMatches] = useState<EventMatch[]>([]);
+  const [quickAddSuggestedMatch, setQuickAddSuggestedMatch] = useState<EventMatch | undefined>();
+  const [pendingQuickAdd, setPendingQuickAdd] = useState<any>(null);
+
   // Reset staged state when Adjust opens; pre-fill date to selected day
   useEffect(() => {
     if (adjustOpen) {
@@ -518,6 +532,16 @@ export default function Home() {
           }),
         });
         const body = await res.json();
+
+        // Check if we need disambiguation
+        if (body?.needsDisambiguation) {
+          setPendingQuickAdd({ ev, date, pendingEvent: body.pendingEvent });
+          setQuickAddMatches(body.matches);
+          setQuickAddSuggestedMatch(body.suggestedMatch);
+          setShowQuickAddDisambiguation(true);
+          return; // Stop processing and wait for user selection
+        }
+
         if (body?.data) {
           setAllEvents((prev) => [...prev, mapApiEvent(body.data)]);
         }
@@ -535,6 +559,52 @@ export default function Home() {
     setStagedAdditions([]);
     setStagedRemovals([]);
     setAdjustOpen(false);
+  }
+
+  async function handleQuickAddDisambiguationSelect(matchId: string | null, matchType: string | null) {
+    setShowQuickAddDisambiguation(false);
+
+    if (!pendingQuickAdd) return;
+
+    const { ev, date, pendingEvent } = pendingQuickAdd;
+    const start = timeStringToDate(ev.time, date);
+    const end = timeStringToDate(ev.endTime ?? ev.time, date);
+
+    // Determine classHubId based on selection
+    const classHubId = matchType === "classHub" ? matchId : null;
+
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: ev.title,
+          eventType: ev.type,
+          startAt: start.toISOString(),
+          endAt: end.toISOString(),
+          description: ev.meta && ev.meta !== "—" ? ev.meta : null,
+          classHubId,
+          skipMatching: true, // Skip matching since we already handled it
+        }),
+      });
+      const body = await res.json();
+      if (body?.data) {
+        setAllEvents((prev) => [...prev, mapApiEvent(body.data)]);
+      }
+    } catch (err) {
+      console.error("Failed to create event after disambiguation:", err);
+    }
+
+    setPendingQuickAdd(null);
+    setStagedAdditions([]);
+    setStagedRemovals([]);
+    setAdjustOpen(false);
+  }
+
+  function handleQuickAddDisambiguationCancel() {
+    setShowQuickAddDisambiguation(false);
+    setPendingQuickAdd(null);
+    // Don't close Adjust modal - let user continue editing
   }
 
   // Add-event form (inside Adjust)
@@ -2110,6 +2180,19 @@ export default function Home() {
             </div>
             </div>
           </>
+        )}
+
+        {/* Event Disambiguation Modal for Quick Add */}
+        {showQuickAddDisambiguation && (
+          <EventDisambiguationModal
+            title={pendingQuickAdd?.ev?.title || ""}
+            context="quick add"
+            matches={quickAddMatches}
+            suggestedMatch={quickAddSuggestedMatch}
+            onSelect={handleQuickAddDisambiguationSelect}
+            onCancel={handleQuickAddDisambiguationCancel}
+            dark={dark}
+          />
         )}
       </div>
     </main>

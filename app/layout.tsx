@@ -307,7 +307,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <div
               className={cx(
-                "relative border shadow-2xl transition-all duration-300 ease-out overflow-hidden flex flex-col",
+                "relative border shadow-2xl transition-all duration-300 ease-out flex flex-col",
                 filesExpanded
                   ? "w-full h-full rounded-none"
                   : "w-[92vw] max-w-[1200px] h-[85vh] rounded-3xl"
@@ -351,7 +351,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-hidden [&>main]:h-full [&>main]:min-h-0">
+              <div className="flex-1 min-h-0 [&>main]:h-full [&>main]:min-h-0">
                 <FilesPage />
               </div>
             </div>

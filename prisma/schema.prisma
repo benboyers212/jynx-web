@@ -126,6 +126,7 @@ model ClassHub {
 
   name        String           // e.g. "Operating Systems"
   courseCode  String?          // e.g. "CS401"
+  category    String?          // e.g. "School", "Work", "Life", "Health", "Other"
   instructor  String?
   department  String?
   semester    String?          // e.g. "Spring 2026"

@@ -102,9 +102,8 @@ export function ChatPanel() {
     }
   }, [shouldAutoSend, conversationId, input, streaming]);
 
-  async function onSend() {
-    const text = input.trim();
-    if (!text || streaming || !conversationId) return;
+  async function sendMessage(messageText: string) {
+    if (!messageText.trim() || streaming || !conversationId) return;
 
     setError(null);
 
@@ -114,18 +113,17 @@ export function ChatPanel() {
     // Optimistic UI update
     setMessages((prev) => [
       ...prev,
-      { id: tempUserId, role: "user", content: text, createdAt: Date.now() },
+      { id: tempUserId, role: "user", content: messageText, createdAt: Date.now() },
       { id: tempAssistantId, role: "assistant", content: "", createdAt: Date.now(), isStreaming: true },
     ]);
 
-    setInput("");
     setStreaming(true);
 
     try {
       const res = await fetch(`/api/conversations/${conversationId}/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: messageText }),
       });
 
       if (!res.ok || !res.body) {
@@ -219,6 +217,12 @@ export function ChatPanel() {
     }
   }
 
+  async function onSend() {
+    const text = input.trim();
+    setInput("");
+    await sendMessage(text);
+  }
+
   async function onAnswerStructuredQuestions(messageId: string, answers: Record<string, string>) {
     // Format answers as a message
     const answerText = Object.entries(answers)
@@ -237,9 +241,8 @@ export function ChatPanel() {
       )
     );
 
-    // Set input and send
-    setInput(answerText);
-    setTimeout(() => onSend(), 100);
+    // Send directly WITHOUT touching the input
+    await sendMessage(answerText);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

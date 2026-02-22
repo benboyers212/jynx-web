@@ -15,7 +15,7 @@ type RichNoteEditorProps = {
   initialTitle?: string;
   noteId?: string | null;
   onClose: () => void;
-  onSave: (title: string, content: string) => Promise<void>;
+  onSave: (title: string, content: string, classHubId?: string | null) => Promise<void>;
   dark?: boolean;
 };
 

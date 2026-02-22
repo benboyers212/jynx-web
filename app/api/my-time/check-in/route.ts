@@ -125,7 +125,10 @@ Respond ONLY with JSON, no other text.`;
       .map((block) => (block as any).text)
       .join("");
 
-    const result = JSON.parse(textContent);
+    // Strip markdown code fences if present (```json ... ```)
+    const cleanedText = textContent.replace(/```json\s*/g, "").replace(/```\s*$/g, "").trim();
+
+    const result = JSON.parse(cleanedText);
 
     if (!result.question) {
       return NextResponse.json({ questions: [] });

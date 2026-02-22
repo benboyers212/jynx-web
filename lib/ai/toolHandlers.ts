@@ -194,6 +194,151 @@ export async function executeToolCall(
         };
       }
 
+      // ── Event Disambiguation ──────────────────────────────────────────────
+      case "disambiguate_event": {
+        // Import the matching function
+        const { findMatchingEvents } = await import("@/lib/ai/eventMatching");
+
+        const matchResult = await findMatchingEvents(
+          dbUserId,
+          toolInput.title,
+          toolInput.eventType,
+        );
+
+        // Return the matches for the frontend to display as a selection UI
+        return {
+          success: true,
+          data: {
+            type: "event_disambiguation",
+            title: toolInput.title,
+            context: toolInput.context,
+            matches: matchResult.matches,
+            needsDisambiguation: matchResult.needsDisambiguation,
+            suggestedMatch: matchResult.suggestedMatch,
+          },
+        };
+      }
+
+      // ── ClassHub Management ───────────────────────────────────────────────
+      case "create_or_find_class_hub": {
+        const { getOrCreateClassHub } = await import("@/lib/ai/eventMatching");
+
+        const classHubId = await getOrCreateClassHub(
+          dbUserId,
+          toolInput.name,
+          toolInput.courseCode,
+          toolInput.instructor
+        );
+
+        // Update with additional fields if provided
+        if (toolInput.semester || toolInput.department) {
+          await prisma.classHub.update({
+            where: { id: classHubId },
+            data: {
+              ...(toolInput.semester && { semester: toolInput.semester }),
+              ...(toolInput.department && { department: toolInput.department }),
+            },
+          });
+        }
+
+        const classHub = await prisma.classHub.findUnique({
+          where: { id: classHubId },
+          select: {
+            id: true,
+            name: true,
+            courseCode: true,
+            instructor: true,
+            semester: true,
+            department: true,
+          },
+        });
+
+        return { success: true, data: { classHub } };
+      }
+
+      case "list_class_hubs": {
+        const classHubs = await prisma.classHub.findMany({
+          where: { userId: dbUserId },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            name: true,
+            courseCode: true,
+            instructor: true,
+            semester: true,
+            department: true,
+            _count: {
+              select: {
+                events: true,
+                notes: true,
+                files: true,
+              },
+            },
+          },
+        });
+
+        return { success: true, data: { classHubs, count: classHubs.length } };
+      }
+
+      // ── User Memory & Preferences ─────────────────────────────────────────
+      case "remember": {
+        const memory = await prisma.userMemory.create({
+          data: {
+            userId: dbUserId,
+            content: toolInput.content,
+            category: toolInput.category,
+            importance: toolInput.importance || 5,
+            source: "conversation",
+            isActive: true,
+          },
+          select: {
+            id: true,
+            content: true,
+            category: true,
+            importance: true,
+            createdAt: true,
+          },
+        });
+
+        return { success: true, data: { memory, message: "Remembered" } };
+      }
+
+      case "recall_memories": {
+        const where: any = { userId: dbUserId, isActive: true };
+        if (toolInput.category && toolInput.category !== "all") {
+          where.category = toolInput.category;
+        }
+
+        const memories = await prisma.userMemory.findMany({
+          where,
+          orderBy: [
+            { importance: "desc" },
+            { createdAt: "desc" },
+          ],
+          take: toolInput.limit || 20,
+          select: {
+            id: true,
+            content: true,
+            category: true,
+            importance: true,
+            createdAt: true,
+          },
+        });
+
+        return { success: true, data: { memories, count: memories.length } };
+      }
+
+      case "analyze_schedule_health": {
+        const { analyzeScheduleHealth } = await import("@/lib/ai/scheduleAnalysis");
+        const analysis = await analyzeScheduleHealth(
+          dbUserId,
+          toolInput.daysAhead || 14,
+          toolInput.focus || "all"
+        );
+
+        return { success: true, data: analysis };
+      }
+
       default:
         return { success: false, error: `Unknown tool: ${toolName}` };
     }

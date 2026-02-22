@@ -299,19 +299,19 @@ export default function ChatPage() {
     setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function onSend() {
-    const text = input.trim();
-    if (!text && attachedFiles.length === 0) return;
+  // CORE SEND FUNCTION - handles all message sending
+  async function sendMessage(messageText: string, files: File[] = []) {
+    if (!messageText.trim() && files.length === 0) return;
     if (streaming) return;
 
     setError(null);
 
     const filesLine =
-      attachedFiles.length > 0
-        ? `\n\nAttached:\n${attachedFiles.map((f) => `• ${f.name}`).join("\n")}`
+      files.length > 0
+        ? `\n\nAttached:\n${files.map((f) => `• ${f.name}`).join("\n")}`
         : "";
 
-    const userContent = (text || "(sent files)") + filesLine;
+    const userContent = (messageText || "(sent files)") + filesLine;
     const tempUserId = `temp_${uid()}`;
     const tempAssistantId = `streaming_${uid()}`;
 
@@ -327,20 +327,18 @@ export default function ChatPage() {
         if (t.id !== activeThreadId) return t;
         const baseTitle =
           t.title === "New chat" || t.title === ""
-            ? shortPreview(text || "Files", 34)
+            ? shortPreview(messageText || "Files", 34)
             : t.title;
         const previewBase =
-          text || (attachedFiles.length ? `Attached ${attachedFiles.length} file(s)` : "");
+          messageText || (files.length ? `Attached ${files.length} file(s)` : "");
         const preview =
-          attachedFiles.length && text
-            ? `${shortPreview(text, 52)} • +${attachedFiles.length} file(s)`
+          files.length && messageText
+            ? `${shortPreview(messageText, 52)} • +${files.length} file(s)`
             : shortPreview(previewBase, 70);
         return { ...t, title: baseTitle, lastMessagePreview: preview, updatedAt: Date.now() };
       })
     );
 
-    setInput("");
-    setAttachedFiles([]);
     setStreaming(true);
 
     // Resolve conversation ID — create one if the user hasn't started a thread yet
@@ -365,7 +363,7 @@ export default function ChatPage() {
 
     // Read supported files as base64 before the API call
     let attachments: Attachment[] = [];
-    const supportedFiles = attachedFiles.filter((f) => SUPPORTED_MEDIA_TYPES.has(f.type));
+    const supportedFiles = files.filter((f) => SUPPORTED_MEDIA_TYPES.has(f.type));
     if (supportedFiles.length > 0) {
       try {
         attachments = await Promise.all(supportedFiles.map(readFileAsBase64));
@@ -486,6 +484,20 @@ export default function ChatPage() {
     }
   }
 
+  // Wrapper for normal composer send
+  async function onSend() {
+    const text = input.trim();
+    const files = [...attachedFiles];
+
+    // Clear composer immediately
+    setInput("");
+    setAttachedFiles([]);
+
+    // Send message
+    await sendMessage(text, files);
+  }
+
+  // Handler for structured question answers - DOES NOT TOUCH COMPOSER
   async function onAnswerStructuredQuestions(messageId: string, answers: Record<string, string>) {
     // Format answers as a message
     const answerText = Object.entries(answers)
@@ -504,9 +516,8 @@ export default function ChatPage() {
       )
     );
 
-    // Set input and send
-    setInput(answerText);
-    setTimeout(() => onSend(), 100);
+    // Send directly using core send function - bypasses composer entirely
+    await sendMessage(answerText, []);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {

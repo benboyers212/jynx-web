@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "../ThemeContext";
-import { FileText, Folder, Download, Sparkles, Search } from "lucide-react";
+import { FileText, Folder, Download, Sparkles, Search, Plus, ChevronDown } from "lucide-react";
 import { NoteViewer } from "@/components/notes/NoteViewer";
+import { RichNoteEditor } from "@/components/notes/RichNoteEditor";
 
 const BRAND_RGB = { r: 31, g: 138, b: 91 };
 function rgbaBrand(a: number) {
@@ -45,6 +47,22 @@ export default function FilesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [showNewMenu, setShowNewMenu] = useState(false);
+  const newButtonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
+
+  useEffect(() => {
+    if (showNewMenu && newButtonRef.current) {
+      const rect = newButtonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [showNewMenu]);
 
   useEffect(() => {
     fetch("/api/files")
@@ -132,6 +150,95 @@ export default function FilesPage() {
     setViewMode(mode);
   };
 
+  const handleCreateNote = async (title: string, content: string) => {
+    setCreating(true);
+    try {
+      // Create note (automatically creates file entry)
+      const noteRes = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+
+      if (!noteRes.ok) throw new Error("Failed to create note");
+
+      // Refresh files list
+      const refreshRes = await fetch("/api/files");
+      if (refreshRes.ok) {
+        const refreshData = await refreshRes.json();
+        const raw: any[] = refreshData?.data ?? refreshData ?? [];
+        setFiles(raw.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          type: f.type || "other",
+          category: f.category || "Other",
+          createdAt: f.createdAt,
+          classHub: f.classHub ? {
+            id: f.classHub.id,
+            name: f.classHub.name,
+            courseCode: f.classHub.courseCode,
+          } : undefined,
+          note: f.noteContent ? {
+            id: f.noteContent.id,
+            title: f.noteContent.title || f.name,
+            content: f.noteContent.content,
+            createdAt: new Date(f.createdAt),
+          } : undefined,
+        })));
+      }
+
+      setShowCreateModal(false);
+    } catch (error) {
+      console.error("Error creating note:", error);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateFolder = async (name: string, category?: string) => {
+    setCreating(true);
+    try {
+      const folderRes = await fetch("/api/class-hubs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, category }),
+      });
+
+      if (!folderRes.ok) throw new Error("Failed to create folder");
+
+      // Refresh files list to show new folder
+      const refreshRes = await fetch("/api/files");
+      if (refreshRes.ok) {
+        const refreshData = await refreshRes.json();
+        const raw: any[] = refreshData?.data ?? refreshData ?? [];
+        setFiles(raw.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          type: f.type || "other",
+          category: f.category || "Other",
+          createdAt: f.createdAt,
+          classHub: f.classHub ? {
+            id: f.classHub.id,
+            name: f.classHub.name,
+            courseCode: f.classHub.courseCode,
+          } : undefined,
+          note: f.noteContent ? {
+            id: f.noteContent.id,
+            title: f.noteContent.title || f.name,
+            content: f.noteContent.content,
+            createdAt: new Date(f.createdAt),
+          } : undefined,
+        })));
+      }
+
+      setShowCreateFolderModal(false);
+    } catch (error) {
+      console.error("Error creating folder:", error);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const surfaceStyle = {
     borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
     boxShadow: dark ? "0 8px 32px rgba(0,0,0,0.30)" : "0 4px 24px rgba(0,0,0,0.04)",
@@ -143,7 +250,7 @@ export default function FilesPage() {
   };
 
   return (
-    <main className="h-screen overflow-hidden" style={{ background: dark ? "var(--background)" : "#f8f9fa", color: dark ? "var(--foreground)" : "rgba(0,0,0,0.95)" }}>
+    <main className="h-full overflow-visible" style={{ background: dark ? "var(--background)" : "#f8f9fa", color: dark ? "var(--foreground)" : "rgba(0,0,0,0.95)" }}>
       {/* Ambient */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
@@ -165,23 +272,94 @@ export default function FilesPage() {
           }}
         >
           <div className="max-w-[1600px] mx-auto px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div
-                className="h-10 w-10 rounded-2xl border flex items-center justify-center"
-                style={{
-                  ...surfaceSoftStyle,
-                  background: dark ? "rgba(255,255,255,0.03)" : "white",
-                }}
-              >
-                <FileText size={18} style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }} />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-10 w-10 rounded-2xl border flex items-center justify-center"
+                  style={{
+                    ...surfaceSoftStyle,
+                    background: dark ? "rgba(255,255,255,0.03)" : "white",
+                  }}
+                >
+                  <FileText size={18} style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }} />
+                </div>
+                <div>
+                  <div className="text-base font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                    Files
+                  </div>
+                  <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                    {files.length} file{files.length !== 1 ? "s" : ""} organized by class
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-base font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
-                  Files
-                </div>
-                <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
-                  {files.length} file{files.length !== 1 ? "s" : ""} organized by class
-                </div>
+
+              <div className="relative">
+                <button
+                  ref={newButtonRef}
+                  onClick={() => setShowNewMenu(!showNewMenu)}
+                  className="flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold border transition hover:scale-105"
+                  style={{
+                    borderColor: rgbaBrand(0.22),
+                    background: rgbaBrand(0.10),
+                    color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                  }}
+                >
+                  <Plus size={16} />
+                  New
+                  <ChevronDown size={14} />
+                </button>
+
+                {showNewMenu && dropdownPos && typeof document !== 'undefined' && createPortal(
+                  <>
+                    <div
+                      className="fixed inset-0 z-[100]"
+                      onClick={() => setShowNewMenu(false)}
+                    />
+                    <div
+                      className="fixed z-[200] rounded-2xl border shadow-lg py-2 min-w-[180px]"
+                      style={{
+                        background: dark ? "rgba(26,26,26,0.98)" : "rgba(255,255,255,0.98)",
+                        borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: dark ? "0 8px 32px rgba(0,0,0,0.40)" : "0 4px 24px rgba(0,0,0,0.12)",
+                        top: `${dropdownPos.top}px`,
+                        right: `${dropdownPos.right}px`,
+                      }}
+                    >
+                      <button
+                        onClick={() => {
+                          setShowNewMenu(false);
+                          setShowCreateModal(true);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm font-medium transition flex items-center gap-3"
+                        style={{
+                          color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      >
+                        <FileText size={16} />
+                        New Document
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowNewMenu(false);
+                          setShowCreateFolderModal(true);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm font-medium transition flex items-center gap-3"
+                        style={{
+                          color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      >
+                        <Folder size={16} />
+                        New Folder
+                      </button>
+                    </div>
+                  </>,
+                  document.body
+                )}
               </div>
             </div>
           </div>
@@ -518,6 +696,190 @@ export default function FilesPage() {
           initialMode={viewMode}
         />
       )}
+
+      {/* Create Note Modal */}
+      {showCreateModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80]"
+            onClick={() => setShowCreateModal(false)}
+          />
+          <div
+            className="fixed inset-4 md:inset-8 z-[90] border rounded-3xl shadow-2xl flex flex-col"
+            style={{
+              background: dark ? "rgba(26,26,26,0.95)" : "rgba(255,255,255,0.95)",
+              borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)",
+            }}
+          >
+            <div
+              className="shrink-0 px-6 py-4 border-b flex items-center justify-between"
+              style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)" }}
+            >
+              <h2 className="text-lg font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.90)" }}>
+                New Document
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="h-8 w-8 rounded-lg flex items-center justify-center transition hover:bg-black/[0.06]"
+                style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(17,17,17,0.50)" }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              <RichNoteEditor
+                eventId=""
+                eventTitle=""
+                onSave={handleCreateNote}
+                onClose={() => setShowCreateModal(false)}
+                dark={dark}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Create Folder Modal */}
+      {showCreateFolderModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80]"
+            onClick={() => setShowCreateFolderModal(false)}
+          />
+          <div
+            className="fixed inset-4 md:inset-8 lg:inset-[20%] z-[90] border rounded-3xl shadow-2xl flex flex-col"
+            style={{
+              background: dark ? "rgba(26,26,26,0.95)" : "rgba(255,255,255,0.95)",
+              borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)",
+              maxHeight: "400px",
+            }}
+          >
+            <div
+              className="shrink-0 px-6 py-4 border-b flex items-center justify-between"
+              style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)" }}
+            >
+              <h2 className="text-lg font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.90)" }}>
+                New Folder
+              </h2>
+              <button
+                onClick={() => setShowCreateFolderModal(false)}
+                className="h-8 w-8 rounded-lg flex items-center justify-center transition hover:bg-black/[0.06]"
+                style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(17,17,17,0.50)" }}
+              >
+                ×
+              </button>
+            </div>
+
+            <CreateFolderForm
+              onSubmit={handleCreateFolder}
+              onCancel={() => setShowCreateFolderModal(false)}
+              dark={dark}
+              creating={creating}
+            />
+          </div>
+        </>
+      )}
     </main>
+  );
+}
+
+function CreateFolderForm({
+  onSubmit,
+  onCancel,
+  dark,
+  creating,
+}: {
+  onSubmit: (name: string, category?: string) => void;
+  onCancel: () => void;
+  dark: boolean;
+  creating: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      onSubmit(name.trim(), category || undefined);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
+      <div className="flex-1 px-6 py-6 space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-2" style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }}>
+            Folder Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g., Operating Systems"
+            className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
+            style={{
+              borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+              background: dark ? "rgba(255,255,255,0.03)" : "white",
+              color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+            }}
+            autoFocus
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2" style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }}>
+            Category (Optional)
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
+            style={{
+              borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+              background: dark ? "rgba(255,255,255,0.03)" : "white",
+              color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+            }}
+          >
+            <option value="">Select a category</option>
+            <option value="School">School</option>
+            <option value="Work">Work</option>
+            <option value="Life">Life</option>
+            <option value="Health">Health</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div
+        className="shrink-0 px-6 py-4 border-t flex items-center justify-end gap-3"
+        style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)" }}
+      >
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-xl px-4 py-2 text-sm font-semibold border transition"
+          style={{
+            borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+            background: dark ? "rgba(255,255,255,0.03)" : "white",
+            color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!name.trim() || creating}
+          className="rounded-xl px-4 py-2 text-sm font-semibold border transition disabled:opacity-50"
+          style={{
+            borderColor: "rgba(31,138,91,0.22)",
+            background: "rgba(31,138,91,0.10)",
+            color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+          }}
+        >
+          {creating ? "Creating..." : "Create Folder"}
+        </button>
+      </div>
+    </form>
   );
 }

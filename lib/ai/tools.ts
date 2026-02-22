@@ -170,7 +170,7 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
   {
     name: "ask_structured_questions",
     description:
-      "Ask the user follow-up questions using structured inputs (dropdowns, date pickers, time pickers) instead of free-text responses. Use this to save costs by reducing text input. The AI should decide when structured questions make sense based on the context.",
+      "Ask the user follow-up questions using structured inputs (dropdowns, date pickers, time pickers, multiple choice) instead of free-text responses. IMPORTANT: Prefer 'choice' type with specific options over 'text' type whenever possible to minimize typing. An 'Other' option is automatically added to all choice questions for flexibility. Use this to save costs by reducing text input.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -190,9 +190,16 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
               },
               type: {
                 type: "string",
-                enum: ["yesno", "date", "time", "text", "recurring"],
+                enum: ["yesno", "date", "time", "text", "recurring", "choice"],
                 description:
-                  "Input type: 'yesno' for yes/no dropdown, 'date' for date picker, 'time' for time picker, 'text' for short text input, 'recurring' for once/daily/weekdays/custom",
+                  "Input type: 'yesno' for yes/no dropdown, 'date' for date picker, 'time' for time picker, 'text' for short text input (use sparingly), 'recurring' for once/daily/weekdays/custom, 'choice' for multiple choice with custom options (preferred when possible)",
+              },
+              options: {
+                type: "array",
+                description: "For 'choice' type: array of option strings to present. An 'Other' option with text input is automatically added.",
+                items: {
+                  type: "string",
+                },
               },
               required: {
                 type: "boolean",
@@ -204,6 +211,145 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
         },
       },
       required: ["questions"],
+    },
+  },
+
+  // ── Event Disambiguation ──────────────────────────────────────────────────
+  {
+    name: "disambiguate_event",
+    description:
+      "When creating a note or event and the title might match existing events/classes, use this to ask the user which one they mean. This helps organize notes under the correct class even when titles vary (e.g., 'F365' vs 'Personal Financial Planning F365'). The AI will provide potential matches based on title similarity.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description: "The event/class title that needs disambiguation",
+        },
+        eventType: {
+          type: "string",
+          enum: ["class", "work", "health", "meeting", "prep", "study", "life", "free"],
+          description: "Optional event type to narrow down matches",
+        },
+        context: {
+          type: "string",
+          description: "Optional context about what the user is trying to do (e.g., 'creating note', 'quick add event')",
+        },
+      },
+      required: ["title"],
+    },
+  },
+
+  // ── ClassHub Management ───────────────────────────────────────────────────
+  {
+    name: "create_or_find_class_hub",
+    description:
+      "Create a new ClassHub or find an existing one for organizing class-related events, notes, and files. When processing syllabi or creating multiple class events, use this first to get a ClassHub ID, then link all related events to it. This prevents duplicate classes with similar names (e.g., 'F365' and 'Personal Financial Planning F365' will match to the same hub).",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        name: {
+          type: "string",
+          description: "Full class name (e.g., 'Personal Financial Planning')",
+        },
+        courseCode: {
+          type: "string",
+          description: "Course code if available (e.g., 'F365', 'CS401')",
+        },
+        instructor: {
+          type: "string",
+          description: "Instructor name if known",
+        },
+        semester: {
+          type: "string",
+          description: "Semester (e.g., 'Spring 2026', 'Fall 2025')",
+        },
+        department: {
+          type: "string",
+          description: "Department if known (e.g., 'Computer Science', 'Finance')",
+        },
+      },
+      required: ["name"],
+    },
+  },
+
+  {
+    name: "list_class_hubs",
+    description:
+      "List all existing ClassHubs to see what classes the user has. Useful when processing syllabi to check if a class already exists before creating a new one.",
+    input_schema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+
+  // ── User Memory & Preferences ─────────────────────────────────────────────
+  {
+    name: "remember",
+    description:
+      "Store important information the user tells you for future reference. Use this when the user expresses preferences, goals, habits, constraints, or corrections. Examples: 'I prefer morning workouts', 'I'm trying to reduce screen time', 'I hate back-to-back classes', 'Actually, that class meets on Tuesdays'. This helps you provide personalized assistance over time.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        content: {
+          type: "string",
+          description: "What to remember (concise, clear statement)",
+        },
+        category: {
+          type: "string",
+          enum: ["preference", "goal", "habit", "constraint", "correction", "insight"],
+          description: "Type of memory: preference (likes/dislikes), goal (what they're working toward), habit (recurring behaviors), constraint (limitations), correction (user corrected you), insight (observed pattern)",
+        },
+        importance: {
+          type: "number",
+          description: "1-10, how important is this to remember? 10 = critical preference, 1 = minor detail",
+          minimum: 1,
+          maximum: 10,
+        },
+      },
+      required: ["content", "category"],
+    },
+  },
+
+  {
+    name: "recall_memories",
+    description:
+      "Retrieve stored memories about the user. Use this when you need to check what you know about their preferences, goals, or past corrections before making suggestions.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        category: {
+          type: "string",
+          enum: ["preference", "goal", "habit", "constraint", "correction", "insight", "all"],
+          description: "Filter by category, or 'all' for everything",
+        },
+        limit: {
+          type: "number",
+          description: "Max number of memories to retrieve (default 20)",
+          maximum: 50,
+        },
+      },
+    },
+  },
+
+  {
+    name: "analyze_schedule_health",
+    description:
+      "Analyze the user's schedule for problems and opportunities. Detects: conflicts, overload periods, missing prep time before exams, lack of breaks, poor time distribution. Use this proactively when the user loads the app or after major schedule changes. Returns actionable insights.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        daysAhead: {
+          type: "number",
+          description: "How many days ahead to analyze (default 14)",
+          maximum: 90,
+        },
+        focus: {
+          type: "string",
+          enum: ["all", "conflicts", "workload", "balance", "exams"],
+          description: "What aspect to focus on, or 'all' for comprehensive analysis",
+        },
+      },
     },
   },
 ];
@@ -221,4 +367,10 @@ export const TOOL_LABELS: Record<string, string> = {
   create_reminder: "Adding reminder…",
   delete_reminder: "Deleting reminder…",
   ask_structured_questions: "Preparing questions…",
+  disambiguate_event: "Finding matching events…",
+  create_or_find_class_hub: "Setting up class…",
+  list_class_hubs: "Loading classes…",
+  remember: "Saving to memory…",
+  recall_memories: "Recalling memories…",
+  analyze_schedule_health: "Analyzing schedule…",
 };

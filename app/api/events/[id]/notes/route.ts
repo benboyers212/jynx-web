@@ -54,7 +54,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await req.json();
-  const { content, title } = body;
+  const { content, title, classHubId: providedClassHubId, skipMatching } = body;
 
   // Verify event exists and belongs to user
   const event = await prisma.scheduleBlock.findFirst({
@@ -65,13 +65,69 @@ export async function POST(
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  // Create canonical Note
+  // Determine which ClassHub to link to (if applicable for class events)
+  let classHubId: string | null = null;
+
+  if (event.eventType === "class") {
+    if (providedClassHubId) {
+      // Frontend explicitly provided a classHubId after disambiguation
+      classHubId = providedClassHubId;
+    } else if (event.classHubId) {
+      // Event already linked to a ClassHub
+      classHubId = event.classHubId;
+    } else if (!skipMatching) {
+      // Need to find or create a matching ClassHub
+      const { findMatchingEvents } = await import("@/lib/ai/eventMatching");
+      const matchResult = await findMatchingEvents(
+        user.id,
+        event.title,
+        "class",
+        event.startAt,
+        event.location || undefined
+      );
+
+      if (matchResult.needsDisambiguation) {
+        // Return disambiguation info for frontend to handle
+        return NextResponse.json({
+          needsDisambiguation: true,
+          matches: matchResult.matches,
+          suggestedMatch: matchResult.suggestedMatch,
+        }, { status: 200 });
+      } else if (matchResult.suggestedMatch?.type === "classHub") {
+        classHubId = matchResult.suggestedMatch.id;
+
+        // Also update the event to link to this hub
+        await prisma.scheduleBlock.update({
+          where: { id },
+          data: { classHubId },
+        });
+      } else {
+        // No matches found, create a new ClassHub
+        const newHub = await prisma.classHub.create({
+          data: {
+            userId: user.id,
+            name: event.title,
+          },
+        });
+        classHubId = newHub.id;
+
+        // Link event to new hub
+        await prisma.scheduleBlock.update({
+          where: { id },
+          data: { classHubId: newHub.id },
+        });
+      }
+    }
+  }
+
+  // Create canonical Note linked to both event and classHub (if applicable)
   const note = await prisma.note.create({
     data: {
       eventId: id,
       userId: user.id,
       content,
       title: title || `Note - ${event.title}`,
+      ...(classHubId && { classHubId }),
     },
   });
 
@@ -84,6 +140,7 @@ export async function POST(
       name: title || `Note - ${new Date().toLocaleDateString()}`,
       type: "note",
       category: event.category.charAt(0).toUpperCase() + event.category.slice(1),
+      ...(classHubId && { classHubId }),
     },
   });
 
