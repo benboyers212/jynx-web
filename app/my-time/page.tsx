@@ -9,7 +9,7 @@ import { useChatPanel } from "@/contexts/ChatPanelContext";
 type Question = {
   id: string;
   prompt: string;
-  type: "yesno";
+  type: "yesno" | "text";
 };
 
 type Goal = {
@@ -412,13 +412,27 @@ export default function MyTimePage() {
   }, []);
 
   // Quick check-in (max 2 questions)
-  const [pendingQuestions] = useState<Question[]>([
-    { id: "q1", prompt: "Did morning deep work feel focused today?", type: "yesno" },
-  ]);
+  const [pendingQuestions, setPendingQuestions] = useState<Question[]>([]);
 
   const [showCheckIn] = useState(true);
 
   const [checkInAnswers, setCheckInAnswers] = useState<Record<string, string>>({});
+
+  // Fetch AI-generated check-in questions
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const res = await fetch("/api/my-time/check-in");
+        if (res.ok) {
+          const data = await res.json();
+          setPendingQuestions(data.questions || []);
+        }
+      } catch (error) {
+        console.error("Error fetching check-in questions:", error);
+      }
+    };
+    fetchQuestions();
+  }, []);
 
   const answer = async (questionId: string, value: string) => {
     const next = { ...checkInAnswers, [questionId]: value };
@@ -557,6 +571,32 @@ export default function MyTimePage() {
   const [selectedInsightType, setSelectedInsightType] = useState<InsightType | null>(null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [expandedInsightId, setExpandedInsightId] = useState<string | null>(null);
+
+  // Fetch AI-generated insights
+  useEffect(() => {
+    const fetchInsights = async () => {
+      try {
+        const res = await fetch("/api/my-time/insights");
+        if (res.ok) {
+          const data = await res.json();
+          // Transform API insights to component format
+          const transformedInsights = (data.insights || []).map((insight: any) => ({
+            id: insight.id,
+            title: insight.title,
+            description: insight.description,
+            confidence: "High" as const,
+            lens: lens, // Current lens
+            type: insight.type,
+            pinned: false,
+          }));
+          setInsights(transformedInsights);
+        }
+      } catch (error) {
+        console.error("Error fetching insights:", error);
+      }
+    };
+    fetchInsights();
+  }, [lens]); // Re-fetch when lens changes
 
   // Filter insights by lens and type
   const filteredInsights = insights.filter((insight) => {
@@ -1095,7 +1135,7 @@ export default function MyTimePage() {
                 </div>
 
                 {/* 4) Insights Block */}
-                {selectedInsightType && filteredInsights.length > 0 && (
+                {selectedInsightType && (
                   <div className="rounded-3xl border p-6" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                     <div className="flex items-center justify-between mb-5">
                       <div>
@@ -1117,7 +1157,17 @@ export default function MyTimePage() {
                       </span>
                     </div>
 
-                    <div className="space-y-3">
+                    {filteredInsights.length === 0 ? (
+                      <div className="rounded-xl border p-6 text-center" style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)" }}>
+                        <div className="text-sm" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                          Nothing here right now
+                        </div>
+                        <div className="text-xs mt-1" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>
+                          Check back soon for insights
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
                       {filteredInsights.map((insight) => {
                         const isExpanded = expandedInsightId === insight.id;
 
@@ -1178,6 +1228,7 @@ export default function MyTimePage() {
                         );
                       })}
                     </div>
+                    )}
                   </div>
                 )}
               </div>

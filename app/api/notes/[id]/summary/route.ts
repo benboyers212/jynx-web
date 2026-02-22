@@ -15,12 +15,12 @@ export async function POST(req: NextRequest, context: RouteContext) {
   try {
     const { userId: clerkUserId } = await auth();
     if (!clerkUserId) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const user = await prisma.user.findUnique({ where: { clerkUserId } });
     if (!user) {
-      return NextResponse.json({ ok: false, error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const { id: noteId } = await context.params;
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
     });
 
     if (!note) {
-      return NextResponse.json({ ok: false, error: "Note not found" }, { status: 404 });
+      return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
     // Strip HTML tags for cleaner analysis (simple approach)
@@ -42,24 +42,51 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     // Generate summary using Claude
     const message = await anthropic.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       messages: [
         {
           role: "user",
-          content: `Please provide a concise summary and key insights from the following note:
+          content: `Format this note using strict Markdown structure.
 
 Title: ${note.title || "Untitled"}
+Content: ${plainTextContent}
 
-Content:
-${plainTextContent}
+Do NOT rewrite, paraphrase, expand, or shorten the content.
+You are ONLY formatting the content using strict Markdown structure.
 
-Provide:
-1. A brief summary (2-3 sentences)
-2. Key points or takeaways (bullet points)
-3. Any important dates, tasks, or action items mentioned
+REQUIRED FORMAT:
 
-Keep the response clear and actionable.`,
+Use level-2 markdown headers (##) for sections:
+## What You Wrote
+## AI Insight
+
+Headers must be on their own line.
+There must be one blank line after each header.
+Content under each section must be formatted as bullet points using - (dash + space).
+Each bullet must be on its own line.
+No inline sentences after headers.
+No merged text.
+No paragraphs longer than one line.
+
+STRUCTURE:
+
+## What You Wrote
+- Direct reflection of the user's note content
+- Concise, 1-2 lines maximum
+
+## AI Insight
+- Brief AI clarification or expansion on the topic
+- Max 1-2 lines per bullet
+- No long text blocks
+
+CONSTRAINTS:
+- Do NOT merge sections
+- Do NOT output a single paragraph
+- Do NOT combine sections into a single sentence
+- Do NOT add commentary or explanation
+
+This is a formatting task only. Return only the formatted markdown.`,
         },
       ],
     });
@@ -69,11 +96,12 @@ Keep the response clear and actionable.`,
       .map((block) => (block as any).text)
       .join("\n\n");
 
-    return NextResponse.json({ ok: true, summary: summaryText });
+    return NextResponse.json({ summary: summaryText });
   } catch (error) {
     console.error("Error generating summary:", error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to generate summary";
     return NextResponse.json(
-      { ok: false, error: "Failed to generate summary" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

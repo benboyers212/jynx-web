@@ -69,18 +69,75 @@ export async function POST(req: NextRequest) {
     ? String(body.eventType)
     : "work";
 
+  const startAt = new Date(body.startAt);
+
+  // Determine classHubId/workoutHubId with duplicate detection
+  let classHubId = body?.classHubId || null;
+  let workoutHubId = body?.workoutHubId || null;
+
+  // For class events, check for duplicates/similar events unless skipMatching is true
+  if (eventType === "class" && !classHubId && !body?.skipMatching) {
+    const { findMatchingEvents } = await import("@/lib/ai/eventMatching");
+    const matchResult = await findMatchingEvents(
+      user.id,
+      title,
+      "class",
+      startAt,
+      body?.location ? String(body.location) : undefined
+    );
+
+    if (matchResult.needsDisambiguation) {
+      // Return disambiguation info for frontend to handle
+      return NextResponse.json({
+        needsDisambiguation: true,
+        matches: matchResult.matches,
+        suggestedMatch: matchResult.suggestedMatch,
+        pendingEvent: {
+          title,
+          eventType,
+          startAt: body.startAt,
+          endAt: body.endAt,
+          location: body?.location,
+          description: body?.description,
+        },
+      }, { status: 200 });
+    } else if (matchResult.suggestedMatch?.type === "classHub") {
+      classHubId = matchResult.suggestedMatch.id;
+    } else if (matchResult.suggestedMatch?.type === "scheduleBlock") {
+      // If we matched a ScheduleBlock, use its classHubId if it has one
+      const matchedBlock = await prisma.scheduleBlock.findUnique({
+        where: { id: matchResult.suggestedMatch.id },
+        select: { classHubId: true },
+      });
+      if (matchedBlock?.classHubId) {
+        classHubId = matchedBlock.classHubId;
+      }
+    }
+
+    // If still no classHubId, create a new ClassHub
+    if (!classHubId) {
+      const newHub = await prisma.classHub.create({
+        data: {
+          userId: user.id,
+          name: title,
+        },
+      });
+      classHubId = newHub.id;
+    }
+  }
+
   const event = await prisma.scheduleBlock.create({
     data: {
       userId: user.id,
       title,
       eventType,
       category: eventType, // keep in sync for backward compat
-      startAt: new Date(body.startAt),
+      startAt,
       endAt: new Date(body.endAt),
       location: body?.location ? String(body.location) : null,
       description: body?.description ? String(body.description) : null,
-      classHubId: body?.classHubId || null,
-      workoutHubId: body?.workoutHubId || null,
+      classHubId,
+      workoutHubId,
     },
   });
 

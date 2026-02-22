@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { FileText, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, Sparkles, Maximize2, Minimize2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 const BRAND_RGB = { r: 31, g: 138, b: 91 };
 function rgbaBrand(a: number) {
@@ -21,13 +22,45 @@ type NoteViewerProps = {
   onClose: () => void;
   onEdit: () => void;
   dark?: boolean;
+  initialMode?: "read" | "summary";
 };
 
-export function NoteViewer({ note, eventId, onClose, onEdit, dark = false }: NoteViewerProps) {
-  const [mode, setMode] = useState<"read" | "summary">("read");
+export function NoteViewer({ note, eventId, onClose, onEdit, dark = false, initialMode = "read" }: NoteViewerProps) {
+  const [mode, setMode] = useState<"read" | "summary">(initialMode);
   const [summary, setSummary] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Auto-generate summary if initialMode is "summary"
+  useEffect(() => {
+    if (initialMode === "summary" && !summary && !loadingSummary) {
+      setLoadingSummary(true);
+      setSummaryError(null);
+
+      fetch(`/api/notes/${note.id}/summary`, {
+        method: "POST",
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Failed to generate summary");
+          }
+          return data;
+        })
+        .then((data) => {
+          setSummary(data.summary || "No summary available");
+        })
+        .catch((error) => {
+          console.error("Failed to generate summary:", error);
+          setSummaryError(error.message || "Failed to generate summary. Please try again.");
+        })
+        .finally(() => {
+          setLoadingSummary(false);
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleGetSummary() {
     setMode("summary");
@@ -41,15 +74,17 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false }: Not
         method: "POST",
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error("Failed to generate summary");
+        throw new Error(data.error || "Failed to generate summary");
       }
 
-      const data = await res.json();
       setSummary(data.summary || "No summary available");
     } catch (error) {
       console.error("Failed to generate summary:", error);
-      setSummaryError("Failed to generate summary. Please try again.");
+      const errorMsg = error instanceof Error ? error.message : "Failed to generate summary. Please try again.";
+      setSummaryError(errorMsg);
     } finally {
       setLoadingSummary(false);
     }
@@ -70,7 +105,9 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false }: Not
 
       {/* Viewer Modal */}
       <div
-        className="fixed inset-4 md:inset-8 z-[90] rounded-3xl border shadow-2xl flex flex-col"
+        className={`fixed z-[90] border shadow-2xl flex flex-col transition-all ${
+          isExpanded ? "inset-0 rounded-none" : "inset-4 md:inset-8 rounded-3xl"
+        }`}
         style={{
           background: bg,
           borderColor: border,
@@ -108,6 +145,16 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false }: Not
                 }}
               >
                 Edit
+              </button>
+
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="h-8 w-8 rounded-lg flex items-center justify-center transition hover:bg-black/[0.06]"
+                style={{ color: muted }}
+                aria-label={isExpanded ? "Exit fullscreen" : "Fullscreen"}
+                title={isExpanded ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
 
               <button
@@ -213,10 +260,10 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false }: Not
                     </div>
                   </div>
                   <div
-                    className="prose prose-sm max-w-none"
+                    className="prose prose-sm max-w-none markdown-summary"
                     style={{ color: fg }}
                   >
-                    {summary}
+                    <ReactMarkdown>{summary}</ReactMarkdown>
                   </div>
                 </div>
               ) : null}
@@ -267,6 +314,41 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false }: Not
         }
         .prose em {
           font-style: italic;
+        }
+
+        /* AI Summary Markdown Styles */
+        .markdown-summary h2 {
+          font-size: 1.125rem;
+          font-weight: 600;
+          margin-top: 1.75rem;
+          margin-bottom: 1rem;
+          letter-spacing: -0.01em;
+          line-height: 1.4;
+        }
+        .markdown-summary h2:first-child {
+          margin-top: 0;
+        }
+        .markdown-summary ul {
+          list-style-type: none;
+          padding-left: 0;
+          margin: 0.5rem 0 1.5rem 0;
+        }
+        .markdown-summary li {
+          margin: 0.5rem 0;
+          padding-left: 1.25rem;
+          position: relative;
+          line-height: 1.6;
+          display: block;
+        }
+        .markdown-summary li:before {
+          content: "•";
+          position: absolute;
+          left: 0;
+          opacity: 0.5;
+        }
+        .markdown-summary p {
+          margin: 0.5rem 0;
+          line-height: 1.6;
         }
       `}</style>
     </>

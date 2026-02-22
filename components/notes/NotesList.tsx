@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { RichNoteEditor } from "./RichNoteEditor";
 import { NoteViewer } from "./NoteViewer";
+import { EventDisambiguationModal } from "../EventDisambiguationModal";
 import { FileText, Plus } from "lucide-react";
 
 const BRAND_RGB = { r: 31, g: 138, b: 91 };
@@ -24,12 +25,32 @@ type NotesListProps = {
   dark?: boolean;
 };
 
+type EventMatch = {
+  id: string;
+  title: string;
+  type: "scheduleBlock" | "classHub" | "workoutHub";
+  confidence: "high" | "medium" | "low";
+  reason: string;
+};
+
+type PendingSave = {
+  title: string;
+  content: string;
+};
+
 export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEditor, setShowEditor] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
+  const [viewMode, setViewMode] = useState<"read" | "summary">("read");
+
+  // Disambiguation state
+  const [showDisambiguation, setShowDisambiguation] = useState(false);
+  const [disambiguationMatches, setDisambiguationMatches] = useState<EventMatch[]>([]);
+  const [suggestedMatch, setSuggestedMatch] = useState<EventMatch | undefined>();
+  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
 
   useEffect(() => {
     loadNotes();
@@ -53,7 +74,7 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
     }
   }
 
-  async function handleSaveNote(title: string, content: string) {
+  async function handleSaveNote(title: string, content: string, classHubId?: string | null) {
     try {
       if (editingNote) {
         // Update existing note
@@ -68,9 +89,26 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
         const res = await fetch(`/api/events/${eventId}/notes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, content }),
+          body: JSON.stringify({
+            title,
+            content,
+            classHubId,
+            skipMatching: classHubId !== undefined, // Skip matching if we already have a classHubId
+          }),
         });
+
         if (!res.ok) throw new Error("Failed to create note");
+
+        const data = await res.json();
+
+        // Check if we need disambiguation
+        if (data.needsDisambiguation) {
+          setPendingSave({ title, content });
+          setDisambiguationMatches(data.matches);
+          setSuggestedMatch(data.suggestedMatch);
+          setShowDisambiguation(true);
+          return; // Don't close editor or reload yet
+        }
       }
 
       await loadNotes(); // Reload notes list
@@ -78,6 +116,23 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
       console.error("Failed to save note:", error);
       throw error;
     }
+  }
+
+  function handleDisambiguationSelect(matchId: string | null, matchType: string | null) {
+    setShowDisambiguation(false);
+
+    if (!pendingSave) return;
+
+    // Retry save with selected classHubId
+    const classHubId = matchType === "classHub" ? matchId : null;
+    handleSaveNote(pendingSave.title, pendingSave.content, classHubId).then(() => {
+      setPendingSave(null);
+    });
+  }
+
+  function handleDisambiguationCancel() {
+    setShowDisambiguation(false);
+    setPendingSave(null);
   }
 
   function handleCreateNew() {
@@ -90,8 +145,9 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
     setShowEditor(true);
   }
 
-  function handleViewNote(note: Note) {
+  function handleViewNote(note: Note, mode: "read" | "summary" = "read") {
     setViewingNote(note);
+    setViewMode(mode);
   }
 
   function handleCloseEditor() {
@@ -101,6 +157,7 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
 
   function handleCloseViewer() {
     setViewingNote(null);
+    setViewMode("read");
   }
 
   async function handleDeleteNote(noteId: string) {
@@ -220,7 +277,7 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
 
               <div className="flex gap-2 mt-3">
                 <button
-                  onClick={() => handleViewNote(note)}
+                  onClick={() => handleViewNote(note, "read")}
                   className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold border transition"
                   style={{
                     borderColor: rgbaBrand(0.22),
@@ -231,7 +288,7 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
                   Read Document
                 </button>
                 <button
-                  onClick={() => handleViewNote(note)}
+                  onClick={() => handleViewNote(note, "summary")}
                   className="flex-1 rounded-xl px-3 py-2 text-xs font-semibold border transition"
                   style={{
                     borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
@@ -271,6 +328,20 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
             handleCloseViewer();
             handleEditNote(viewingNote);
           }}
+          dark={dark}
+          initialMode={viewMode}
+        />
+      )}
+
+      {/* Event Disambiguation Modal */}
+      {showDisambiguation && (
+        <EventDisambiguationModal
+          title={eventTitle}
+          context="creating note"
+          matches={disambiguationMatches}
+          suggestedMatch={suggestedMatch}
+          onSelect={handleDisambiguationSelect}
+          onCancel={handleDisambiguationCancel}
           dark={dark}
         />
       )}

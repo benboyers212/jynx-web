@@ -1,1078 +1,523 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import React, { useEffect, useState, useMemo } from "react";
+import { useTheme } from "../ThemeContext";
+import { FileText, Folder, Download, Sparkles, Search } from "lucide-react";
+import { NoteViewer } from "@/components/notes/NoteViewer";
 
-const OLIVE = "#556B2F";
-
-type FileType = "pdf" | "doc" | "image" | "audio" | "link" | "other";
-type FileCategory =
-  | "School"
-  | "Work"
-  | "Life"
-  | "Finance"
-  | "Health"
-  | "Fitness"
-  | "Other";
-type FileContext =
-  | { kind: "personal" }
-  | { kind: "group"; groupId: string; groupName: string };
-
-type FileItem = {
-  id: string;
-  name: string;
-  type: FileType;
-  category: FileCategory;
-  context: FileContext;
-  createdAt: number;
-  sizeLabel?: string; // "2.1 MB"
-  pinned?: boolean;
-  notes?: string;
-  url?: string; // for link items
-};
-
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
-function formatDay(ts: number) {
-  const d = new Date(ts);
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
-function formatTime(ts: number) {
-  const d = new Date(ts);
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-}
-
-function typeIcon(t: FileType) {
-  if (t === "pdf") return "PDF";
-  if (t === "doc") return "DOC";
-  if (t === "image") return "IMG";
-  if (t === "audio") return "AUD";
-  if (t === "link") return "LNK";
-  return "FILE";
-}
-
-function typePill(t: FileType) {
-  if (t === "pdf") return "PDF";
-  if (t === "doc") return "Doc";
-  if (t === "image") return "Image";
-  if (t === "audio") return "Audio";
-  if (t === "link") return "Link";
-  return "File";
-}
-
-function contextLabel(c: FileContext) {
-  return c.kind === "personal" ? "Personal" : c.groupName;
-}
-
-function inferType(nameOrUrl: string): FileType {
-  const n = nameOrUrl.toLowerCase();
-  if (n.startsWith("http://") || n.startsWith("https://")) return "link";
-  if (n.endsWith(".pdf")) return "pdf";
-  if (n.endsWith(".doc") || n.endsWith(".docx") || n.endsWith(".txt") || n.endsWith(".md"))
-    return "doc";
-  if (n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".webp"))
-    return "image";
-  if (n.endsWith(".mp3") || n.endsWith(".m4a") || n.endsWith(".wav")) return "audio";
-  return "other";
-}
-
-function prettySize(bytes: number) {
-  if (!bytes) return "—";
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${Math.round(kb)} KB`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)} MB`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)} GB`;
-}
-
-/** Light brand accent (matches My Time) */
 const BRAND_RGB = { r: 31, g: 138, b: 91 };
 function rgbaBrand(a: number) {
   return `rgba(${BRAND_RGB.r},${BRAND_RGB.g},${BRAND_RGB.b},${a})`;
 }
 
-/* ---------- Shared light styles ---------- */
-
-const surfaceStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+type FileItem = {
+  id: string;
+  name: string;
+  type: string;
+  category: string;
+  createdAt: string;
+  classHub?: {
+    id: string;
+    name: string;
+    courseCode?: string;
+  };
+  note?: {
+    id: string;
+    title: string;
+    content: string;
+    createdAt: Date;
+  };
 };
 
-const surfaceSoftStyle: CSSProperties = {
-  borderColor: "rgba(0,0,0,0.08)",
-  boxShadow: "0 0 0 1px rgba(0,0,0,0.04)",
-};
-
-const brandSoftStyle: CSSProperties = {
-  borderColor: rgbaBrand(0.22),
-  boxShadow: `0 0 0 1px ${rgbaBrand(0.06)}`,
+type ClassGroup = {
+  id: string | null;
+  name: string;
+  courseCode?: string;
+  files: FileItem[];
 };
 
 export default function FilesPage() {
-  // === Tokens (kept, but rethemed light) ===
-  const panelBase = "rounded-3xl border bg-white";
-  const panelInner = "rounded-2xl border bg-white";
-  const buttonBase = "rounded-2xl px-3 py-2 text-xs font-semibold border transition";
-
-  // Real groups from API
-  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
-  useEffect(() => {
-    fetch("/api/groups")
-      .then(async (r) => {
-        if (!r.ok) return { data: [] };
-        const text = await r.text();
-        return text ? JSON.parse(text) : { data: [] };
-      })
-      .then((res) => {
-        const raw: any[] = Array.isArray(res?.data) ? res.data : [];
-        setGroups(raw.map((g: any) => ({ id: g.id, name: g.name })));
-      })
-      .catch(console.error);
-  }, []);
-
+  const { dark } = useTheme();
   const [files, setFiles] = useState<FileItem[]>([]);
-  const [loadingFiles, setLoadingFiles] = useState(true);
-
-  // Map API File → UI FileItem
-  function mapApiFile(f: any): FileItem {
-    const ctx: FileContext = f.groupId
-      ? { kind: "group", groupId: f.groupId, groupName: f.group?.name ?? "Group" }
-      : { kind: "personal" };
-    return {
-      id: f.id,
-      name: f.name,
-      type: inferType(f.name) as FileType,
-      category: (f.category as FileCategory) ?? "Other",
-      context: ctx,
-      createdAt: new Date(f.createdAt).getTime(),
-      sizeLabel: f.size ? prettySize(f.size) : f.type === "note" ? "Note" : "—",
-      pinned: f.pinned ?? false,
-      notes: f.notes ?? undefined,
-      url: f.url ?? undefined,
-    };
-  }
+  const [loading, setLoading] = useState(true);
+  const [viewingNote, setViewingNote] = useState<{ id: string; title: string; content: string; createdAt: Date } | null>(null);
+  const [viewMode, setViewMode] = useState<"read" | "summary">("read");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   useEffect(() => {
     fetch("/api/files")
       .then((r) => r.json())
       .then((res) => {
         const raw: any[] = res?.data ?? res ?? [];
-        setFiles(raw.map(mapApiFile));
+        setFiles(raw.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          type: f.type || "other",
+          category: f.category || "Other",
+          createdAt: f.createdAt,
+          classHub: f.classHub ? {
+            id: f.classHub.id,
+            name: f.classHub.name,
+            courseCode: f.classHub.courseCode,
+          } : undefined,
+          note: f.noteContent ? {
+            id: f.noteContent.id,
+            title: f.noteContent.title || f.name,
+            content: f.noteContent.content,
+            createdAt: new Date(f.createdAt),
+          } : undefined,
+        })));
       })
       .catch(console.error)
-      .finally(() => setLoadingFiles(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .finally(() => setLoading(false));
   }, []);
 
-  // UI states
-  const [query, setQuery] = useState("");
-  const [contextFilter, setContextFilter] = useState<"all" | "personal" | "group">("all");
-  const [groupFilterId, setGroupFilterId] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<FileCategory | "all">("all");
-  const [typeFilter, setTypeFilter] = useState<FileType | "all">("all");
-  const [pinnedOnly, setPinnedOnly] = useState(false);
-  const [sort, setSort] = useState<"recent" | "name">("recent");
-  const [showRightPanel, setShowRightPanel] = useState(true);
-
-  // Upload modal state
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [addingLink, setAddingLink] = useState(false);
-
-  // Move/Tag modal
-  const [moveTagFile, setMoveTagFile] = useState<FileItem | null>(null);
-  const [mtCategory, setMtCategory] = useState<FileCategory>("Other");
-  const [mtContextKind, setMtContextKind] = useState<"personal" | "group">("personal");
-  const [mtGroupId, setMtGroupId] = useState<string>("");
-  const [mtSaving, setMtSaving] = useState(false);
-
-  const [uContextKind, setUContextKind] = useState<"personal" | "group">("personal");
-  const [uGroupId, setUGroupId] = useState<string>(groups[0]?.id ?? "g1");
-  const [uCategory, setUCategory] = useState<FileCategory>("Other");
-  const [uPinned, setUPinned] = useState(false);
-  const [uNotes, setUNotes] = useState("");
-  const [uLinkUrl, setULinkUrl] = useState("");
-  const [uLinkName, setULinkName] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let list = files.slice();
-
-    if (q) {
-      list = list.filter((f) => {
-        const ctx = contextLabel(f.context).toLowerCase();
-        return (
-          f.name.toLowerCase().includes(q) ||
-          f.category.toLowerCase().includes(q) ||
-          ctx.includes(q) ||
-          (f.notes ?? "").toLowerCase().includes(q)
-        );
-      });
-    }
-
-    if (contextFilter !== "all") {
-      list = list.filter((f) =>
-        contextFilter === "personal" ? f.context.kind === "personal" : f.context.kind === "group"
-      );
-    }
-
-    if (groupFilterId !== "all") {
-      list = list.filter((f) => f.context.kind === "group" && f.context.groupId === groupFilterId);
-    }
-
-    if (categoryFilter !== "all") {
-      list = list.filter((f) => f.category === categoryFilter);
-    }
-
-    if (typeFilter !== "all") {
-      list = list.filter((f) => f.type === typeFilter);
-    }
-
-    if (pinnedOnly) {
-      list = list.filter((f) => !!f.pinned);
-    }
-
-    if (sort === "recent") list.sort((a, b) => b.createdAt - a.createdAt);
-    else list.sort((a, b) => a.name.localeCompare(b.name));
-
-    return list;
-  }, [files, query, contextFilter, groupFilterId, categoryFilter, typeFilter, pinnedOnly, sort]);
-
-  function openPicker() {
-    setAddingLink(false);
-    fileInputRef.current?.click();
-  }
-
-  function openLinkModal() {
-    setPendingFiles([]);
-    setAddingLink(true);
-    setUploadOpen(true);
-    // defaults
-    setUContextKind("personal");
-    setUGroupId(groups[0]?.id ?? "g1");
-    setUCategory("Other");
-    setUPinned(false);
-    setUNotes("");
-    setULinkUrl("");
-    setULinkName("");
-  }
-
-  function onPicked(e: React.ChangeEvent<HTMLInputElement>) {
-    const list = Array.from(e.target.files ?? []);
-    if (!list.length) return;
-
-    setPendingFiles(list);
-    setAddingLink(false);
-
-    // reset modal defaults (light context)
-    setUContextKind("personal");
-    setUGroupId(groups[0]?.id ?? "g1");
-    setUCategory("Other");
-    setUPinned(false);
-    setUNotes("");
-
-    setUploadOpen(true);
-    e.target.value = "";
-  }
-
-  function buildContext(): FileContext {
-    if (uContextKind === "personal") return { kind: "personal" };
-    const g = groups.find((x) => x.id === uGroupId) ?? groups[0];
-    return {
-      kind: "group",
-      groupId: g?.id ?? "g1",
-      groupName: g?.name ?? "Group",
-    };
-  }
-
-  async function addFilesNow() {
-    if (pendingFiles.length === 0) return;
-    const ctx = buildContext();
-
-    const saved: FileItem[] = [];
-    for (const f of pendingFiles) {
-      try {
-        const res = await fetch("/api/files", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: f.name,
-            type: inferType(f.name),
-            size: f.size || null,
-            category: uCategory,
-            pinned: uPinned,
-            notes: uNotes.trim() || null,
-            groupId: ctx.kind === "group" ? ctx.groupId : null,
-          }),
-        });
-        const body = await res.json();
-        const created = body?.data ?? body;
-        if (created?.id) {
-          saved.push(mapApiFile(created));
+  // Filter files based on search and filters
+  const filteredFiles = useMemo(() => {
+    return files.filter((file) => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = file.name.toLowerCase().includes(query);
+        const matchesClass = file.classHub?.name.toLowerCase().includes(query);
+        const matchesCategory = file.category.toLowerCase().includes(query);
+        if (!matchesName && !matchesClass && !matchesCategory) {
+          return false;
         }
-      } catch (err) {
-        console.error("Failed to save file metadata:", err);
       }
-    }
 
-    setFiles((prev) => [...saved, ...prev]);
-    setUploadOpen(false);
-    setPendingFiles([]);
-  }
-
-  async function addLinkNow() {
-    const url = uLinkUrl.trim();
-    if (!url) return;
-
-    const ctx = buildContext();
-    const name = (uLinkName.trim() || url).slice(0, 120);
-
-    try {
-      const res = await fetch("/api/files", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          type: "link",
-          url,
-          category: uCategory,
-          pinned: uPinned,
-          notes: uNotes.trim() || null,
-          groupId: ctx.kind === "group" ? ctx.groupId : null,
-        }),
-      });
-      const body = await res.json();
-      const created = body?.data ?? body;
-      if (created?.id) {
-        setFiles((prev) => [mapApiFile(created), ...prev]);
+      // Category filter
+      if (categoryFilter !== "all" && file.category !== categoryFilter) {
+        return false;
       }
-    } catch (err) {
-      console.error(err);
-    }
 
-    setUploadOpen(false);
-    setAddingLink(false);
-    setULinkUrl("");
-    setULinkName("");
-    setUNotes("");
-  }
+      // Type filter
+      if (typeFilter !== "all" && file.type !== typeFilter) {
+        return false;
+      }
 
-  function togglePin(id: string) {
-    const current = files.find((f) => f.id === id)?.pinned ?? false;
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, pinned: !current } : f)));
-    fetch(`/api/files/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pinned: !current }),
-    }).catch(() => {
-      setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, pinned: current } : f)));
+      return true;
     });
-  }
+  }, [files, searchQuery, categoryFilter, typeFilter]);
 
-  function deleteFile(id: string) {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-    fetch(`/api/files/${id}`, { method: "DELETE" }).catch(console.error);
-  }
+  // Group files by class
+  const classGroups: ClassGroup[] = [];
+  const ungrouped: FileItem[] = [];
 
-  function openFileUI(f: FileItem) {
-    if (f.url) {
-      window.open(f.url, "_blank", "noopener,noreferrer");
-    }
-    // No URL means file metadata only (no cloud storage yet) — button is disabled below
-  }
-
-  function openMoveTag(f: FileItem) {
-    setMoveTagFile(f);
-    setMtCategory(f.category);
-    setMtContextKind(f.context.kind === "group" ? "group" : "personal");
-    setMtGroupId(f.context.kind === "group" ? f.context.groupId : (groups[0]?.id ?? ""));
-  }
-
-  async function saveMoveTag() {
-    if (!moveTagFile) return;
-    setMtSaving(true);
-    try {
-      const res = await fetch(`/api/files/${moveTagFile.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: mtCategory,
-          groupId: mtContextKind === "group" ? mtGroupId : null,
-        }),
-      });
-      const body = await res.json();
-      const updated = body?.data ?? body;
-      if (updated?.id) {
-        setFiles((prev) => prev.map((f) => f.id === moveTagFile.id ? mapApiFile(updated) : f));
+  filteredFiles.forEach((file) => {
+    if (file.classHub) {
+      let group = classGroups.find((g) => g.id === file.classHub!.id);
+      if (!group) {
+        group = {
+          id: file.classHub.id,
+          name: file.classHub.name,
+          courseCode: file.classHub.courseCode,
+          files: [],
+        };
+        classGroups.push(group);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setMtSaving(false);
-      setMoveTagFile(null);
+      group.files.push(file);
+    } else {
+      ungrouped.push(file);
     }
-  }
+  });
+
+  // Sort groups alphabetically
+  classGroups.sort((a, b) => a.name.localeCompare(b.name));
+
+  const handleViewNote = (note: { id: string; title: string; content: string; createdAt: Date }, mode: "read" | "summary") => {
+    setViewingNote(note);
+    setViewMode(mode);
+  };
+
+  const surfaceStyle = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+    boxShadow: dark ? "0 8px 32px rgba(0,0,0,0.30)" : "0 4px 24px rgba(0,0,0,0.04)",
+  };
+
+  const surfaceSoftStyle = {
+    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+    boxShadow: dark ? "0 2px 8px rgba(0,0,0,0.12)" : "0 1px 4px rgba(0,0,0,0.03)",
+  };
 
   return (
-    <main className="h-screen bg-white text-neutral-950 overflow-hidden min-h-0">
-      {/* Ambient background (light) */}
+    <main className="h-screen overflow-hidden" style={{ background: dark ? "var(--background)" : "#f8f9fa", color: dark ? "var(--foreground)" : "rgba(0,0,0,0.95)" }}>
+      {/* Ambient */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
-          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl opacity-25"
+          className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full blur-3xl"
           style={{
-            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, rgba(255,255,255,0) 60%)`,
+            background: `radial-gradient(circle at 30% 30%, ${rgbaBrand(0.22)}, ${dark ? "rgba(0,0,0,0)" : "rgba(255,255,255,0)"} 60%)`,
+            opacity: dark ? 0.15 : 0.25,
           }}
         />
-        <div className="absolute bottom-[-240px] right-[-240px] h-[520px] w-[520px] rounded-full blur-3xl opacity-15 bg-black/10" />
       </div>
 
-      <section className="relative flex flex-col h-full min-h-0">
+      <div className="relative flex flex-col h-full">
         {/* Header */}
-        <header className="border-b bg-white/80 backdrop-blur shrink-0" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-          <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
-            {/* Brand */}
-            <div className="flex items-center gap-3 min-w-0">
+        <header
+          className="border-b backdrop-blur shrink-0"
+          style={{
+            borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+            background: dark ? "rgba(15,15,15,0.88)" : "rgba(255,255,255,0.88)",
+          }}
+        >
+          <div className="max-w-[1600px] mx-auto px-6 py-4">
+            <div className="flex items-center gap-3">
               <div
-                className="h-9 w-9 rounded-xl border bg-white flex items-center justify-center text-[10px] font-semibold"
-                style={surfaceSoftStyle}
+                className="h-10 w-10 rounded-2xl border flex items-center justify-center"
+                style={{
+                  ...surfaceSoftStyle,
+                  background: dark ? "rgba(255,255,255,0.03)" : "white",
+                }}
               >
-                J
+                <FileText size={18} style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }} />
               </div>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold tracking-wide truncate">Files</div>
-                <div className="text-xs text-neutral-500 mt-0.5 truncate">
-                  All your files in one place
+              <div>
+                <div className="text-base font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                  Files
+                </div>
+                <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                  {files.length} file{files.length !== 1 ? "s" : ""} organized by class
                 </div>
               </div>
-            </div>
-
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() => setShowRightPanel((v) => !v)}
-                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                style={surfaceSoftStyle}
-              >
-                {showRightPanel ? "Hide filters" : "Show filters"}
-              </button>
-
-              <button
-                onClick={openLinkModal}
-                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                style={surfaceSoftStyle}
-              >
-                Add link
-              </button>
-
-              <button
-                onClick={() => {
-                  openPicker();
-                }}
-                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                style={brandSoftStyle}
-              >
-                + Upload
-              </button>
-
-              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onPicked} />
             </div>
           </div>
         </header>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <div className="w-full max-w-[1200px] 2xl:max-w-[1320px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24">
-            <div className={cx("grid gap-4", showRightPanel ? "grid-cols-1 lg:grid-cols-12" : "grid-cols-1")}>
-              {/* Main list */}
-              <div className={showRightPanel ? "lg:col-span-8 space-y-4" : "space-y-4"}>
-                {/* Search + controls */}
-                <div className={panelBase} style={surfaceStyle}>
-                  <div className="p-4">
-                    <div className="flex flex-col md:flex-row gap-3 md:items-center">
-                      <div className="flex-1">
-                        <input
-                          value={query}
-                          onChange={(e) => setQuery(e.target.value)}
-                          placeholder="Search by name, group, category…"
-                          className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
-                          style={{ borderColor: "rgba(0,0,0,0.10)" }}
-                        />
-                      </div>
+        {/* Search and Filters */}
+        <div
+          className="border-b backdrop-blur shrink-0"
+          style={{
+            borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+            background: dark ? "rgba(15,15,15,0.88)" : "rgba(255,255,255,0.88)",
+          }}
+        >
+          <div className="max-w-[1600px] mx-auto px-6 py-4 space-y-3">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search
+                size={16}
+                className="absolute left-4 top-1/2 -translate-y-1/2"
+                style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}
+              />
+              <input
+                type="text"
+                placeholder="Search files by name, class, or category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-2xl border pl-11 pr-4 py-3 text-sm outline-none transition"
+                style={{
+                  borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                  background: dark ? "rgba(255,255,255,0.03)" : "white",
+                  color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                }}
+              />
+            </div>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSort((s) => (s === "recent" ? "name" : "recent"))}
-                          className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                          style={surfaceSoftStyle}
-                        >
-                          Sort: {sort === "recent" ? "Recent" : "Name"}
-                        </button>
+            {/* Filters */}
+            <div className="flex gap-2 flex-wrap">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="rounded-xl border px-3 py-2 text-xs font-medium outline-none"
+                style={{
+                  borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                  background: dark ? "rgba(255,255,255,0.03)" : "white",
+                  color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                }}
+              >
+                <option value="all">All Categories</option>
+                <option value="School">School</option>
+                <option value="Work">Work</option>
+                <option value="Life">Life</option>
+                <option value="Health">Health</option>
+                <option value="Other">Other</option>
+              </select>
 
-                        <button
-                          onClick={() => setPinnedOnly((v) => !v)}
-                          className={cx(
-                            buttonBase,
-                            pinnedOnly ? "bg-white hover:bg-black/[0.03] text-neutral-900" : "bg-white hover:bg-black/[0.03]"
-                          )}
-                          style={pinnedOnly ? brandSoftStyle : surfaceSoftStyle}
-                        >
-                          Pinned
-                        </button>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="rounded-xl border px-3 py-2 text-xs font-medium outline-none"
+                style={{
+                  borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                  background: dark ? "rgba(255,255,255,0.03)" : "white",
+                  color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                }}
+              >
+                <option value="all">All Types</option>
+                <option value="note">Notes</option>
+                <option value="pdf">PDF</option>
+                <option value="doc">Document</option>
+                <option value="image">Image</option>
+                <option value="link">Link</option>
+                <option value="other">Other</option>
+              </select>
 
-                        <button
-                          onClick={() => {
-                            setQuery("");
-                            setContextFilter("all");
-                            setGroupFilterId("all");
-                            setCategoryFilter("all");
-                            setTypeFilter("all");
-                            setPinnedOnly(false);
-                            setSort("recent");
-                          }}
-                          className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
-                          style={surfaceSoftStyle}
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <div className="text-[11px] text-neutral-500">
-                        {filtered.length} file{filtered.length === 1 ? "" : "s"} shown
-                      </div>
-                      <div className="text-[11px] text-neutral-500">
-                        Tip: Upload adds light context (personal/group + category)
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* One list */}
-                <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-                  <div className="px-4 py-4 border-b" style={{ borderColor: "rgba(0,0,0,0.08)" }}>
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">All files</div>
-                      <div className="ml-auto text-[11px] text-neutral-500">{filtered.length}</div>
-                    </div>
-                    <div className="mt-1 text-xs text-neutral-500">Use filters to narrow down.</div>
-                  </div>
-
-                  <div className="p-4">
-                    {loadingFiles ? (
-                      <div className={cx(panelInner, "px-3 py-4")} style={surfaceSoftStyle}>
-                        <div className="text-sm text-neutral-500">Loading files…</div>
-                      </div>
-                    ) : filtered.length === 0 ? (
-                      <div className={cx(panelInner, "px-3 py-4")} style={surfaceSoftStyle}>
-                        <div className="text-sm text-neutral-700">No matches. Try clearing filters.</div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {filtered.map((f) => (
-                          <div key={f.id} className={cx(panelInner, "px-3 py-3")} style={surfaceSoftStyle}>
-                            <div className="flex items-start gap-3">
-                              <div
-                                className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[10px] font-semibold"
-                                style={f.pinned ? brandSoftStyle : surfaceSoftStyle}
-                              >
-                                {typeIcon(f.type)}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-neutral-900 truncate">{f.name}</div>
-                                    <div className="mt-0.5 text-xs text-neutral-500">
-                                      {contextLabel(f.context)} • {f.category} • {formatDay(f.createdAt)}{" "}
-                                      {formatTime(f.createdAt)}
-                                    </div>
-                                  </div>
-
-                                  <div className="text-[11px] text-neutral-500 whitespace-nowrap">
-                                    {f.sizeLabel ?? "—"}
-                                  </div>
-                                </div>
-
-                                {f.notes ? (
-                                  <div className="mt-2 text-[11px] text-neutral-600">{f.notes}</div>
-                                ) : null}
-
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  <button
-                                    className={cx(buttonBase, f.url ? "bg-white hover:bg-black/[0.03]" : "opacity-40 cursor-not-allowed bg-white")}
-                                    style={brandSoftStyle}
-                                    onClick={() => f.url && openFileUI(f)}
-                                    title={f.url ? "Open file" : "No download URL (metadata only)"}
-                                  >
-                                    Open
-                                  </button>
-
-                                  <button
-                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                                    style={surfaceSoftStyle}
-                                    onClick={() => togglePin(f.id)}
-                                  >
-                                    {f.pinned ? "Unpin" : "Pin"}
-                                  </button>
-
-                                  <button
-                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
-                                    style={surfaceSoftStyle}
-                                    onClick={() => openMoveTag(f)}
-                                  >
-                                    Move / Tag
-                                  </button>
-
-                                  <button
-                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
-                                    style={surfaceSoftStyle}
-                                    onClick={() => deleteFile(f.id)}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="h-6" />
-              </div>
-
-              {/* Right panel: Filters */}
-              {showRightPanel && (
-                <aside className="lg:col-span-4 space-y-4">
-                  <div className={panelBase} style={surfaceStyle}>
-                    <div className="p-4">
-                      <div className="text-sm font-semibold">Filters</div>
-                      <div className="mt-1 text-xs text-neutral-500">
-                        Organize by <span className="font-semibold text-neutral-900">Context</span> first, then Category.
-                      </div>
-
-                      <div className="mt-4 space-y-3">
-                        {/* Context */}
-                        <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
-                          <div className="text-xs font-semibold text-neutral-700">Context</div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {[
-                              { id: "all", label: "All" },
-                              { id: "personal", label: "Personal" },
-                              { id: "group", label: "Groups" },
-                            ].map((o) => {
-                              const active = contextFilter === (o.id as any);
-                              return (
-                                <button
-                                  key={o.id}
-                                  onClick={() => {
-                                    setContextFilter(o.id as any);
-                                    if (o.id !== "group") setGroupFilterId("all");
-                                  }}
-                                  className={cx(
-                                    "rounded-full border px-3 py-1.5 text-[11px] transition",
-                                    active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
-                                  )}
-                                  style={active ? brandSoftStyle : surfaceSoftStyle}
-                                >
-                                  {o.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          {contextFilter === "group" && (
-                            <div className="mt-3">
-                              <select
-                                value={groupFilterId}
-                                onChange={(e) => setGroupFilterId(e.target.value)}
-                                className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                                style={{ borderColor: "rgba(0,0,0,0.10)" }}
-                              >
-                                <option value="all">All groups</option>
-                                {groups.map((g) => (
-                                  <option key={g.id} value={g.id}>
-                                    {g.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Category */}
-                        <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
-                          <div className="text-xs font-semibold text-neutral-700">Category</div>
-                          <div className="mt-2 grid grid-cols-2 gap-2">
-                            {(
-                              ["all", "School", "Work", "Life", "Finance", "Health", "Fitness", "Other"] as const
-                            ).map((c) => {
-                              const active = categoryFilter === c;
-                              return (
-                                <button
-                                  key={c}
-                                  onClick={() => setCategoryFilter(c as any)}
-                                  className={cx(
-                                    "rounded-2xl border px-3 py-2 text-[11px] text-left transition",
-                                    active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
-                                  )}
-                                  style={active ? brandSoftStyle : surfaceSoftStyle}
-                                >
-                                  {c === "all" ? "All" : c}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Type */}
-                        <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
-                          <div className="text-xs font-semibold text-neutral-700">Type</div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {(["all", "pdf", "doc", "image", "audio", "link", "other"] as const).map((t) => {
-                              const active = typeFilter === t;
-                              return (
-                                <button
-                                  key={t}
-                                  onClick={() => setTypeFilter(t as any)}
-                                  className={cx(
-                                    "rounded-full border px-3 py-1.5 text-[11px] transition",
-                                    active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
-                                  )}
-                                  style={active ? brandSoftStyle : surfaceSoftStyle}
-                                >
-                                  {t === "all" ? "All" : typePill(t)}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Summary */}
-                        <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                          <div className="text-xs text-neutral-500">Showing</div>
-                          <div className="mt-1 text-sm font-semibold text-neutral-900">
-                            {filtered.length} file{filtered.length === 1 ? "" : "s"}
-                          </div>
-                          <div className="mt-2 text-[11px] text-neutral-500">
-                            Simple by default. Later: suggested category/context on upload.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Philosophy */}
-                  <div className={panelBase} style={surfaceStyle}>
-                    <div className="p-4">
-                      <div className="text-sm font-semibold">How this stays simple</div>
-                      <div className="mt-2 text-sm text-neutral-700 leading-relaxed">
-                        Upload files, add context, and use search and filters to find anything fast.
-                      </div>
-                      <div className="mt-3 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                        <div className="text-xs text-neutral-500">
-                          Upload asks for just enough: personal/group + category. Everything else is optional.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </aside>
+              {(searchQuery || categoryFilter !== "all" || typeFilter !== "all") && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setCategoryFilter("all");
+                    setTypeFilter("all");
+                  }}
+                  className="rounded-xl border px-3 py-2 text-xs font-semibold transition"
+                  style={{
+                    borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                    background: dark ? "rgba(255,255,255,0.03)" : "white",
+                    color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)",
+                  }}
+                >
+                  Clear Filters
+                </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Move / Tag Modal */}
-        {moveTagFile && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div className="absolute inset-0 bg-black/30" onClick={() => setMoveTagFile(null)} />
-            <div
-              className="relative w-full max-w-[480px] rounded-3xl border bg-white p-5"
-              style={{ borderColor: "rgba(0,0,0,0.10)", boxShadow: "0 28px 90px rgba(0,0,0,0.12)" }}
-            >
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <div className="text-sm font-semibold">Move / Tag</div>
-                  <div className="mt-0.5 text-xs text-neutral-500 truncate">{moveTagFile.name}</div>
-                </div>
-                <button className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")} style={surfaceSoftStyle} onClick={() => setMoveTagFile(null)}>✕</button>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <div className="text-xs font-semibold text-neutral-600 mb-2">Category</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["School", "Work", "Life", "Finance", "Health", "Fitness", "Other"] as const).map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => setMtCategory(c)}
-                        className={cx(buttonBase, "text-left")}
-                        style={mtCategory === c ? brandSoftStyle : surfaceSoftStyle}
-                      >{c}</button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-xs font-semibold text-neutral-600 mb-2">Context</div>
-                  <div className="flex gap-2">
-                    {(["personal", "group"] as const).map((k) => (
-                      <button key={k} onClick={() => setMtContextKind(k)} className={cx(buttonBase)} style={mtContextKind === k ? brandSoftStyle : surfaceSoftStyle}>
-                        {k === "personal" ? "Personal" : "Group"}
-                      </button>
-                    ))}
-                  </div>
-                  {mtContextKind === "group" && groups.length > 0 && (
-                    <select
-                      value={mtGroupId}
-                      onChange={(e) => setMtGroupId(e.target.value)}
-                      className="mt-2 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                      style={{ borderColor: "rgba(0,0,0,0.10)" }}
-                    >
-                      {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-                    </select>
-                  )}
-                  {mtContextKind === "group" && groups.length === 0 && (
-                    <div className="mt-2 text-xs text-neutral-500">No groups yet.</div>
-                  )}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
+            {loading ? (
+              <div
+                className="rounded-3xl border p-6 text-center"
+                style={{
+                  ...surfaceStyle,
+                  background: dark ? "var(--surface)" : "white",
+                }}
+              >
+                <div className="text-sm" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                  Loading files...
                 </div>
               </div>
-
-              <div className="mt-4 flex justify-end gap-2">
-                <button className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")} style={surfaceSoftStyle} onClick={() => setMoveTagFile(null)}>Cancel</button>
-                <button
-                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                  style={brandSoftStyle}
-                  onClick={saveMoveTag}
-                  disabled={mtSaving}
-                >{mtSaving ? "Saving…" : "Save"}</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Upload Modal */}
-        {uploadOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <div
-              className="absolute inset-0 bg-black/30"
-              onClick={() => {
-                setUploadOpen(false);
-                setPendingFiles([]);
-                setAddingLink(false);
-              }}
-            />
-            <div
-              className="relative w-full max-w-[720px] rounded-3xl border bg-white p-4"
-              style={{
-                borderColor: "rgba(0,0,0,0.10)",
-                boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 28px 90px rgba(0,0,0,0.10)",
-              }}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[10px] font-semibold shrink-0"
-                  style={addingLink ? brandSoftStyle : surfaceSoftStyle}
-                >
-                  {addingLink ? "LNK" : "FILE"}
+            ) : files.length === 0 ? (
+              <div
+                className="rounded-3xl border p-6 text-center"
+                style={{
+                  ...surfaceStyle,
+                  background: dark ? "var(--surface)" : "white",
+                }}
+              >
+                <div className="text-sm" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                  No files yet
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold">{addingLink ? "Add link" : "Add file"}</div>
-                  <div className="mt-1 text-xs text-neutral-500">Add a little context so you can find this later.</div>
+                <div className="text-xs mt-1" style={{ color: dark ? "rgba(240,240,240,0.40)" : "rgba(0,0,0,0.40)" }}>
+                  Files you create will appear here
                 </div>
-                <button
-                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                  style={surfaceSoftStyle}
-                  onClick={() => {
-                    setUploadOpen(false);
-                    setPendingFiles([]);
-                    setAddingLink(false);
-                  }}
-                >
-                  ✕
-                </button>
               </div>
-
-              {/* Selected items */}
-              <div className="mt-4 space-y-2">
-                {!addingLink ? (
-                  <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                    <div className="text-xs text-neutral-500">Selected</div>
-                    <div className="mt-1 text-sm text-neutral-900">
-                      {pendingFiles.length} file{pendingFiles.length === 1 ? "" : "s"}
-                    </div>
-                    {pendingFiles.slice(0, 4).map((f) => (
-                      <div key={f.name} className="mt-2 text-[12px] text-neutral-700 truncate">
-                        {f.name}
+            ) : (
+              <>
+                {/* Class Groups */}
+                {classGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="rounded-3xl border p-6"
+                    style={{
+                      ...surfaceStyle,
+                      background: dark ? "var(--surface)" : "white",
+                    }}
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div
+                        className="h-10 w-10 rounded-2xl border flex items-center justify-center"
+                        style={{
+                          ...surfaceSoftStyle,
+                          background: rgbaBrand(0.10),
+                          borderColor: rgbaBrand(0.22),
+                        }}
+                      >
+                        <Folder size={18} style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }} />
                       </div>
-                    ))}
-                    {pendingFiles.length > 4 && (
-                      <div className="mt-2 text-[11px] text-neutral-500">+ {pendingFiles.length - 4} more…</div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                      <div className="text-xs text-neutral-500">URL</div>
-                      <input
-                        value={uLinkUrl}
-                        onChange={(e) => setULinkUrl(e.target.value)}
-                        placeholder="https://…"
-                        className="mt-2 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
-                        style={{ borderColor: "rgba(0,0,0,0.10)" }}
-                      />
+                      <div className="flex-1">
+                        <div className="text-base font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                          {group.name}
+                          {group.courseCode && (
+                            <span className="ml-2 text-sm font-normal" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                              ({group.courseCode})
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                          {group.files.length} file{group.files.length !== 1 ? "s" : ""}
+                        </div>
+                      </div>
                     </div>
-                    <div className="rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                      <div className="text-xs text-neutral-500">Name (optional)</div>
-                      <input
-                        value={uLinkName}
-                        onChange={(e) => setULinkName(e.target.value)}
-                        placeholder="Useful article — scheduling psychology"
-                        className="mt-2 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
-                        style={{ borderColor: "rgba(0,0,0,0.10)" }}
-                      />
+
+                    <div className="space-y-2">
+                      {group.files.map((file) => (
+                        <div
+                          key={file.id}
+                          className="rounded-2xl border p-4"
+                          style={{
+                            ...surfaceSoftStyle,
+                            background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                          }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="h-10 w-10 rounded-2xl border flex items-center justify-center shrink-0"
+                              style={{
+                                ...surfaceSoftStyle,
+                                background: dark ? "rgba(255,255,255,0.04)" : "white",
+                              }}
+                            >
+                              <FileText size={16} style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }} />
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold truncate" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                                {file.name}
+                              </div>
+                              <div className="text-xs mt-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                                {new Date(file.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                              </div>
+
+                              {file.type === "note" && file.note && (
+                                <div className="flex gap-2 mt-3">
+                                  <button
+                                    onClick={() => handleViewNote(file.note!, "read")}
+                                    className="rounded-xl px-3 py-2 text-xs font-semibold border transition"
+                                    style={{
+                                      borderColor: rgbaBrand(0.22),
+                                      background: rgbaBrand(0.10),
+                                      color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                                    }}
+                                  >
+                                    Read Note
+                                  </button>
+                                  <button
+                                    onClick={() => handleViewNote(file.note!, "summary")}
+                                    className="rounded-xl px-3 py-2 text-xs font-semibold border transition flex items-center gap-1.5"
+                                    style={{
+                                      borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+                                      background: dark ? "rgba(255,255,255,0.04)" : "white",
+                                      color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                                    }}
+                                  >
+                                    <Sparkles size={12} />
+                                    AI Summary
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Ungrouped Files */}
+                {ungrouped.length > 0 && (
+                  <div
+                    className="rounded-3xl border p-6"
+                    style={{
+                      ...surfaceStyle,
+                      background: dark ? "var(--surface)" : "white",
+                    }}
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div
+                        className="h-10 w-10 rounded-2xl border flex items-center justify-center"
+                        style={{
+                          ...surfaceSoftStyle,
+                          background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                        }}
+                      >
+                        <FileText size={18} style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-base font-semibold" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                          Other Files
+                        </div>
+                        <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                          {ungrouped.length} file{ungrouped.length !== 1 ? "s" : ""}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {ungrouped.map((file) => (
+                        <div
+                          key={file.id}
+                          className="rounded-2xl border p-4"
+                          style={{
+                            ...surfaceSoftStyle,
+                            background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
+                          }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className="h-10 w-10 rounded-2xl border flex items-center justify-center shrink-0"
+                              style={{
+                                ...surfaceSoftStyle,
+                                background: dark ? "rgba(255,255,255,0.04)" : "white",
+                              }}
+                            >
+                              <FileText size={16} style={{ color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)" }} />
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold truncate" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                                {file.name}
+                              </div>
+                              <div className="text-xs mt-1" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                                {new Date(file.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })} • {file.category}
+                              </div>
+
+                              {file.type === "note" && file.note && (
+                                <div className="flex gap-2 mt-3">
+                                  <button
+                                    onClick={() => handleViewNote(file.note!, "read")}
+                                    className="rounded-xl px-3 py-2 text-xs font-semibold border transition"
+                                    style={{
+                                      borderColor: rgbaBrand(0.22),
+                                      background: rgbaBrand(0.10),
+                                      color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                                    }}
+                                  >
+                                    Read Note
+                                  </button>
+                                  <button
+                                    onClick={() => handleViewNote(file.note!, "summary")}
+                                    className="rounded-xl px-3 py-2 text-xs font-semibold border transition flex items-center gap-1.5"
+                                    style={{
+                                      borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+                                      background: dark ? "rgba(255,255,255,0.04)" : "white",
+                                      color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                                    }}
+                                  >
+                                    <Sparkles size={12} />
+                                    AI Summary
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* Context + Category */}
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
-                  <div className="text-xs font-semibold text-neutral-700">Context</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {[
-                      { id: "personal", label: "Personal" },
-                      { id: "group", label: "Group" },
-                    ].map((o) => {
-                      const active = uContextKind === (o.id as any);
-                      return (
-                        <button
-                          key={o.id}
-                          onClick={() => setUContextKind(o.id as any)}
-                          className={cx(
-                            "rounded-full border px-3 py-1.5 text-[11px] transition",
-                            active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
-                          )}
-                          style={active ? brandSoftStyle : surfaceSoftStyle}
-                        >
-                          {o.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {uContextKind === "group" && (
-                    <div className="mt-3">
-                      <select
-                        value={uGroupId}
-                        onChange={(e) => setUGroupId(e.target.value)}
-                        className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
-                        style={{ borderColor: "rgba(0,0,0,0.10)" }}
-                      >
-                        {groups.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                <div className={cx(panelInner, "p-3")} style={surfaceSoftStyle}>
-                  <div className="text-xs font-semibold text-neutral-700">Category</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {(["School", "Work", "Life", "Finance", "Health", "Fitness", "Other"] as const).map((c) => {
-                      const active = uCategory === c;
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => setUCategory(c)}
-                          className={cx(
-                            "rounded-2xl border px-3 py-2 text-[11px] text-left transition",
-                            active ? "bg-white text-neutral-900" : "bg-white text-neutral-800 hover:bg-black/[0.02]"
-                          )}
-                          style={active ? brandSoftStyle : surfaceSoftStyle}
-                        >
-                          {c}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Optional */}
-              <div className="mt-3 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-semibold text-neutral-700">Optional</div>
-                    <div className="mt-0.5 text-[11px] text-neutral-500">Pin for quick access, add a short note.</div>
-                  </div>
-                  <button
-                    onClick={() => setUPinned((v) => !v)}
-                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                    style={uPinned ? brandSoftStyle : surfaceSoftStyle}
-                  >
-                    {uPinned ? "Pinned" : "Pin"}
-                  </button>
-                </div>
-
-                <textarea
-                  value={uNotes}
-                  onChange={(e) => setUNotes(e.target.value)}
-                  placeholder="Note (optional)…"
-                  className="mt-3 w-full min-h-[64px] rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
-                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
-                />
-              </div>
-
-              {/* Footer */}
-              <div className="mt-4 flex items-center justify-between gap-2">
-                <button
-                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
-                  style={surfaceSoftStyle}
-                  onClick={() => {
-                    setUploadOpen(false);
-                    setPendingFiles([]);
-                    setAddingLink(false);
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <div className="flex items-center gap-2">
-                  {!addingLink && (
-                    <button
-                      className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                      style={surfaceSoftStyle}
-                      onClick={openPicker}
-                    >
-                      Pick more
-                    </button>
-                  )}
-
-                  <button
-                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
-                    style={brandSoftStyle}
-                    onClick={() => (addingLink ? addLinkNow() : addFilesNow())}
-                    disabled={!addingLink && pendingFiles.length === 0}
-                  >
-                    {addingLink ? "Add link" : "Add file"}
-                  </button>
-                </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
-        )}
-      </section>
+        </div>
+      </div>
+
+      {/* Note Viewer Modal */}
+      {viewingNote && (
+        <NoteViewer
+          note={viewingNote}
+          eventId=""
+          onClose={() => setViewingNote(null)}
+          onEdit={() => {}}
+          dark={dark}
+          initialMode={viewMode}
+        />
+      )}
     </main>
   );
 }
