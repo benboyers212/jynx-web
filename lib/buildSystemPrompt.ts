@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getLocalISOString } from "@/lib/timezones";
 
 export async function buildSystemPrompt(
   dbUserId: string,
@@ -14,7 +15,7 @@ export async function buildSystemPrompt(
     await Promise.all([
       prisma.user.findUnique({
         where: { id: dbUserId },
-        select: { name: true, email: true, createdAt: true },
+        select: { name: true, email: true, createdAt: true, timezone: true },
       }),
 
       prisma.onboardingResponse.findUnique({
@@ -92,25 +93,39 @@ export async function buildSystemPrompt(
 
   const aiProfile = (onboarding?.answers as any)?.aiProfile ?? null;
 
+  // Use user's timezone or default to America/New_York
+  const userTimezone = user?.timezone || "America/New_York";
+
   const dateStr = now.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: userTimezone,
   });
   const timeStr = now.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: userTimezone,
   });
   // ISO datetime the model uses when constructing tool inputs (startAt/endAt)
-  const isoNow = now.toISOString().slice(0, 19); // e.g. "2026-02-19T14:30:00"
+  // Uses user's timezone so AI creates events in the correct local time
+  const isoNow = getLocalISOString(now, userTimezone); // e.g. "2026-02-19T14:30:00"
 
   const lines: string[] = [
     `You are Jynx, a personal AI life assistant. You help ${user?.name ?? "the user"} manage their schedule, tasks, health, and goals.`,
-    `Today is ${dateStr} at ${timeStr}. ISO datetime: ${isoNow}.`,
+    `Today is ${dateStr} at ${timeStr}. ISO datetime: ${isoNow}. User timezone: ${userTimezone}.`,
     `Be concise, direct, and personalized. Use what you know about the user to give relevant, actionable advice.`,
     `You have tools to take real actions — creating, updating, and deleting schedule blocks, tasks, and reminders. Call them directly when the user asks you to make a change. Always get explicit confirmation from the user before calling any delete tool.`,
-    `When generating datetimes for tool inputs, always use ISO 8601 format matching the timezone offset of ${isoNow} (local time, no trailing Z).`,
+    "",
+    `**TIMEZONE & DATETIME HANDLING:**`,
+    `The user is in the ${userTimezone} timezone. When creating events:`,
+    `- Always use ISO 8601 format WITHOUT the 'Z' suffix: YYYY-MM-DDTHH:MM:SS`,
+    `- Times provided by the user are in their local timezone (${userTimezone})`,
+    `- "3pm" means 15:00 in ${userTimezone}, NOT UTC`,
+    `- "Tomorrow at 9:30am" means the next calendar day at 09:30 in ${userTimezone}`,
+    `- The current time in ${userTimezone} is ${timeStr}. Use ${isoNow} as your reference.`,
+    `- NEVER add 'Z' or timezone offsets to datetime strings - the system will interpret them as local time`,
     "",
     `**FOLLOW-UP QUESTIONS:**`,
     `When you need to ask the user follow-up questions to clarify their request, ALWAYS use the 'ask_structured_questions' tool instead of asking questions in plain text.`,
@@ -153,6 +168,25 @@ export async function buildSystemPrompt(
     `7. When done, report how many class sessions and how many tasks were created.`,
     `Do not wait for user confirmation between steps. Do not summarize and ask "shall I proceed" — just execute.`,
     `IMPORTANT: When creating class events, ALWAYS use create_or_find_class_hub first to get a classHubId, then pass that ID to every create_schedule_block call. This ensures all instances of the same class (even with slight name variations) are properly grouped together.`,
+    "",
+    `**DUPLICATE PREVENTION:**`,
+    `Before creating any event, check the "Upcoming schedule" section above for existing events:`,
+    `1. If the user asks to add an event that already exists at the same time/day, DO NOT create a duplicate`,
+    `2. Instead, acknowledge the existing event and ask if they want to modify it`,
+    `3. When the user provides multiple items to add (e.g., "add my classes: CS401 on MWF at 9am, MATH200 on TTh at 2pm"), create each one ONCE`,
+    `4. If you're unsure whether an event already exists, ask the user before creating`,
+    `5. When creating recurring events (e.g., class sessions for a semester), use a single create_or_find_class_hub call first, then create each session with that hub ID`,
+    "",
+    `**LINKING TASKS & ASSIGNMENTS TO CLASSES:**`,
+    `When the user mentions an assignment, homework, project, quiz, or exam for a specific class:`,
+    `1. First check if a ClassHub exists for that class (look at the existing schedule or use list_class_hubs)`,
+    `2. If found, create the task with classHubId set to that ClassHub's ID`,
+    `3. Common patterns to recognize and link:`,
+    `   - "homework for CS401" → link to CS401 ClassHub`,
+    `   - "F365 exam on Friday" → link to the F365/Personal Financial Planning ClassHub`,
+    `   - "assignment due for Operating Systems" → find and link to Operating Systems ClassHub`,
+    `4. If the class doesn't exist as a ClassHub yet, create it first with create_or_find_class_hub`,
+    `5. This ensures assignments appear under their class when viewing event details`,
     "",
   ];
 
@@ -304,10 +338,12 @@ export async function buildSystemPrompt(
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
+        timeZone: userTimezone,
       });
       const end = new Date(e.endAt).toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
+        timeZone: userTimezone,
       });
       const loc = e.location ? ` @ ${e.location}` : "";
       lines.push(`- [id:${e.id}] ${e.title} (${e.eventType}) ${start}–${end}${loc}`);
@@ -319,7 +355,7 @@ export async function buildSystemPrompt(
     lines.push("**Open tasks:**");
     for (const t of openTasks.slice(0, 15)) {
       const due = t.dueDate
-        ? ` due ${new Date(t.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+        ? ` due ${new Date(t.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: userTimezone })}`
         : "";
       const pri = t.priority ? ` [${t.priority}]` : "";
       lines.push(`- [id:${t.id}] ${t.title}${due}${pri}`);

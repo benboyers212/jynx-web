@@ -23,6 +23,7 @@ export async function executeToolCall(
             endAt: new Date(toolInput.endAt),
             location: toolInput.location ?? null,
             description: toolInput.description ?? null,
+            classHubId: toolInput.classHubId ?? null,
           },
           select: {
             id: true,
@@ -31,6 +32,7 @@ export async function executeToolCall(
             startAt: true,
             endAt: true,
             location: true,
+            classHubId: true,
           },
         });
         return { success: true, data: { created: block } };
@@ -104,8 +106,9 @@ export async function executeToolCall(
             dueDate: toolInput.dueDate ? new Date(toolInput.dueDate) : null,
             priority: toolInput.priority ?? null,
             taskType: toolInput.taskType ?? "task",
+            classHubId: toolInput.classHubId ?? null,
           },
-          select: { id: true, title: true, dueDate: true, priority: true, taskType: true },
+          select: { id: true, title: true, dueDate: true, priority: true, taskType: true, classHubId: true },
         });
         return { success: true, data: { created: task } };
       }
@@ -231,13 +234,20 @@ export async function executeToolCall(
         );
 
         // Update with additional fields if provided
-        if (toolInput.semester || toolInput.department) {
+        const updateData: Record<string, unknown> = {};
+        if (toolInput.semester) updateData.semester = toolInput.semester;
+        if (toolInput.department) updateData.department = toolInput.department;
+        if (toolInput.meetingDays) updateData.meetingDays = JSON.stringify(toolInput.meetingDays);
+        if (toolInput.meetingStartTime) updateData.meetingStartTime = toolInput.meetingStartTime;
+        if (toolInput.meetingEndTime) updateData.meetingEndTime = toolInput.meetingEndTime;
+        if (toolInput.startDate) updateData.startDate = new Date(toolInput.startDate);
+        if (toolInput.endDate) updateData.endDate = new Date(toolInput.endDate);
+        if (toolInput.location) updateData.location = toolInput.location;
+
+        if (Object.keys(updateData).length > 0) {
           await prisma.classHub.update({
             where: { id: classHubId },
-            data: {
-              ...(toolInput.semester && { semester: toolInput.semester }),
-              ...(toolInput.department && { department: toolInput.department }),
-            },
+            data: updateData,
           });
         }
 
@@ -250,6 +260,12 @@ export async function executeToolCall(
             instructor: true,
             semester: true,
             department: true,
+            meetingDays: true,
+            meetingStartTime: true,
+            meetingEndTime: true,
+            startDate: true,
+            endDate: true,
+            location: true,
           },
         });
 

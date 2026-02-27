@@ -68,6 +68,7 @@ function buildAiProfile(a: any): string {
     "",
     "**Context:**",
     `- Age range: ${c.ageRange ?? "?"}`,
+    ...(c.timezone ? [`- Timezone: ${c.timezone}`] : []),
     ...(c.location ? [`- Location: ${c.location}`] : []),
   ];
 
@@ -128,9 +129,14 @@ export async function POST(req: Request) {
     create: { userId: dbUser.id, answers },
   });
 
+  // Save timezone to User model if provided
+  const timezone = rawAnswers?.context?.timezone;
   await prisma.user.update({
     where: { id: dbUser.id },
-    data: { onboardingCompleted: true },
+    data: {
+      onboardingCompleted: true,
+      ...(timezone ? { timezone } : {}),
+    },
   });
 
   return NextResponse.json({ ok: true });

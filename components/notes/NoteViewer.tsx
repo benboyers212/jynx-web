@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { FileText, Sparkles, Maximize2, Minimize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -95,7 +96,8 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false, initi
   const fg = dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.90)";
   const muted = dark ? "rgba(240,240,240,0.50)" : "rgba(17,17,17,0.50)";
 
-  return (
+  // Use portal to render outside any parent transforms (fixes fullscreen in nested modals)
+  const modalContent = (
     <>
       {/* Backdrop */}
       <div
@@ -353,4 +355,10 @@ export function NoteViewer({ note, eventId, onClose, onEdit, dark = false, initi
       `}</style>
     </>
   );
+
+  // Render via portal to escape any parent transforms
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }

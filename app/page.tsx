@@ -1092,7 +1092,7 @@ export default function Home() {
                   </button>
 
                   <button
-                    onClick={() => setSelectedDate(new Date(2026, 0, 12))}
+                    onClick={() => setSelectedDate(new Date())}
                     className="h-10 rounded-2xl px-3 text-xs font-semibold border transition"
                     style={getSurfaceSoftStyle(dark)}
                   >

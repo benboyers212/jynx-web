@@ -88,6 +88,49 @@ function getEventTypeColor(type: EventType): string {
 
 export function EventDetailModal({ event, dark = false, onClose, onDrop }: EventDetailModalProps) {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Edit form state
+  const [editTitle, setEditTitle] = useState(event.title);
+  const [editLocation, setEditLocation] = useState(event.location || "");
+  const [editStartTime, setEditStartTime] = useState(
+    event.startAt ? new Date(event.startAt).toISOString().slice(0, 16) : ""
+  );
+  const [editEndTime, setEditEndTime] = useState(
+    event.endAt ? new Date(event.endAt).toISOString().slice(0, 16) : ""
+  );
+  const [editEventType, setEditEventType] = useState<EventType>(event.type);
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim()) return;
+    setEditSaving(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          location: editLocation.trim() || null,
+          startAt: editStartTime || undefined,
+          endAt: editEndTime || undefined,
+          eventType: editEventType,
+        }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || "Failed to update event");
+      }
+      setIsEditing(false);
+      // Reload by closing and reopening (parent will refetch)
+      onClose();
+    } catch (error) {
+      console.error("Error updating event:", error);
+      alert("Failed to update event");
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const adjustW = "min(840px, calc(100vw - 48px))";
   const adjustH = "min(680px, calc(100vh - 48px))";
@@ -184,30 +227,72 @@ export function EventDetailModal({ event, dark = false, onClose, onDrop }: Event
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setShowCompletionModal(true)}
-                  className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
-                  style={{
-                    borderColor: "rgba(75,94,60,0.30)",
-                    background: "rgba(75,94,60,0.10)",
-                    color: dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.92)",
-                    boxShadow: "0 0 0 1px rgba(75,94,60,0.14)",
-                  }}
-                >
-                  Complete
-                </button>
-                {onDrop && (
-                  <button
-                    onClick={onDrop}
-                    className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
-                    style={{
-                      borderColor: "rgba(220,38,38,0.25)",
-                      background: "rgba(220,38,38,0.07)",
-                      color: dark ? "rgba(252,165,165,0.90)" : "rgba(185,28,28,0.90)",
-                    }}
-                  >
-                    Drop
-                  </button>
+                {!isEditing ? (
+                  <>
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
+                      style={{
+                        borderColor: rgbaBrand(0.25),
+                        background: rgbaBrand(0.08),
+                        color: dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.92)",
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setShowCompletionModal(true)}
+                      className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
+                      style={{
+                        borderColor: "rgba(75,94,60,0.30)",
+                        background: "rgba(75,94,60,0.10)",
+                        color: dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.92)",
+                        boxShadow: "0 0 0 1px rgba(75,94,60,0.14)",
+                      }}
+                    >
+                      Complete
+                    </button>
+                    {onDrop && (
+                      <button
+                        onClick={onDrop}
+                        className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
+                        style={{
+                          borderColor: "rgba(220,38,38,0.25)",
+                          background: "rgba(220,38,38,0.07)",
+                          color: dark ? "rgba(252,165,165,0.90)" : "rgba(185,28,28,0.90)",
+                        }}
+                      >
+                        Drop
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
+                      style={{
+                        borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+                        background: dark ? "rgba(255,255,255,0.04)" : "white",
+                        color: dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={editSaving || !editTitle.trim()}
+                      className="rounded-xl px-3 py-1 text-xs font-semibold border transition"
+                      style={{
+                        borderColor: rgbaBrand(0.30),
+                        background: rgbaBrand(0.12),
+                        color: dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.92)",
+                        opacity: editSaving ? 0.6 : 1,
+                      }}
+                    >
+                      {editSaving ? "Saving..." : "Save"}
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={onClose}
@@ -224,61 +309,166 @@ export function EventDetailModal({ event, dark = false, onClose, onDrop }: Event
             </div>
           </div>
 
-          {/* Body — route to type-specific component */}
+          {/* Body — edit form or type-specific component */}
           <div className="flex-1 overflow-hidden px-5 py-5">
-            {event.type === "class" && (
-              <ClassEventDetail
-                eventId={event.id}
-                eventTitle={event.title}
-                eventTime={event.time}
-                eventEndTime={event.endTime}
-                eventLocation={event.location}
-                eventMeta={event.meta}
-                initialAssignments={event.assignments || []}
-                initialFiles={event.files || []}
-                dark={dark}
-              />
-            )}
+            {isEditing ? (
+              <div className="space-y-4">
+                <div className="text-sm font-semibold mb-4" style={{ color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)" }}>
+                  Edit Event
+                </div>
 
-            {event.type === "health" && (
-              <WorkoutEventDetail
-                eventId={event.id}
-                eventTitle={event.title}
-                eventTime={event.time}
-                eventEndTime={event.endTime}
-                eventLocation={event.location}
-                eventMeta={event.meta}
-                initialWorkoutLogs={event.workoutLogs || []}
-                initialFiles={event.files || []}
-                dark={dark}
-              />
-            )}
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                    style={{
+                      borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+                      background: dark ? "rgba(255,255,255,0.04)" : "white",
+                      color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                    }}
+                  />
+                </div>
 
-            {(event.type === "work" || event.type === "meeting") && (
-              <WorkEventDetail
-                eventId={event.id}
-                eventTitle={event.title}
-                eventTime={event.time}
-                eventEndTime={event.endTime}
-                eventLocation={event.location}
-                eventMeta={event.meta}
-                initialFiles={event.files || []}
-                dark={dark}
-              />
-            )}
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                    Event Type
+                  </label>
+                  <select
+                    value={editEventType}
+                    onChange={(e) => setEditEventType(e.target.value as EventType)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                    style={{
+                      borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+                      background: dark ? "rgba(255,255,255,0.04)" : "white",
+                      color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                    }}
+                  >
+                    <option value="class">Class</option>
+                    <option value="work">Work</option>
+                    <option value="health">Health</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="prep">Prep</option>
+                    <option value="study">Study</option>
+                    <option value="life">Life</option>
+                    <option value="free">Free Time</option>
+                  </select>
+                </div>
 
-            {/* Fallback for prep / study / life / free */}
-            {!["class", "health", "work", "meeting"].includes(event.type) && (
-              <WorkEventDetail
-                eventId={event.id}
-                eventTitle={event.title}
-                eventTime={event.time}
-                eventEndTime={event.endTime}
-                eventLocation={event.location}
-                eventMeta={event.meta}
-                initialFiles={event.files || []}
-                dark={dark}
-              />
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    placeholder="Optional"
+                    className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                    style={{
+                      borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+                      background: dark ? "rgba(255,255,255,0.04)" : "white",
+                      color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editStartTime}
+                      onChange={(e) => setEditStartTime(e.target.value)}
+                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                      style={{
+                        borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+                        background: dark ? "rgba(255,255,255,0.04)" : "white",
+                        color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: dark ? "rgba(240,240,240,0.60)" : "rgba(0,0,0,0.60)" }}>
+                      End Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={editEndTime}
+                      onChange={(e) => setEditEndTime(e.target.value)}
+                      className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                      style={{
+                        borderColor: dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
+                        background: dark ? "rgba(255,255,255,0.04)" : "white",
+                        color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.90)",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {event.type === "class" && (
+                  <ClassEventDetail
+                    eventId={event.id}
+                    eventTitle={event.title}
+                    eventTime={event.time}
+                    eventEndTime={event.endTime}
+                    eventLocation={event.location}
+                    eventMeta={event.meta}
+                    initialAssignments={event.assignments || []}
+                    initialFiles={event.files || []}
+                    dark={dark}
+                  />
+                )}
+
+                {event.type === "health" && (
+                  <WorkoutEventDetail
+                    eventId={event.id}
+                    eventTitle={event.title}
+                    eventTime={event.time}
+                    eventEndTime={event.endTime}
+                    eventLocation={event.location}
+                    eventMeta={event.meta}
+                    initialWorkoutLogs={event.workoutLogs || []}
+                    initialFiles={event.files || []}
+                    dark={dark}
+                  />
+                )}
+
+                {(event.type === "work" || event.type === "meeting") && (
+                  <WorkEventDetail
+                    eventId={event.id}
+                    eventTitle={event.title}
+                    eventTime={event.time}
+                    eventEndTime={event.endTime}
+                    eventLocation={event.location}
+                    eventMeta={event.meta}
+                    initialFiles={event.files || []}
+                    dark={dark}
+                  />
+                )}
+
+                {/* Fallback for prep / study / life / free */}
+                {!["class", "health", "work", "meeting"].includes(event.type) && (
+                  <WorkEventDetail
+                    eventId={event.id}
+                    eventTitle={event.title}
+                    eventTime={event.time}
+                    eventEndTime={event.endTime}
+                    eventLocation={event.location}
+                    eventMeta={event.meta}
+                    initialFiles={event.files || []}
+                    dark={dark}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>

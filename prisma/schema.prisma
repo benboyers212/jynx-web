@@ -16,6 +16,7 @@ model User {
   clerkUserId         String   @unique
   email               String?
   name                String?
+  timezone            String?  // IANA timezone string, e.g., "America/New_York"
   onboardingCompleted Boolean  @default(false)
   onboardingResponse  OnboardingResponse?
 
@@ -131,6 +132,14 @@ model ClassHub {
   department  String?
   semester    String?          // e.g. "Spring 2026"
   description String?  @db.Text
+
+  // Meeting schedule
+  meetingDays      String?     // JSON array: ["Mon", "Wed", "Fri"]
+  meetingStartTime String?     // "HH:MM" 24h format, e.g., "14:30"
+  meetingEndTime   String?     // "HH:MM" 24h format, e.g., "15:45"
+  startDate        DateTime?   // First day of class
+  endDate          DateTime?   // Last day of class
+  location         String?     // Room/building
 
   // Hub-level shared resources
   notes  Note[]

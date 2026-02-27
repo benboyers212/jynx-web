@@ -53,6 +53,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (body.department !== undefined) data.department = body.department ?? null;
   if (body.semester !== undefined) data.semester = body.semester ?? null;
   if (body.description !== undefined) data.description = body.description ?? null;
+  if (body.meetingDays !== undefined) {
+    data.meetingDays = Array.isArray(body.meetingDays) ? JSON.stringify(body.meetingDays) : null;
+  }
+  if (body.meetingStartTime !== undefined) data.meetingStartTime = body.meetingStartTime ?? null;
+  if (body.meetingEndTime !== undefined) data.meetingEndTime = body.meetingEndTime ?? null;
+  if (body.location !== undefined) data.location = body.location ?? null;
 
   const updated = await prisma.classHub.update({ where: { id }, data });
 

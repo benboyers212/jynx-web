@@ -46,6 +46,9 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
   const [viewMode, setViewMode] = useState<"read" | "summary">("read");
 
+  // Track the note ID after creating a new note (so subsequent saves do PATCH not POST)
+  const [createdNoteId, setCreatedNoteId] = useState<string | null>(null);
+
   // Disambiguation state
   const [showDisambiguation, setShowDisambiguation] = useState(false);
   const [disambiguationMatches, setDisambiguationMatches] = useState<EventMatch[]>([]);
@@ -76,9 +79,12 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
 
   async function handleSaveNote(title: string, content: string, classHubId?: string | null) {
     try {
-      if (editingNote) {
+      // Use editingNote.id or createdNoteId for existing notes
+      const existingNoteId = editingNote?.id || createdNoteId;
+
+      if (existingNoteId) {
         // Update existing note
-        const res = await fetch(`/api/events/${eventId}/notes/${editingNote.id}`, {
+        const res = await fetch(`/api/events/${eventId}/notes/${existingNoteId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title, content }),
@@ -109,9 +115,15 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
           setShowDisambiguation(true);
           return; // Don't close editor or reload yet
         }
+
+        // Store the created note ID so subsequent auto-saves do PATCH instead of POST
+        if (data.id) {
+          setCreatedNoteId(data.id);
+        }
       }
 
-      await loadNotes(); // Reload notes list
+      // NOTE: Don't call loadNotes() here - it causes re-renders that disrupt the TipTap editor
+      // Notes will be reloaded when the editor closes
     } catch (error) {
       console.error("Failed to save note:", error);
       throw error;
@@ -137,6 +149,7 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
 
   function handleCreateNew() {
     setEditingNote(null);
+    setCreatedNoteId(null); // Reset so we create a fresh note
     setShowEditor(true);
   }
 
@@ -153,6 +166,8 @@ export function NotesList({ eventId, eventTitle, dark = false }: NotesListProps)
   function handleCloseEditor() {
     setShowEditor(false);
     setEditingNote(null);
+    setCreatedNoteId(null); // Reset for next time
+    loadNotes(); // Refresh the notes list now that editing is done
   }
 
   function handleCloseViewer() {

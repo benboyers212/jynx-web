@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "../ThemeContext";
+import { COMMON_TIMEZONES, detectBrowserTimezone, getCurrentTimeInTimezone } from "@/lib/timezones";
 
 type MeResponse = {
   ok: boolean;
@@ -111,6 +112,15 @@ export default function OnboardingPage() {
   // Step 4 — context
   const [ageRange, setAgeRange] = useState<AgeRange>("21-24");
   const [location, setLocation] = useState("");
+  const [timezone, setTimezone] = useState<string>("");
+  const [detectedTimezone, setDetectedTimezone] = useState<string>("");
+
+  // Auto-detect timezone on mount
+  useEffect(() => {
+    const detected = detectBrowserTimezone();
+    setDetectedTimezone(detected);
+    setTimezone(detected);
+  }, []);
 
   const answers = useMemo(() => ({
     v: 1,
@@ -118,8 +128,8 @@ export default function OnboardingPage() {
     identity: { adjectives },
     timeReality: { sleepHours, freeTimeDesire, occupation },
     taste: { preferredActivities: activities, entertainmentGenres: genres },
-    context: { ageRange, location: location.trim() || null },
-  }), [consistency, motivation, openness, followThroughFriction, structurePreference, adjectives, sleepHours, freeTimeDesire, occupation, activities, genres, ageRange, location]);
+    context: { ageRange, location: location.trim() || null, timezone: timezone || null },
+  }), [consistency, motivation, openness, followThroughFriction, structurePreference, adjectives, sleepHours, freeTimeDesire, occupation, activities, genres, ageRange, location, timezone]);
 
   useEffect(() => {
     let alive = true;
@@ -515,9 +525,9 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              {/* ── STEP 4 ── context: two columns */}
+              {/* ── STEP 4 ── context: three columns */}
               {step === 4 && (
-                <div className="h-full grid grid-cols-2 gap-4">
+                <div className="h-full grid grid-cols-3 gap-4">
                   <div
                     className="rounded-2xl p-5 flex flex-col"
                     style={{ background: surface, border: `1px solid ${border}` }}
@@ -543,6 +553,39 @@ export default function OnboardingPage() {
                         />
                       ))}
                     </div>
+                  </div>
+
+                  <div
+                    className="rounded-2xl p-5 flex flex-col"
+                    style={{ background: surface, border: `1px solid ${border}` }}
+                  >
+                    <div className="text-sm font-semibold mb-1" style={{ color: fg }}>Timezone</div>
+                    <div className="text-xs mb-4" style={{ color: muted }}>
+                      {detectedTimezone === timezone
+                        ? "Auto-detected from your browser"
+                        : "Override if this isn't correct"}
+                    </div>
+                    <select
+                      value={timezone}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition"
+                      style={{
+                        background: inputBg,
+                        border: `1px solid ${inputBorder}`,
+                        color: fg,
+                      }}
+                    >
+                      {COMMON_TIMEZONES.map((tz) => (
+                        <option key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </option>
+                      ))}
+                    </select>
+                    {timezone && (
+                      <div className="text-xs mt-3" style={{ color: muted }}>
+                        Current time: {getCurrentTimeInTimezone(timezone)}
+                      </div>
+                    )}
                   </div>
 
                   <div

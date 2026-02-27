@@ -5,7 +5,7 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
   {
     name: "create_schedule_block",
     description:
-      "Add a new event or schedule block for the user. Use this when the user asks to add, schedule, or create an event, class, workout, meeting, or any time block. Always use ISO 8601 strings for dates/times.",
+      "Add a new event or schedule block for the user. Use this when the user asks to add, schedule, or create an event, class, workout, meeting, or any time block. Always use ISO 8601 strings for dates/times WITHOUT the Z suffix (use local time).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -17,14 +17,18 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
         },
         startAt: {
           type: "string",
-          description: "ISO 8601 datetime string, e.g. 2026-02-19T18:00:00",
+          description: "ISO 8601 datetime string WITHOUT Z suffix, e.g. 2026-02-19T18:00:00 (in user's local timezone)",
         },
         endAt: {
           type: "string",
-          description: "ISO 8601 datetime string, e.g. 2026-02-19T19:00:00",
+          description: "ISO 8601 datetime string WITHOUT Z suffix, e.g. 2026-02-19T19:00:00 (in user's local timezone)",
         },
         location: { type: "string", description: "Optional location" },
         description: { type: "string", description: "Optional notes" },
+        classHubId: {
+          type: "string",
+          description: "Optional ClassHub ID to link this event to. Use create_or_find_class_hub first to get this ID when creating class events.",
+        },
       },
       required: ["title", "eventType", "startAt", "endAt"],
     },
@@ -79,18 +83,22 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
   // ── Tasks ─────────────────────────────────────────────────────────────────
   {
     name: "create_task",
-    description: "Create a new task, assignment, or goal for the user.",
+    description: "Create a new task, assignment, or goal for the user. When creating assignments for a class, use classHubId to link it to the appropriate ClassHub.",
     input_schema: {
       type: "object" as const,
       properties: {
         title: { type: "string" },
         description: { type: "string" },
-        dueDate: { type: "string", description: "ISO 8601 datetime, optional" },
+        dueDate: { type: "string", description: "ISO 8601 datetime WITHOUT Z suffix (in user's local timezone), optional" },
         priority: { type: "string", enum: ["low", "medium", "high"] },
         taskType: {
           type: "string",
           enum: ["task", "assignment", "goal"],
-          description: "Defaults to 'task'",
+          description: "Defaults to 'task'. Use 'assignment' for class homework/exams.",
+        },
+        classHubId: {
+          type: "string",
+          description: "Optional ClassHub ID to link this task to. Use for assignments, homework, or class-related tasks.",
         },
       },
       required: ["title"],
@@ -267,6 +275,31 @@ export const JYNX_TOOLS: Anthropic.Tool[] = [
         department: {
           type: "string",
           description: "Department if known (e.g., 'Computer Science', 'Finance')",
+        },
+        meetingDays: {
+          type: "array",
+          items: { type: "string" },
+          description: "Days the class meets (e.g., ['Mon', 'Wed', 'Fri'] or ['Tue', 'Thu'])",
+        },
+        meetingStartTime: {
+          type: "string",
+          description: "Class start time in HH:MM 24h format (e.g., '14:30')",
+        },
+        meetingEndTime: {
+          type: "string",
+          description: "Class end time in HH:MM 24h format (e.g., '15:45')",
+        },
+        startDate: {
+          type: "string",
+          description: "First day of class in YYYY-MM-DD format",
+        },
+        endDate: {
+          type: "string",
+          description: "Last day of class in YYYY-MM-DD format",
+        },
+        location: {
+          type: "string",
+          description: "Room or building where the class meets",
         },
       },
       required: ["name"],

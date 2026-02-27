@@ -41,6 +41,21 @@ type Reminder = {
   updatedAt: string;
 };
 
+type ClassHub = {
+  id: string;
+  name: string;
+  courseCode: string | null;
+  instructor: string | null;
+  semester: string | null;
+  department: string | null;
+  meetingDays: string | null; // JSON array
+  meetingStartTime: string | null;
+  meetingEndTime: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  location: string | null;
+};
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -449,6 +464,183 @@ export default function ProfilePage() {
   }
 
   // =========================
+  // ✅ Classes (ClassHub) DB wiring
+  // =========================
+  const [classes, setClasses] = useState<ClassHub[]>([]);
+  const [classesLoading, setClassesLoading] = useState(false);
+  const [classesError, setClassesError] = useState<string | null>(null);
+  const [classesSaving, setClassesSaving] = useState(false);
+
+  // Create/Edit form state
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
+  const [cName, setCName] = useState("");
+  const [cCode, setCCode] = useState("");
+  const [cInstructor, setCInstructor] = useState("");
+  const [cSemester, setCeSemester] = useState("");
+  const [cMeetingDays, setCMeetingDays] = useState<number[]>([]);
+  const [cStartTime, setCStartTime] = useState("");
+  const [cEndTime, setCEndTime] = useState("");
+  const [cLocation, setCLocation] = useState("");
+
+  async function loadClasses() {
+    setClassesError(null);
+    setClassesLoading(true);
+    try {
+      const res = await fetch("/api/classes", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error ?? "Failed to load classes");
+      }
+      setClasses(data.data ?? []);
+    } catch (e: any) {
+      setClassesError(e?.message ?? "Failed to load classes");
+    } finally {
+      setClassesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (topTab === "preferences" && prefSection === "study") {
+      loadClasses();
+    }
+  }, [topTab, prefSection]);
+
+  async function addClass() {
+    if (!cName.trim()) return;
+    setClassesError(null);
+    setClassesSaving(true);
+
+    try {
+      const res = await fetch("/api/classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: cName.trim(),
+          courseCode: cCode.trim() || null,
+          instructor: cInstructor.trim() || null,
+          semester: cSemester.trim() || null,
+          meetingDays: cMeetingDays.length > 0 ? cMeetingDays.map(n => DOW.find(d => d.n === n)?.label).filter(Boolean) : null,
+          meetingStartTime: cStartTime || null,
+          meetingEndTime: cEndTime || null,
+          location: cLocation.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error ?? "Failed to create class");
+      }
+      await loadClasses();
+      // Reset form
+      setCName("");
+      setCCode("");
+      setCInstructor("");
+      setCeSemester("");
+      setCMeetingDays([]);
+      setCStartTime("");
+      setCEndTime("");
+      setCLocation("");
+    } catch (e: any) {
+      setClassesError(e?.message ?? "Failed to create class");
+    } finally {
+      setClassesSaving(false);
+    }
+  }
+
+  async function deleteClass(id: string) {
+    if (!confirm("Delete this class? This will not delete related events.")) return;
+    setClassesError(null);
+
+    const prev = classes;
+    setClasses((xs) => xs.filter((c) => c.id !== id));
+
+    try {
+      const res = await fetch(`/api/classes/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error ?? "Failed to delete class");
+      }
+    } catch (e: any) {
+      setClasses(prev);
+      setClassesError(e?.message ?? "Failed to delete class");
+    }
+  }
+
+  function toggleClassDay(n: number) {
+    setCMeetingDays(prev => prev.includes(n) ? prev.filter(d => d !== n) : [...prev, n].sort((a, b) => a - b));
+  }
+
+  function startEditClass(c: ClassHub) {
+    setEditingClassId(c.id);
+    setCName(c.name);
+    setCCode(c.courseCode ?? "");
+    setCInstructor(c.instructor ?? "");
+    setCeSemester(c.semester ?? "");
+    // Parse meeting days from JSON string to number array
+    if (c.meetingDays) {
+      try {
+        const parsed = JSON.parse(c.meetingDays);
+        const dayNums = (Array.isArray(parsed) ? parsed : []).map((label: string) => {
+          const found = DOW.find(d => d.label === label);
+          return found?.n ?? 0;
+        }).filter((n: number) => n > 0);
+        setCMeetingDays(dayNums);
+      } catch {
+        setCMeetingDays([]);
+      }
+    } else {
+      setCMeetingDays([]);
+    }
+    setCStartTime(c.meetingStartTime ?? "");
+    setCEndTime(c.meetingEndTime ?? "");
+    setCLocation(c.location ?? "");
+  }
+
+  function cancelEditClass() {
+    setEditingClassId(null);
+    setCName("");
+    setCCode("");
+    setCInstructor("");
+    setCeSemester("");
+    setCMeetingDays([]);
+    setCStartTime("");
+    setCEndTime("");
+    setCLocation("");
+  }
+
+  async function updateClass() {
+    if (!editingClassId || !cName.trim()) return;
+    setClassesError(null);
+    setClassesSaving(true);
+
+    try {
+      const res = await fetch(`/api/classes/${editingClassId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: cName.trim(),
+          courseCode: cCode.trim() || null,
+          instructor: cInstructor.trim() || null,
+          semester: cSemester.trim() || null,
+          meetingDays: cMeetingDays.length > 0 ? cMeetingDays.map(n => DOW.find(d => d.n === n)?.label).filter(Boolean) : null,
+          meetingStartTime: cStartTime || null,
+          meetingEndTime: cEndTime || null,
+          location: cLocation.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error ?? "Failed to update class");
+      }
+      await loadClasses();
+      cancelEditClass();
+    } catch (e: any) {
+      setClassesError(e?.message ?? "Failed to update class");
+    } finally {
+      setClassesSaving(false);
+    }
+  }
+
+  // =========================
   // Survey responses
   // =========================
   const [surveyAnswers, setSurveyAnswers] = useState<any>(null);
@@ -637,7 +829,7 @@ export default function ProfilePage() {
                           <SubButton
                             active={prefSection === "medication"}
                             label="Medication"
-                            sub="Reminders + refill/pickup logic"
+                            sub="Manage your medications"
                             onClick={() => choosePref("medication")}
                             activeStyle={activeChipStyle}
                           />
@@ -649,30 +841,16 @@ export default function ProfilePage() {
                             activeStyle={activeChipStyle}
                           />
                           <SubButton
-                            active={prefSection === "health"}
-                            label="Health"
-                            sub="Injuries, allergies, basics"
-                            onClick={() => choosePref("health")}
-                            activeStyle={activeChipStyle}
-                          />
-                          <SubButton
                             active={prefSection === "study"}
-                            label="Study"
-                            sub="Class load, exam windows"
+                            label="Classes"
+                            sub="Manage your classes"
                             onClick={() => choosePref("study")}
                             activeStyle={activeChipStyle}
                           />
                           <SubButton
-                            active={prefSection === "scheduling"}
-                            label="Scheduling"
-                            sub="Deep work rules, focus style"
-                            onClick={() => choosePref("scheduling")}
-                            activeStyle={activeChipStyle}
-                          />
-                          <SubButton
                             active={prefSection === "survey"}
-                            label="Initial Survey"
-                            sub="Your onboarding responses"
+                            label="Profile Survey"
+                            sub="Your preferences & info"
                             onClick={() => choosePref("survey")}
                             activeStyle={activeChipStyle}
                           />
@@ -682,28 +860,14 @@ export default function ProfilePage() {
                           <SubButton
                             active={settingsSection === "account"}
                             label="Account"
-                            sub="Profile + sign-in"
+                            sub="Profile & sign out"
                             onClick={() => chooseSettings("account")}
-                            activeStyle={activeChipStyle}
-                          />
-                          <SubButton
-                            active={settingsSection === "privacy"}
-                            label="Privacy"
-                            sub="Data controls + sharing"
-                            onClick={() => chooseSettings("privacy")}
-                            activeStyle={activeChipStyle}
-                          />
-                          <SubButton
-                            active={settingsSection === "notifications"}
-                            label="Notifications"
-                            sub="Push, email, SMS"
-                            onClick={() => chooseSettings("notifications")}
                             activeStyle={activeChipStyle}
                           />
                           <SubButton
                             active={settingsSection === "appearance"}
                             label="Appearance"
-                            sub="Theme + density"
+                            sub="Theme & display"
                             onClick={() => chooseSettings("appearance")}
                             activeStyle={activeChipStyle}
                           />
@@ -1339,14 +1503,241 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {topTab === "preferences" && prefSection !== "medication" && prefSection !== "reminders" && prefSection !== "survey" && (
-                  <ShellPanel
-                    title={prettyPref(prefSection as PrefSection)}
-                    subtitle="Coming soon"
-                    surfaceStyle={surfaceStyle}
-                    surfaceSoftStyle={surfaceSoftStyle}
-                  />
+                {/* Study / Class Management */}
+                {topTab === "preferences" && prefSection === "study" && (
+                  <div className={panelBase} style={{ ...sectionCardStyle, background: dark ? "var(--surface)" : "white" }}>
+                    <div className="p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-semibold">Classes</div>
+                        <div className="ml-auto text-[11px] text-neutral-500">manage your class schedule</div>
+                      </div>
+
+                      <div className="mt-1 text-xs text-neutral-500">
+                        Add and manage your classes so Jynx can link assignments and events.
+                      </div>
+
+                      <div className="mt-3 text-[11px] text-neutral-500 flex items-center gap-3">
+                        {classesLoading ? <span>Loading...</span> : <span>Loaded</span>}
+                        {classesError ? <span className="text-red-600">{classesError}</span> : null}
+                        <button
+                          className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                          style={surfaceSoftStyle}
+                          onClick={loadClasses}
+                          disabled={classesLoading}
+                          title="Refresh"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+
+                      {/* Add/Edit Class Form */}
+                      <div className="mt-4 rounded-3xl border bg-white" style={surfaceSoftStyle}>
+                        <div className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold">{editingClassId ? "Edit class" : "Add a class"}</div>
+                            {editingClassId && (
+                              <button
+                                className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-500")}
+                                style={surfaceSoftStyle}
+                                onClick={cancelEditClass}
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="mt-3 space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Field label="Class Name">
+                                <input
+                                  value={cName}
+                                  onChange={(e) => setCName(e.target.value)}
+                                  placeholder="e.g., Operating Systems"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+
+                              <Field label="Course Code">
+                                <input
+                                  value={cCode}
+                                  onChange={(e) => setCCode(e.target.value)}
+                                  placeholder="e.g., CS401"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Field label="Instructor">
+                                <input
+                                  value={cInstructor}
+                                  onChange={(e) => setCInstructor(e.target.value)}
+                                  placeholder="e.g., Dr. Smith"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+
+                              <Field label="Semester">
+                                <input
+                                  value={cSemester}
+                                  onChange={(e) => setCeSemester(e.target.value)}
+                                  placeholder="e.g., Spring 2026"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+                            </div>
+
+                            <Field label="Meeting Days">
+                              <div className="flex flex-wrap gap-2">
+                                {DOW.map((d) => {
+                                  const on = cMeetingDays.includes(d.n);
+                                  return (
+                                    <button
+                                      key={d.n}
+                                      type="button"
+                                      onClick={() => toggleClassDay(d.n)}
+                                      className="rounded-full border px-3 py-1.5 text-[12px] font-semibold transition bg-white hover:bg-black/[0.03]"
+                                      style={on ? brandSoftStyle : surfaceSoftStyle}
+                                    >
+                                      {d.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </Field>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <Field label="Start Time">
+                                <input
+                                  type="time"
+                                  value={cStartTime}
+                                  onChange={(e) => setCStartTime(e.target.value)}
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+
+                              <Field label="End Time">
+                                <input
+                                  type="time"
+                                  value={cEndTime}
+                                  onChange={(e) => setCEndTime(e.target.value)}
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+
+                              <Field label="Location">
+                                <input
+                                  value={cLocation}
+                                  onChange={(e) => setCLocation(e.target.value)}
+                                  placeholder="e.g., Room 201"
+                                  className="w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none placeholder:text-neutral-400 focus:ring-2 focus:ring-black/[0.06]"
+                                  style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                                />
+                              </Field>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2">
+                              {editingClassId && (
+                                <button
+                                  className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-500")}
+                                  style={surfaceSoftStyle}
+                                  onClick={cancelEditClass}
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              <button
+                                className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                style={brandSoftStyle}
+                                onClick={editingClassId ? updateClass : addClass}
+                                disabled={classesSaving || !cName.trim()}
+                                title={!cName.trim() ? "Enter a class name first" : classesSaving ? "Saving..." : "Save"}
+                              >
+                                {classesSaving ? "Saving..." : editingClassId ? "Update Class" : "Add Class"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 text-[11px] text-neutral-500 flex items-center justify-between">
+                            <span>Connected to /api/classes.</span>
+                            <span style={{ color: rgbaBrand(0.9) }}>Jynx links assignments</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Classes List */}
+                      <div className="mt-4 space-y-2">
+                        {classes.length === 0 && !classesLoading ? (
+                          <div className="text-xs text-neutral-500">No classes yet. Add your first class above.</div>
+                        ) : null}
+
+                        {classes.map((c) => {
+                          const days = c.meetingDays ? (() => {
+                            try {
+                              const parsed = JSON.parse(c.meetingDays);
+                              return Array.isArray(parsed) ? parsed.join(", ") : c.meetingDays;
+                            } catch {
+                              return c.meetingDays;
+                            }
+                          })() : null;
+
+                          return (
+                            <div key={c.id} className={cx(panelInner, "px-3 py-3")} style={{ ...innerCardStyle, background: dark ? "rgba(255,255,255,0.04)" : "white" }}>
+                              <div className="flex items-start gap-3">
+                                <div
+                                  className="h-10 w-10 rounded-2xl border bg-white flex items-center justify-center text-[11px] font-semibold shrink-0"
+                                  style={brandSoftStyle}
+                                >
+                                  {c.courseCode?.slice(0, 2).toUpperCase() || "CL"}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="text-sm font-semibold text-neutral-900">{c.name}</div>
+                                    {c.courseCode && <Pill style={brandSoftStyle}>{c.courseCode}</Pill>}
+                                    {c.semester && <Pill style={surfaceSoftStyle}>{c.semester}</Pill>}
+                                  </div>
+
+                                  <div className="mt-1 text-xs text-neutral-600">
+                                    {c.instructor ? `Instructor: ${c.instructor}` : "Instructor: —"}
+                                    {days ? ` • Days: ${days}` : ""}
+                                    {c.meetingStartTime && c.meetingEndTime ? ` • ${formatTime12(c.meetingStartTime)} - ${formatTime12(c.meetingEndTime)}` : ""}
+                                    {c.location ? ` • ${c.location}` : ""}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03]")}
+                                    style={brandSoftStyle}
+                                    onClick={() => startEditClass(c)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className={cx(buttonBase, "bg-white hover:bg-black/[0.03] text-neutral-700")}
+                                    style={surfaceSoftStyle}
+                                    onClick={() => deleteClass(c.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 )}
+
+{/* All preference sections are now implemented */}
 
                 {topTab === "settings" && settingsSection === "account" ? (
                   <div className={panelBase} style={surfaceStyle}>
@@ -1374,13 +1765,6 @@ export default function ProfilePage() {
                   </div>
                 ) : topTab === "settings" && settingsSection === "appearance" ? (
                   <AppearancePanel surfaceStyle={surfaceStyle} />
-                ) : topTab === "settings" ? (
-                  <ShellPanel
-                    title={prettySettings(settingsSection as SettingsSection)}
-                    subtitle="Coming soon"
-                    surfaceStyle={surfaceStyle}
-                    surfaceSoftStyle={surfaceSoftStyle}
-                  />
                 ) : null}
               </section>
             )}
@@ -1498,31 +1882,6 @@ function AppearancePanel({ surfaceStyle }: { surfaceStyle: CSSProperties }) {
               style={{ transform: dark ? "translateX(20px)" : "translateX(0)" }}
             />
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ShellPanel({
-  title,
-  subtitle,
-  surfaceStyle,
-  surfaceSoftStyle,
-}: {
-  title: string;
-  subtitle: string;
-  surfaceStyle: React.CSSProperties;
-  surfaceSoftStyle: React.CSSProperties;
-}) {
-  return (
-    <div className="rounded-3xl border bg-white" style={surfaceStyle}>
-      <div className="p-4">
-        <div className="text-sm font-semibold text-neutral-900">{title}</div>
-        <div className="mt-1 text-xs text-neutral-500">{subtitle}</div>
-
-        <div className="mt-4 rounded-2xl border bg-white px-3 py-3" style={surfaceSoftStyle}>
-          <div className="text-sm text-neutral-800">Coming soon.</div>
         </div>
       </div>
     </div>

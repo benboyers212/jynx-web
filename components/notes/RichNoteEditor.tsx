@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold, Italic, List, ListOrdered, Heading1, Heading2, Heading3 } from "lucide-react";
+import { Bold, Italic, List, ListOrdered, Maximize2, Minimize2 } from "lucide-react";
 
 const OLIVE = "#4b5e3c";
 
@@ -17,6 +18,7 @@ type RichNoteEditorProps = {
   onClose: () => void;
   onSave: (title: string, content: string, classHubId?: string | null) => Promise<void>;
   dark?: boolean;
+  noBackdrop?: boolean; // For when used inside another modal
 };
 
 export function RichNoteEditor({
@@ -28,24 +30,18 @@ export function RichNoteEditor({
   onClose,
   onSave,
   dark = false,
+  noBackdrop = false,
 }: RichNoteEditorProps) {
   const [title, setTitle] = useState(initialTitle);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Refs to track what's been saved and prevent duplicate saves
   const lastSavedContentRef = useRef(initialContent);
   const lastSavedTitleRef = useRef(initialTitle);
-
-  // Use refs to avoid recreating handleSave on every title change
-  const titleRef = useRef(title);
-  const onSaveRef = useRef(onSave);
-
-  useEffect(() => {
-    titleRef.current = title;
-  }, [title]);
-
-  useEffect(() => {
-    onSaveRef.current = onSave;
-  }, [onSave]);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -62,45 +58,87 @@ export function RichNoteEditor({
         style: `color: ${dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.90)"}`,
       },
     },
+    onUpdate: () => {
+      // Trigger debounced save when editor updates
+      triggerAutoSave();
+    },
   });
 
-  const handleSave = useCallback(async () => {
-    if (!editor) return;
+  // Trigger auto-save with debounce
+  const triggerAutoSave = () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
 
-    const currentTitle = titleRef.current;
+    saveTimeoutRef.current = setTimeout(() => {
+      performAutoSave();
+    }, 2000);
+  };
+
+  // Also trigger save when title changes
+  useEffect(() => {
+    triggerAutoSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title]);
+
+  // Perform the actual save
+  const performAutoSave = async () => {
+    if (isSavingRef.current || !editor) return;
+
+    const currentTitle = title;
+    const currentContent = editor.getHTML();
+
+    // Don't save if nothing changed or title is empty
     if (!currentTitle.trim()) return;
-
-    const content = editor.getHTML();
-
-    // Only save if content or title has changed
-    if (content === lastSavedContentRef.current && currentTitle === lastSavedTitleRef.current) {
+    if (currentContent === lastSavedContentRef.current && currentTitle === lastSavedTitleRef.current) {
       return;
     }
 
+    isSavingRef.current = true;
     setSaving(true);
+
     try {
-      await onSaveRef.current(currentTitle, content);
-      lastSavedContentRef.current = content;
+      await onSave(currentTitle, currentContent);
+      lastSavedContentRef.current = currentContent;
       lastSavedTitleRef.current = currentTitle;
       setLastSaved(new Date());
     } catch (error) {
       console.error("Failed to save note:", error);
     } finally {
       setSaving(false);
+      isSavingRef.current = false;
     }
-  }, [editor]);
+  };
 
-  // Auto-save every 3 seconds if there are changes
+  // Cleanup timeout on unmount
   useEffect(() => {
-    const interval = setInterval(() => {
-      handleSave();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [handleSave]);
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleDone = async () => {
-    await handleSave();
+    // Clear any pending auto-save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Save current state before closing
+    if (title.trim() && editor) {
+      const content = editor.getHTML();
+      if (content !== lastSavedContentRef.current || title !== lastSavedTitleRef.current) {
+        setSaving(true);
+        try {
+          await onSave(title, content);
+        } catch (error) {
+          console.error("Failed to save note:", error);
+        } finally {
+          setSaving(false);
+        }
+      }
+    }
     onClose();
   };
 
@@ -109,17 +147,22 @@ export function RichNoteEditor({
   const fg = dark ? "rgba(240,240,240,0.90)" : "rgba(17,17,17,0.90)";
   const muted = dark ? "rgba(240,240,240,0.50)" : "rgba(17,17,17,0.50)";
 
-  return (
+  // Use portal to render outside any parent transforms (fixes fullscreen in nested modals)
+  const modalContent = (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80]"
-        onClick={onClose}
-      />
+      {/* Backdrop - only render if not inside another modal */}
+      {!noBackdrop && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[80]"
+          onClick={onClose}
+        />
+      )}
 
       {/* Editor Modal */}
       <div
-        className="fixed inset-4 md:inset-8 z-[90] rounded-3xl border shadow-2xl flex flex-col"
+        className={`fixed ${noBackdrop ? 'z-[100]' : 'z-[90]'} border shadow-2xl flex flex-col transition-all ${
+          isFullscreen ? "inset-0 rounded-none" : "inset-4 md:inset-8 rounded-3xl"
+        }`}
         style={{
           background: bg,
           borderColor: border,
@@ -140,9 +183,11 @@ export function RichNoteEditor({
               style={{ color: fg }}
               autoFocus
             />
-            <div className="text-xs mt-1" style={{ color: muted }}>
-              {eventTitle}
-            </div>
+            {eventTitle && (
+              <div className="text-xs mt-1" style={{ color: muted }}>
+                {eventTitle}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -154,6 +199,15 @@ export function RichNoteEditor({
                 ? `Saved ${lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                 : "Not saved"}
             </div>
+
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="h-8 w-8 rounded-lg flex items-center justify-center transition hover:bg-black/[0.06]"
+              style={{ color: muted }}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
 
             <button
               onClick={handleDone}
@@ -332,4 +386,10 @@ export function RichNoteEditor({
       `}</style>
     </>
   );
+
+  // Render via portal to escape any parent transforms
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }
