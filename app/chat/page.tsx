@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { StructuredQuestions, type StructuredQuestion } from "@/components/StructuredQuestions";
 
 const OLIVE = "#4b5e3c";
-const MAX_CHARS = 200;
+const MAX_CHARS = 350;
 
 type Role = "user" | "assistant";
 
@@ -527,23 +527,38 @@ export default function ChatPage() {
     }
   }
 
-  // --- Light UI tokens (match the rest of the app) ---
-  const border = "rgba(0,0,0,0.10)";
-  const borderStrong = "rgba(0,0,0,0.14)";
+  // Dark mode detection
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains("dark"));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  // --- UI tokens (dark mode aware) ---
+  const border = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
+  const borderStrong = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)";
   const surface = "var(--surface)";
   const bg = "var(--background)";
   const fg = "var(--foreground)";
   const muted = "var(--muted-foreground)";
+  const cardBg = isDark ? "rgba(38,38,38,0.75)" : "rgba(255,255,255,0.70)";
+  const msgBubbleBg = isDark ? "rgba(38,38,38,0.90)" : "rgba(255,255,255,0.80)";
+  const textPrimary = isDark ? "rgba(240,240,240,0.92)" : "rgba(17,17,17,0.92)";
+  const textMuted = isDark ? "rgba(240,240,240,0.55)" : "rgba(17,17,17,0.55)";
+  const threadItemBg = isDark ? "rgba(38,38,38,0.65)" : "rgba(255,255,255,0.65)";
 
   const pillStyle: React.CSSProperties = {
-    borderColor: "rgba(0,0,0,0.10)",
-    background: "rgba(0,0,0,0.02)",
+    borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
   };
 
   const activeRowStyle: React.CSSProperties = {
     borderColor: "rgba(75,94,60,0.30)",
     boxShadow: "0 0 0 1px rgba(75,94,60,0.16)",
-    background: "rgba(75,94,60,0.06)",
+    background: isDark ? "rgba(75,94,60,0.15)" : "rgba(75,94,60,0.06)",
   };
 
   return (
@@ -614,7 +629,7 @@ export default function ChatPage() {
                             )}
                             style={{
                               borderColor: border,
-                              background: "rgba(255,255,255,0.65)",
+                              background: threadItemBg,
                               ...(active ? activeRowStyle : null),
                             }}
                           >
@@ -711,8 +726,8 @@ export default function ChatPage() {
                   className="rounded-3xl border px-6 py-6"
                   style={{
                     borderColor: border,
-                    background: "rgba(255,255,255,0.70)",
-                    boxShadow: "0 18px 55px rgba(0,0,0,0.08)",
+                    background: cardBg,
+                    boxShadow: isDark ? "0 18px 55px rgba(0,0,0,0.25)" : "0 18px 55px rgba(0,0,0,0.08)",
                   }}
                 >
                   <div className="flex items-start gap-4">
@@ -776,15 +791,15 @@ export default function ChatPage() {
                             borderColor: borderStrong,
                             background:
                               m.role === "user"
-                                ? "rgba(75,94,60,0.08)"
-                                : "rgba(255,255,255,0.80)",
+                                ? (isDark ? "rgba(75,94,60,0.20)" : "rgba(75,94,60,0.08)")
+                                : msgBubbleBg,
                             boxShadow:
                               m.role === "user" ? "0 0 0 1px rgba(75,94,60,0.14)" : "none",
                           }}
                         >
                           <div
                             className="text-sm leading-relaxed whitespace-pre-wrap"
-                            style={{ color: "rgba(17,17,17,0.92)" }}
+                            style={{ color: textPrimary }}
                           >
                             {m.content}
                             {m.isStreaming && !m.actionLabel && (
@@ -809,7 +824,7 @@ export default function ChatPage() {
                           )}
 
                           {!m.isStreaming && (
-                            <div className="mt-2 text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
+                            <div className="mt-2 text-[11px]" style={{ color: textMuted }}>
                               <span suppressHydrationWarning>
                                 {mounted ? formatTime(m.createdAt) : ""}
                               </span>
@@ -843,8 +858,8 @@ export default function ChatPage() {
                   className="rounded-3xl border px-4 py-4"
                   style={{
                     borderColor: border,
-                    background: "rgba(255,255,255,0.80)",
-                    boxShadow: "0 18px 55px rgba(0,0,0,0.08)",
+                    background: msgBubbleBg,
+                    boxShadow: isDark ? "0 18px 55px rgba(0,0,0,0.25)" : "0 18px 55px rgba(0,0,0,0.08)",
                   }}
                 >
                   <input
@@ -864,16 +879,16 @@ export default function ChatPage() {
                             className="flex items-center gap-2 rounded-full border px-3 py-1.5"
                             style={{
                               borderColor: border,
-                              background: "rgba(0,0,0,0.02)",
+                              background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
                             }}
                           >
-                            <span className="text-[11px] max-w-[260px] truncate" style={{ color: "rgba(17,17,17,0.78)" }}>
+                            <span className="text-[11px] max-w-[260px] truncate" style={{ color: textPrimary }}>
                               {f.name}
                             </span>
                             <button
                               onClick={() => removeFileAt(idx)}
                               className="text-[11px] transition hover:opacity-80"
-                              style={{ color: "rgba(17,17,17,0.55)" }}
+                              style={{ color: textMuted }}
                               aria-label={`Remove ${f.name}`}
                               title="Remove"
                             >
@@ -888,12 +903,14 @@ export default function ChatPage() {
                   <div className="flex items-end gap-3">
                     <button
                       onClick={openFilePicker}
-                      className="shrink-0 h-11 w-11 rounded-2xl border transition flex items-center justify-center hover:bg-black/[0.04]"
+                      className="shrink-0 h-11 w-11 rounded-2xl border transition flex items-center justify-center"
                       style={{
                         borderColor: border,
-                        background: "rgba(0,0,0,0.02)",
-                        color: "rgba(17,17,17,0.85)",
+                        background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+                        color: textPrimary,
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)"}
                       title="Add file"
                       aria-label="Add file"
                     >
@@ -915,7 +932,7 @@ export default function ChatPage() {
                       className="w-full resize-none bg-transparent outline-none text-sm leading-relaxed px-2"
                       style={{
                         height: 0,
-                        color: "rgba(17,17,17,0.92)",
+                        color: textPrimary,
                       }}
                     />
 
@@ -929,14 +946,14 @@ export default function ChatPage() {
                         (input.trim() || attachedFiles.length) && !streaming && input.length <= MAX_CHARS
                           ? {
                               borderColor: "rgba(75,94,60,0.30)",
-                              background: "rgba(75,94,60,0.10)",
-                              color: "rgba(17,17,17,0.92)",
+                              background: isDark ? "rgba(75,94,60,0.25)" : "rgba(75,94,60,0.10)",
+                              color: textPrimary,
                               boxShadow: "0 0 0 1px rgba(75,94,60,0.14)",
                             }
                           : {
-                              borderColor: "rgba(0,0,0,0.08)",
-                              background: "rgba(0,0,0,0.03)",
-                              color: "rgba(17,17,17,0.45)",
+                              borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                              background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+                              color: textMuted,
                               cursor: "not-allowed",
                             }
                       }
@@ -946,13 +963,13 @@ export default function ChatPage() {
                   </div>
 
                   <div className="mt-2 flex items-center gap-2 px-1">
-                    <span className="text-[11px]" style={{ color: input.length > MAX_CHARS ? "rgba(239,68,68,0.85)" : "rgba(17,17,17,0.55)" }}>
+                    <span className="text-[11px]" style={{ color: input.length > MAX_CHARS ? "rgba(239,68,68,0.85)" : textMuted }}>
                       {input.length}/{MAX_CHARS}
                     </span>
-                    <span className="text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
+                    <span className="text-[11px]" style={{ color: textMuted }}>
                       • Enter to send • Shift+Enter for new line
                     </span>
-                    <span className="ml-auto text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
+                    <span className="ml-auto text-[11px]" style={{ color: textMuted }}>
                       {streaming ? "Generating…" : "Saved to history"}
                     </span>
                   </div>

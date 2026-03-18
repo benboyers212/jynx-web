@@ -238,10 +238,13 @@ export default function OnboardingPage() {
         }}
       >
         <img
-          src={dark ? "/jynx-logo-dark.png" : "/jynx-logo.png"}
+          src="/jynx-logo.png"
           alt="Jynx"
           className="h-8"
-          style={{ objectFit: "contain" }}
+          style={{
+            objectFit: "contain",
+            filter: dark ? "invert(1) hue-rotate(180deg)" : undefined,
+          }}
         />
         <div className="ml-auto text-xs font-medium" style={{ color: muted }}>
           Step {step + 1} of 5

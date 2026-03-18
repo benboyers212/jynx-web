@@ -193,8 +193,10 @@ function getSurfaceStyle(dark: boolean): CSSProperties {
 
 function getSurfaceSoftStyle(dark: boolean): CSSProperties {
   return {
+    background: dark ? "rgba(38,38,38,0.85)" : "white",
     borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
     boxShadow: dark ? "0 0 0 1px rgba(0,0,0,0.15)" : "0 0 0 1px rgba(0,0,0,0.04)",
+    color: dark ? "rgba(240,240,240,0.92)" : undefined,
   };
 }
 
@@ -617,6 +619,10 @@ export default function Home() {
     tag: EventRecord["tag"];
     type: EventType;
     importance: 1 | 2 | 3 | 4 | 5;
+    isRecurring: boolean;
+    recurrenceType: "daily" | "weekly" | "weekdays" | "custom";
+    recurrenceCount: number;
+    recurrenceDays: number[]; // 0=Sun, 1=Mon, etc.
   }>({
     date: "2026-01-12",
     time: "3:30 PM",
@@ -626,6 +632,10 @@ export default function Home() {
     tag: "Work",
     type: "work",
     importance: 3,
+    isRecurring: false,
+    recurrenceType: "weekly",
+    recurrenceCount: 4,
+    recurrenceDays: [],
   });
 
   // Goals (control center) — fetched from API (taskType="goal", priority stores "Week"/"Month"/"Year")
@@ -726,19 +736,72 @@ export default function Home() {
 
   function stageAddEvent() {
     if (!addForm.title.trim()) return;
-    const newEv: EventRecord = {
-      id: uid(),
-      type: addForm.type,
-      tag: addForm.tag,
-      time: addForm.time.trim(),
-      endTime: addForm.endTime.trim(),
-      title: addForm.title.trim(),
-      meta: addForm.meta.trim() || "—",
-      completed: false,
-      importance: addForm.importance,
+
+    const generateDates = (): string[] => {
+      const startDate = new Date(addForm.date + "T00:00:00");
+      const dates: string[] = [];
+
+      if (!addForm.isRecurring) {
+        return [addForm.date];
+      }
+
+      const count = Math.min(addForm.recurrenceCount, 52); // Cap at 52 occurrences
+
+      if (addForm.recurrenceType === "daily") {
+        for (let i = 0; i < count; i++) {
+          const d = new Date(startDate.getTime() + i * 86400000);
+          dates.push(d.toISOString().slice(0, 10));
+        }
+      } else if (addForm.recurrenceType === "weekdays") {
+        let current = new Date(startDate);
+        while (dates.length < count) {
+          const dow = current.getDay();
+          if (dow >= 1 && dow <= 5) { // Mon-Fri
+            dates.push(current.toISOString().slice(0, 10));
+          }
+          current = new Date(current.getTime() + 86400000);
+        }
+      } else if (addForm.recurrenceType === "weekly") {
+        for (let i = 0; i < count; i++) {
+          const d = new Date(startDate.getTime() + i * 7 * 86400000);
+          dates.push(d.toISOString().slice(0, 10));
+        }
+      } else if (addForm.recurrenceType === "custom" && addForm.recurrenceDays.length > 0) {
+        let current = new Date(startDate);
+        let iterations = 0;
+        const maxIterations = count * 14; // Safety limit
+        while (dates.length < count && iterations < maxIterations) {
+          const dow = current.getDay();
+          if (addForm.recurrenceDays.includes(dow)) {
+            dates.push(current.toISOString().slice(0, 10));
+          }
+          current = new Date(current.getTime() + 86400000);
+          iterations++;
+        }
+      }
+
+      return dates;
     };
-    setStagedAdditions((prev) => [...prev, { ev: newEv, date: addForm.date }]);
-    setAddForm((p) => ({ ...p, title: "", meta: "" }));
+
+    const eventDates = generateDates();
+
+    const newAdditions = eventDates.map((date) => ({
+      ev: {
+        id: uid(),
+        type: addForm.type,
+        tag: addForm.tag,
+        time: addForm.time.trim(),
+        endTime: addForm.endTime.trim(),
+        title: addForm.title.trim(),
+        meta: addForm.meta.trim() || "—",
+        completed: false,
+        importance: addForm.importance,
+      } as EventRecord,
+      date,
+    }));
+
+    setStagedAdditions((prev) => [...prev, ...newAdditions]);
+    setAddForm((p) => ({ ...p, title: "", meta: "", isRecurring: false, recurrenceDays: [] }));
   }
 
   function sendQuickChat() {
@@ -1079,13 +1142,13 @@ export default function Home() {
           {/* In-content header controls */}
           <div className="px-3 sm:px-6 pt-4 pb-2">
             <div className="max-w-[1900px] mx-auto">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-3 overflow-x-auto pb-1">
                 {/* Day nav */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => shiftSelectedDay(-1)}
-                    className="h-10 w-10 rounded-2xl border transition flex items-center justify-center"
-                    style={getSurfaceSoftStyle(dark)}
+                    className="h-10 w-10 rounded-2xl border transition flex items-center justify-center shrink-0"
+                    style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white", color: dark ? "rgba(240,240,240,0.90)" : undefined }}
                     aria-label="Previous day"
                   >
                     ←
@@ -1093,41 +1156,41 @@ export default function Home() {
 
                   <button
                     onClick={() => setSelectedDate(new Date())}
-                    className="h-10 rounded-2xl px-3 text-xs font-semibold border transition"
-                    style={getSurfaceSoftStyle(dark)}
+                    className="h-10 rounded-2xl px-3 text-xs font-semibold border transition shrink-0"
+                    style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white", color: dark ? "rgba(240,240,240,0.90)" : undefined }}
                   >
                     Today
                   </button>
 
                   <button
                     onClick={() => shiftSelectedDay(1)}
-                    className="h-10 w-10 rounded-2xl border transition flex items-center justify-center"
-                    style={getSurfaceSoftStyle(dark)}
+                    className="h-10 w-10 rounded-2xl border transition flex items-center justify-center shrink-0"
+                    style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white", color: dark ? "rgba(240,240,240,0.90)" : undefined }}
                     aria-label="Next day"
                   >
                     →
                   </button>
 
-                  <div className="ml-2">
-                    <div className="text-sm font-semibold">{selectedLabel.line1}</div>
-                    <div className="text-xs text-neutral-500">{selectedLabel.line2}</div>
+                  <div className="ml-2 shrink-0">
+                    <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.92)" : undefined }}>{selectedLabel.line1}</div>
+                    <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgb(115,115,115)" }}>{selectedLabel.line2}</div>
                   </div>
                 </div>
 
-                <div className="flex-1" />
+                <div className="flex-1 min-w-[16px]" />
 
                 {/* View toggles */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Segment value={viewSpan} options={["Day", "Week"]} onChange={(v) => setViewSpan(v as ViewSpan)} />
-                  <Segment value={viewFormat} options={["Timeline", "List"]} onChange={(v) => setViewFormat(v as ViewFormat)} />
+                <div className="flex items-center gap-2 shrink-0">
+                  <Segment value={viewSpan} options={["Day", "Week"]} onChange={(v) => setViewSpan(v as ViewSpan)} dark={dark} />
+                  <Segment value={viewFormat} options={["Timeline", "List"]} onChange={(v) => setViewFormat(v as ViewFormat)} dark={dark} />
 
                   <button
                     onClick={() => setAdjustOpen(true)}
                     className="h-10 rounded-2xl px-3 text-xs font-semibold border transition flex items-center gap-2"
-                    style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white" }}
+                    style={{ ...getSurfaceSoftStyle(dark), background: dark ? "rgba(255,255,255,0.04)" : "white", color: dark ? "rgba(240,240,240,0.90)" : undefined }}
                   >
                     <SlidersHorizontal size={16} />
-                    Adjust
+                    <span className="hidden sm:inline">Adjust</span>
                   </button>
                 </div>
               </div>
@@ -1143,8 +1206,8 @@ export default function Home() {
   <div
     className="rounded-[28px] px-6 pt-5 pb-8"
     style={{
-      background: "rgba(255,255,255,0.92)",
-      boxShadow: "0 24px 70px rgba(0,0,0,0.08)",
+      background: dark ? "rgba(26,26,26,0.92)" : "rgba(255,255,255,0.92)",
+      boxShadow: dark ? "0 24px 70px rgba(0,0,0,0.25)" : "0 24px 70px rgba(0,0,0,0.08)",
     }}
   >
               <section>
@@ -1176,6 +1239,7 @@ export default function Home() {
                                 olive={JYNX_GREEN}
                                 onToggleComplete={(id) => toggleComplete(id)}
                                 onOpen={openDrawer}
+                                dark={dark}
                               />
                             ) : (
                               <BlankDayCard dark={dark} onAddEvent={() => setAdjustOpen(true)} onBuildBlocks={() => router.push("/chat")} />
@@ -1286,8 +1350,8 @@ export default function Home() {
                                     ))
                                   ) : (
                                     <div
-                                      className="rounded-2xl border bg-white px-3 py-3 text-sm text-neutral-600"
-                                      style={getSurfaceSoftStyle(dark)}
+                                      className="rounded-2xl border px-3 py-3 text-sm"
+                                      style={{ ...getSurfaceSoftStyle(dark), color: dark ? "rgba(160,160,160,0.85)" : "rgb(82,82,82)" }}
                                     >
                                       Nothing scheduled
                                     </div>
@@ -1305,90 +1369,121 @@ export default function Home() {
                     </div>
                   </div>
                 ) : (
-                  // Week + Schedule (keep the original horizontal preview)
+                  // Week + Schedule - improved grid layout
                   <div className="rounded-3xl border" style={{ ...getSurfaceStyle(dark), background: dark ? "var(--surface)" : "white" }}>
                     <div className="p-5">
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center justify-between gap-4 mb-5">
                         <div>
-                          <div className="text-sm font-semibold">Week</div>
-                          <div className="text-xs text-neutral-500">7-day preview · tap “Open day” to drill in</div>
+                          <div className="text-sm font-semibold" style={{ color: dark ? "rgba(240,240,240,0.92)" : undefined }}>Week View</div>
+                          <div className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgb(115,115,115)" }}>7-day schedule · click a day to expand</div>
                         </div>
-                        <div className="text-[11px] text-neutral-500">Schedule preview</div>
+                        <div className="text-[11px]" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgb(115,115,115)" }}>Scroll → for more days</div>
                       </div>
 
-                      <div className="mt-5 overflow-x-auto">
-                        <div className="flex gap-4 min-w-max pb-1">
+                      <div className="overflow-x-auto -mx-5 px-5">
+                        <div className="grid grid-cols-7 gap-3 min-w-[1120px]">
                           {weekDates.map((d) => {
                             const events = eventsForDate(d);
                             const blocks = buildBlocksWithFreeTime(events);
                             const isActive = sameYMD(d, selectedDate);
+                            const isToday = sameYMD(d, new Date());
 
                             return (
                               <div
                                 key={d.toISOString()}
-                                className={cx("shrink-0 rounded-3xl border", isActive ? "ring-1" : "")}
+                                className={cx("rounded-2xl border", isActive ? "ring-2" : "")}
                                 style={{
-                                  ...getSurfaceSoftStyle(dark),
-                                  background: dark ? "var(--surface)" : "white",
-                                  width: "clamp(240px, 28vw, 360px)",
-                                  borderColor: isActive ? rgbaBrand(0.28) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
-                                  boxShadow: isActive ? `0 0 0 1px ${rgbaBrand(0.1)}` : (dark ? "0 0 0 1px rgba(0,0,0,0.15)" : "0 0 0 1px rgba(0,0,0,0.04)"),
+                                  background: dark ? "rgba(38,38,38,0.85)" : "white",
+                                  borderColor: isActive ? rgbaBrand(0.35) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
+                                  boxShadow: isActive ? `0 0 0 2px ${rgbaBrand(0.15)}` : (dark ? "0 0 0 1px rgba(0,0,0,0.15)" : "0 0 0 1px rgba(0,0,0,0.04)"),
                                 }}
                               >
-                                <div className="p-4">
-                                  <div className="flex items-start justify-between gap-3">
+                                <div className="p-3">
+                                  {/* Day header */}
+                                  <div className="flex items-center justify-between gap-2 pb-2 mb-2" style={{ borderBottom: dark ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(0,0,0,0.06)" }}>
                                     <div>
-                                      <div className="text-sm font-semibold">
-                                        {d.toLocaleString(undefined, { weekday: "long" })}
+                                      <div className="text-xs font-semibold" style={{ color: isToday ? JYNX_GREEN : (dark ? "rgba(240,240,240,0.92)" : "rgb(23,23,23)") }}>
+                                        {d.toLocaleString(undefined, { weekday: "short" })}
                                       </div>
-                                      <div className="text-xs text-neutral-500">
+                                      <div className="text-[11px]" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgb(115,115,115)" }}>
                                         {d.toLocaleString(undefined, { month: "short" })} {d.getDate()}
                                       </div>
                                     </div>
-                                    <div className="text-[11px] text-neutral-500">{events.length} items</div>
+                                    <div
+                                      className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                                      style={{
+                                        background: events.length > 0 ? rgbaBrand(0.1) : (dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)"),
+                                        color: events.length > 0 ? JYNX_GREEN : (dark ? "rgba(240,240,240,0.45)" : "rgb(163,163,163)")
+                                      }}
+                                    >
+                                      {events.length}
+                                    </div>
                                   </div>
 
-                                  <div className="mt-4">
+                                  {/* Events list - compact */}
+                                  <div className="space-y-1.5 min-h-[120px] max-h-[200px] overflow-y-auto">
                                     {blocks.length ? (
-                                      <TimelineWithDaypartsLight
-                                        blocks={blocks}
-                                        olive={JYNX_GREEN}
-                                        onToggleComplete={(id) => {
-                                          setSelectedDate(d);
-                                          setTimeout(() => toggleComplete(id), 0);
-                                        }}
-                                        onOpen={(ev) => {
-                                          setSelectedDate(d);
-                                          setTimeout(() => openDrawer(ev), 0);
-                                        }}
-                                        compact
-                                      />
+                                      blocks.slice(0, 5).map((e) => (
+                                        <button
+                                          key={e.id}
+                                          onClick={() => {
+                                            setSelectedDate(d);
+                                            setTimeout(() => openDrawer(e), 0);
+                                          }}
+                                          className="w-full text-left rounded-lg px-2 py-1.5 transition hover:opacity-80"
+                                          style={{
+                                            background: e.isFree
+                                              ? (dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)")
+                                              : rgbaBrand(0.08),
+                                            border: e.isFree ? "none" : `1px solid ${rgbaBrand(0.15)}`,
+                                          }}
+                                        >
+                                          <div
+                                            className="text-[11px] font-medium truncate"
+                                            style={{ color: e.isFree ? (dark ? "rgba(240,240,240,0.40)" : "rgb(163,163,163)") : (dark ? "rgba(240,240,240,0.90)" : "rgb(23,23,23)") }}
+                                          >
+                                            {e.title}
+                                          </div>
+                                          <div
+                                            className="text-[10px] truncate"
+                                            style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgb(115,115,115)" }}
+                                          >
+                                            {e.time}{e.endTime ? ` – ${e.endTime}` : ""}
+                                          </div>
+                                        </button>
+                                      ))
                                     ) : (
                                       <div
-                                        className="rounded-2xl border bg-white px-3 py-3 text-sm text-neutral-600"
-                                        style={getSurfaceSoftStyle(dark)}
+                                        className="text-[11px] py-4 text-center"
+                                        style={{ color: dark ? "rgba(240,240,240,0.35)" : "rgb(163,163,163)" }}
                                       >
-                                        Nothing scheduled
+                                        No events
+                                      </div>
+                                    )}
+                                    {blocks.length > 5 && (
+                                      <div className="text-[10px] text-center pt-1" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgb(115,115,115)" }}>
+                                        +{blocks.length - 5} more
                                       </div>
                                     )}
                                   </div>
 
+                                  {/* Open day button */}
                                   <button
                                     onClick={() => openDayFromWeek(d)}
-                                    className="mt-4 w-full rounded-2xl px-3 py-2 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
-                                    style={getSurfaceSoftStyle(dark)}
+                                    className="mt-2 w-full rounded-lg px-2 py-1.5 text-[11px] font-semibold border transition"
+                                    style={{
+                                      background: dark ? "rgba(255,255,255,0.04)" : "white",
+                                      borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+                                      color: dark ? "rgba(240,240,240,0.70)" : "rgb(64,64,64)",
+                                    }}
                                   >
-                                    Open day
+                                    Open
                                   </button>
                                 </div>
                               </div>
                             );
                           })}
                         </div>
-                      </div>
-
-                      <div className="mt-3 text-[11px] text-neutral-500">
-                        Tip: Week view scrolls horizontally. We’ll swap this to a true full-week grid once your real schedule data is wired.
                       </div>
                     </div>
                   </div>
@@ -1454,7 +1549,7 @@ export default function Home() {
                   </div>
                   <button
                     onClick={() => setTodayOpen(false)}
-                    className="ml-auto rounded-xl px-2 py-1 text-xs border bg-white hover:bg-black/[0.03] transition"
+                    className="ml-auto rounded-xl px-2 py-1 text-xs border transition"
                     style={getSurfaceSoftStyle(dark)}
                   >
                     ✕
@@ -1464,13 +1559,13 @@ export default function Home() {
                 {/* Body */}
                 <div className="p-5 overflow-y-auto" style={{ height: "calc(100% - 56px)" }}>
                   {/* Quote */}
-                  <div className="rounded-2xl p-5 mb-6 relative overflow-hidden" style={{ border: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 4px 24px rgba(0,0,0,0.06)", background: "rgba(255,255,255,0.7)" }}>
+                  <div className="rounded-2xl p-5 mb-6 relative overflow-hidden" style={{ border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.08)", boxShadow: dark ? "0 4px 24px rgba(0,0,0,0.20)" : "0 4px 24px rgba(0,0,0,0.06)", background: dark ? "rgba(38,38,38,0.7)" : "rgba(255,255,255,0.7)" }}>
                     <div className="absolute select-none pointer-events-none" style={{ top: -8, left: -4, fontSize: 100, lineHeight: 1, color: rgbaBrand(0.10), fontWeight: 700 }}>"</div>
                     <div className="relative" style={{ paddingLeft: 44 }}>
-                      <div className="text-[15px] font-medium leading-relaxed" style={{ color: "rgba(0,0,0,0.78)" }}>
+                      <div className="text-[15px] font-medium leading-relaxed" style={{ color: dark ? "rgba(240,240,240,0.85)" : "rgba(0,0,0,0.78)" }}>
                         {todayQuote.text}
                       </div>
-                      <div className="text-[11px] mt-2" style={{ color: "rgba(0,0,0,0.38)" }}>
+                      <div className="text-[11px] mt-2" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.38)" }}>
                         — {todayQuote.author}
                       </div>
                     </div>
@@ -1478,7 +1573,7 @@ export default function Home() {
 
                   {/* Time breakdown ring + list side by side */}
                   <div className="mb-5">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-3 text-center" style={{ color: "rgba(0,0,0,0.40)" }}>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-3 text-center" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.40)" }}>
                       How your day breaks down
                     </div>
                     {(() => {
@@ -1493,7 +1588,7 @@ export default function Home() {
                           {/* Ring */}
                           <div className="shrink-0">
                             <svg width="140" height="140" viewBox="0 0 140 140">
-                              <circle cx="70" cy="70" r="48" fill="none" stroke="rgba(0,0,0,0.07)" strokeWidth="7" />
+                              <circle cx="70" cy="70" r="48" fill="none" stroke={dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.07)"} strokeWidth="7" />
                               <circle
                                 cx="70" cy="70" r="48" fill="none"
                                 stroke={JYNX_GREEN} strokeWidth="7"
@@ -1501,8 +1596,8 @@ export default function Home() {
                                 strokeDasharray={`${pct * circ} ${circ}`}
                                 transform="rotate(-90 70 70)"
                               />
-                              <text x="70" y="66" textAnchor="middle" dominantBaseline="middle" fontSize="22" fontWeight="600" fill="rgba(0,0,0,0.88)" style={{ fontFamily: "inherit" }}>{timeLabel}</text>
-                              <text x="70" y="82" textAnchor="middle" dominantBaseline="middle" fontSize="10" fill="rgba(0,0,0,0.40)" style={{ fontFamily: "inherit" }}>planned</text>
+                              <text x="70" y="66" textAnchor="middle" dominantBaseline="middle" fontSize="22" fontWeight="600" fill={dark ? "rgba(240,240,240,0.92)" : "rgba(0,0,0,0.88)"} style={{ fontFamily: "inherit" }}>{timeLabel}</text>
+                              <text x="70" y="82" textAnchor="middle" dominantBaseline="middle" fontSize="10" fill={dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.40)"} style={{ fontFamily: "inherit" }}>planned</text>
                             </svg>
                           </div>
                           {/* Activity list */}
@@ -1515,10 +1610,10 @@ export default function Home() {
                                 <div
                                   key={seg.type}
                                   className={cx("flex items-center justify-between py-1.5 px-1", i < arr.length - 1 && "border-b")}
-                                  style={{ borderColor: "rgba(0,0,0,0.06)" }}
+                                  style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }}
                                 >
-                                  <div className="text-[12px]" style={{ color: "rgba(0,0,0,0.65)" }}>{PIE_LABELS[seg.type] || seg.type}</div>
-                                  <div className="text-[12px] font-medium" style={{ color: "rgba(0,0,0,0.42)" }}>{label}</div>
+                                  <div className="text-[12px]" style={{ color: dark ? "rgba(240,240,240,0.75)" : "rgba(0,0,0,0.65)" }}>{PIE_LABELS[seg.type] || seg.type}</div>
+                                  <div className="text-[12px] font-medium" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.42)" }}>{label}</div>
                                 </div>
                               );
                             })}
@@ -1530,12 +1625,12 @@ export default function Home() {
 
                   {/* Top priorities */}
                   <div className="mb-5">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: "rgba(0,0,0,0.40)" }}>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-2.5" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.40)" }}>
                       Your top priorities today
                     </div>
                     <div className="space-y-2">
                       {topEvents.map((e, i) => (
-                        <div key={e.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: "rgba(0,0,0,0.02)" }}>
+                        <div key={e.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={{ background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)" }}>
                           <div
                             className="h-5 w-5 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0"
                             style={{ background: rgbaBrand(0.12), color: JYNX_GREEN }}
@@ -1543,8 +1638,8 @@ export default function Home() {
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-[13px] font-medium truncate" style={{ color: "rgba(0,0,0,0.88)" }}>{e.title}</div>
-                            <div className="text-[11px] truncate" style={{ color: "rgba(0,0,0,0.45)" }}>{formatRange(e.time, e.endTime)}</div>
+                            <div className="text-[13px] font-medium truncate" style={{ color: dark ? "rgba(240,240,240,0.92)" : "rgba(0,0,0,0.88)" }}>{e.title}</div>
+                            <div className="text-[11px] truncate" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.45)" }}>{formatRange(e.time, e.endTime)}</div>
                           </div>
                         </div>
                       ))}
@@ -1553,16 +1648,16 @@ export default function Home() {
 
                   {/* Pre-day notes */}
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(0,0,0,0.40)" }}>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: dark ? "rgba(240,240,240,0.45)" : "rgba(0,0,0,0.40)" }}>
                       Before you start
                     </div>
                     <textarea
                       placeholder="Anything on your mind before you kick off the day?"
                       className="w-full rounded-xl px-3.5 py-3 text-[13px] resize-none outline-none border transition"
                       style={{
-                        background: "rgba(0,0,0,0.02)",
-                        borderColor: "rgba(0,0,0,0.10)",
-                        color: "rgba(0,0,0,0.85)",
+                        background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+                        borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+                        color: dark ? "rgba(240,240,240,0.90)" : "rgba(0,0,0,0.85)",
                         minHeight: 80,
                       }}
                       rows={3}
@@ -1735,7 +1830,7 @@ export default function Home() {
                               type="date"
                               value={addForm.date}
                               onChange={(e) => setAddForm((p) => ({ ...p, date: e.target.value }))}
-                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
                             />
                           </div>
@@ -1745,7 +1840,7 @@ export default function Home() {
                             <input
                               value={addForm.time}
                               onChange={(e) => setAddForm((p) => ({ ...p, time: e.target.value }))}
-                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
                               placeholder="e.g., 3:30 PM"
                             />
@@ -1755,7 +1850,7 @@ export default function Home() {
                             <input
                               value={addForm.endTime}
                               onChange={(e) => setAddForm((p) => ({ ...p, endTime: e.target.value }))}
-                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
                               placeholder="e.g., 4:00 PM"
                             />
@@ -1766,7 +1861,7 @@ export default function Home() {
                             <input
                               value={addForm.title}
                               onChange={(e) => setAddForm((p) => ({ ...p, title: e.target.value }))}
-                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
                               placeholder="e.g., Call Dylan"
                             />
@@ -1777,7 +1872,7 @@ export default function Home() {
                             <input
                               value={addForm.meta}
                               onChange={(e) => setAddForm((p) => ({ ...p, meta: e.target.value }))}
-                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
                               placeholder="e.g., 20 min · quick sync"
                             />
@@ -1792,7 +1887,7 @@ export default function Home() {
                                 const tagMap: Record<EventType, string> = { class: "Class", work: "Work", health: "Health", prep: "Prep", study: "Study", life: "Life", free: "Flexible" };
                                 setAddForm((p) => ({ ...p, type: t, tag: tagMap[t] ?? "Work" }));
                               }}
-                              className="mt-1 w-full rounded-2xl border bg-white px-3 py-2 text-sm outline-none"
+                              className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none"
                               style={getSurfaceSoftStyle(dark)}
                             >
                               <option value="class">Class</option>
@@ -1823,6 +1918,97 @@ export default function Home() {
                               />
                               <span className="text-sm w-16 text-right" style={{ color: dark ? "rgba(240,240,240,0.80)" : "rgba(0,0,0,0.70)" }}>{getImportanceLabel(addForm.importance)}</span>
                             </div>
+                          </div>
+
+                          {/* Recurrence */}
+                          <div className="col-span-12 pt-2 border-t" style={{ borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)" }}>
+                            <div className="flex items-center justify-between">
+                              <Label>Recurring Event</Label>
+                              <button
+                                onClick={() => setAddForm((p) => ({ ...p, isRecurring: !p.isRecurring }))}
+                                className="relative w-10 h-5 rounded-full transition-colors"
+                                style={{
+                                  background: addForm.isRecurring ? JYNX_GREEN : (dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"),
+                                }}
+                              >
+                                <div
+                                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow"
+                                  style={{
+                                    transform: addForm.isRecurring ? "translateX(22px)" : "translateX(2px)",
+                                  }}
+                                />
+                              </button>
+                            </div>
+
+                            {addForm.isRecurring && (
+                              <div className="mt-3 space-y-3">
+                                <div>
+                                  <Label>Repeat</Label>
+                                  <select
+                                    value={addForm.recurrenceType}
+                                    onChange={(e) => setAddForm((p) => ({ ...p, recurrenceType: e.target.value as any }))}
+                                    className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm outline-none"
+                                    style={getSurfaceSoftStyle(dark)}
+                                  >
+                                    <option value="daily">Daily</option>
+                                    <option value="weekdays">Weekdays (Mon-Fri)</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="custom">Custom Days</option>
+                                  </select>
+                                </div>
+
+                                {addForm.recurrenceType === "custom" && (
+                                  <div>
+                                    <Label>Days</Label>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => {
+                                        const isSelected = addForm.recurrenceDays.includes(i);
+                                        return (
+                                          <button
+                                            key={day}
+                                            onClick={() => setAddForm((p) => ({
+                                              ...p,
+                                              recurrenceDays: isSelected
+                                                ? p.recurrenceDays.filter((d) => d !== i)
+                                                : [...p.recurrenceDays, i].sort((a, b) => a - b),
+                                            }))}
+                                            className="rounded-lg px-2 py-1 text-xs font-medium border transition"
+                                            style={{
+                                              background: isSelected ? rgbaBrand(0.15) : (dark ? "rgba(255,255,255,0.04)" : "white"),
+                                              borderColor: isSelected ? rgbaBrand(0.30) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
+                                              color: isSelected ? JYNX_GREEN : (dark ? "rgba(240,240,240,0.70)" : "rgba(0,0,0,0.70)"),
+                                            }}
+                                          >
+                                            {day}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div>
+                                  <Label>Number of occurrences</Label>
+                                  <div className="mt-1 flex items-center gap-3">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={52}
+                                      value={addForm.recurrenceCount}
+                                      onChange={(e) => setAddForm((p) => ({ ...p, recurrenceCount: Math.max(1, Math.min(52, Number(e.target.value) || 1)) }))}
+                                      className="w-20 rounded-2xl border px-3 py-2 text-sm outline-none"
+                                      style={getSurfaceSoftStyle(dark)}
+                                    />
+                                    <span className="text-xs" style={{ color: dark ? "rgba(240,240,240,0.50)" : "rgba(0,0,0,0.50)" }}>
+                                      {addForm.recurrenceType === "daily" && `${addForm.recurrenceCount} days`}
+                                      {addForm.recurrenceType === "weekdays" && `${addForm.recurrenceCount} weekdays`}
+                                      {addForm.recurrenceType === "weekly" && `${addForm.recurrenceCount} weeks`}
+                                      {addForm.recurrenceType === "custom" && `${addForm.recurrenceCount} occurrences`}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1943,7 +2129,7 @@ export default function Home() {
                     >
                       {goalsModalWindow}
                     </span>
-                    <div className="mt-2.5 text-[18px] font-semibold text-neutral-900 leading-tight">Goals</div>
+                    <div className="mt-2.5 text-[18px] font-semibold leading-tight" style={{ color: dark ? "rgba(240,240,240,0.92)" : "rgba(23,23,23,0.95)" }}>Goals</div>
                     <div className="mt-0.5 text-[12px] text-neutral-500">
                       {goals.filter((g) => g.timeWindow === goalsModalWindow).length} goal
                       {goals.filter((g) => g.timeWindow === goalsModalWindow).length !== 1 ? "s" : ""}
@@ -1951,7 +2137,7 @@ export default function Home() {
                   </div>
                   <button
                     onClick={() => setGoalsModalWindow(null)}
-                    className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                    className="h-9 w-9 rounded-2xl border transition flex items-center justify-center"
                     style={getSurfaceSoftStyle(dark)}
                     title="Close"
                   >
@@ -1960,7 +2146,7 @@ export default function Home() {
                 </div>
 
                 {/* Divider */}
-                <div className="mx-6" style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }} />
+                <div className="mx-6" style={{ borderTop: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.06)" }} />
 
                 {/* Goal cards */}
                 <div className="px-6 py-5 space-y-3 max-h-[380px] overflow-y-auto">
@@ -1977,20 +2163,20 @@ export default function Home() {
                           key={goal.id}
                           className="relative rounded-xl px-4 py-3.5 pr-8 overflow-hidden"
                           style={{
-                            background: "rgba(0,0,0,0.02)",
-                            border: "1px solid rgba(0,0,0,0.06)",
+                            background: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)",
+                            border: dark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.06)",
                           }}
                         >
                           <div
                             className="absolute left-0 top-0 bottom-0 w-0.5"
                             style={{ background: JYNX_GREEN }}
                           />
-                          <div className="text-[13px] font-semibold text-neutral-900">{goal.title}</div>
+                          <div className="text-[13px] font-semibold" style={{ color: dark ? "rgba(240,240,240,0.92)" : undefined }}>{goal.title}</div>
                           {goal.description && (
-                            <div className="mt-1 text-[12px] text-neutral-500 leading-relaxed">{goal.description}</div>
+                            <div className="mt-1 text-[12px] leading-relaxed" style={{ color: dark ? "rgba(240,240,240,0.60)" : undefined }}>{goal.description}</div>
                           )}
                           {goal.targetDate && (
-                            <div className="mt-1.5 text-[11px] text-neutral-400">
+                            <div className="mt-1.5 text-[11px]" style={{ color: dark ? "rgba(240,240,240,0.45)" : undefined }}>
                               Target · {new Date(goal.targetDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                             </div>
                           )}
@@ -1999,7 +2185,8 @@ export default function Home() {
                               setGoals((prev) => prev.filter((g) => g.id !== goal.id));
                               fetch(`/api/tasks/${goal.id}`, { method: "DELETE" }).catch(console.error);
                             }}
-                            className="absolute top-3 right-3 text-[12px] text-neutral-300 hover:text-neutral-500 transition"
+                            className="absolute top-3 right-3 text-[12px] transition"
+                            style={{ color: dark ? "rgba(240,240,240,0.35)" : undefined }}
                             title="Remove goal"
                           >
                             ✕
@@ -2058,7 +2245,7 @@ export default function Home() {
                 </div>
                 <button
                   onClick={() => setAddGoalOpen(false)}
-                  className="h-9 w-9 rounded-2xl border bg-white hover:bg-black/[0.03] transition flex items-center justify-center"
+                  className="h-9 w-9 rounded-2xl border transition flex items-center justify-center"
                   style={getSurfaceSoftStyle(dark)}
                   title="Close"
                 >
@@ -2074,8 +2261,8 @@ export default function Home() {
                     value={addGoalForm.title}
                     onChange={(e) => setAddGoalForm((f) => ({ ...f, title: e.target.value }))}
                     placeholder="What do you want to achieve?"
-                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm bg-white outline-none transition"
-                    style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm outline-none transition"
+                    style={getSurfaceSoftStyle(dark)}
                   />
                 </div>
 
@@ -2086,8 +2273,8 @@ export default function Home() {
                     onChange={(e) => setAddGoalForm((f) => ({ ...f, description: e.target.value }))}
                     placeholder="Any details or context…"
                     rows={2}
-                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm bg-white outline-none resize-none transition"
-                    style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm outline-none resize-none transition"
+                    style={getSurfaceSoftStyle(dark)}
                   />
                 </div>
 
@@ -2097,8 +2284,8 @@ export default function Home() {
                     type="date"
                     value={addGoalForm.targetDate}
                     onChange={(e) => setAddGoalForm((f) => ({ ...f, targetDate: e.target.value }))}
-                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm bg-white outline-none transition"
-                    style={{ borderColor: "rgba(0,0,0,0.10)" }}
+                    className="mt-1 w-full rounded-2xl border px-3 py-2.5 text-sm outline-none transition"
+                    style={getSurfaceSoftStyle(dark)}
                   />
                 </div>
 
@@ -2109,13 +2296,14 @@ export default function Home() {
                       <button
                         key={tw}
                         onClick={() => setAddGoalForm((f) => ({ ...f, timeWindow: tw }))}
-                        className={cx(
-                          "flex-1 rounded-full px-2 py-1.5 text-[11px] font-semibold border transition",
-                          addGoalForm.timeWindow === tw ? "bg-black/[0.03]" : "bg-white hover:bg-black/[0.03]"
-                        )}
+                        className="flex-1 rounded-full px-2 py-1.5 text-[11px] font-semibold border transition"
                         style={{
-                          borderColor: addGoalForm.timeWindow === tw ? rgbaBrand(0.22) : "rgba(0,0,0,0.08)",
+                          background: addGoalForm.timeWindow === tw
+                            ? (dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.03)")
+                            : (dark ? "rgba(38,38,38,0.85)" : "white"),
+                          borderColor: addGoalForm.timeWindow === tw ? rgbaBrand(0.22) : (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)"),
                           boxShadow: addGoalForm.timeWindow === tw ? `0 0 0 1px ${rgbaBrand(0.08)}` : undefined,
+                          color: dark ? "rgba(240,240,240,0.92)" : undefined,
                         }}
                       >
                         {tw}
@@ -2159,19 +2347,18 @@ export default function Home() {
                     setAddGoalOpen(false);
                   }}
                   disabled={!addGoalForm.title.trim()}
-                  className={cx(
-                    "flex-1 h-10 rounded-2xl px-3 text-xs font-semibold border transition",
-                    addGoalForm.title.trim()
-                      ? "bg-white hover:bg-black/[0.03]"
-                      : "bg-white text-neutral-400 cursor-not-allowed"
-                  )}
-                  style={getSurfaceSoftStyle(dark)}
+                  className="flex-1 h-10 rounded-2xl px-3 text-xs font-semibold border transition"
+                  style={{
+                    ...getSurfaceSoftStyle(dark),
+                    color: !addGoalForm.title.trim() ? (dark ? "rgba(160,160,160,0.5)" : "rgb(163,163,163)") : undefined,
+                    cursor: !addGoalForm.title.trim() ? "not-allowed" : undefined,
+                  }}
                 >
                   Add Goal
                 </button>
                 <button
                   onClick={() => setAddGoalOpen(false)}
-                  className="h-10 rounded-2xl px-4 text-xs font-semibold border bg-white hover:bg-black/[0.03] transition"
+                  className="h-10 rounded-2xl px-4 text-xs font-semibold border transition"
                   style={getSurfaceSoftStyle(dark)}
                 >
                   Cancel
@@ -2231,12 +2418,14 @@ function TimelineWithDaypartsLight({
   onToggleComplete,
   onOpen,
   compact,
+  dark = false,
 }: {
   blocks: EventRecord[];
   olive: string;
   onToggleComplete: (id: string) => void;
   onOpen: (ev: EventRecord) => void;
   compact?: boolean;
+  dark?: boolean;
 }) {
   const marks = useMemo(() => {
     const firstAfternoonIdx = blocks.findIndex((b) => timeSort(b.time) >= 12 * 60);
@@ -2262,6 +2451,7 @@ function TimelineWithDaypartsLight({
                 onToggleComplete={() => onToggleComplete(e.id)}
                 onOpen={() => onOpen(e)}
                 compact={compact}
+                dark={dark}
               />
             </div>
           );
@@ -2340,6 +2530,7 @@ function TimeBlockLight({
   onOpen,
   isLast,
   compact,
+  dark = false,
 }: {
   event: EventRecord;
   olive: string;
@@ -2347,19 +2538,22 @@ function TimeBlockLight({
   onOpen: () => void;
   isLast?: boolean;
   compact?: boolean;
+  dark?: boolean;
 }) {
   const completed = !!event.completed;
 
   const cardStyle: CSSProperties = completed
     ? {
         opacity: 0.92,
-        borderColor: "rgba(0,0,0,0.08)",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+        borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+        boxShadow: dark ? "0 10px 30px rgba(0,0,0,0.20)" : "0 10px 30px rgba(0,0,0,0.06)",
+        background: dark ? "rgba(38,38,38,0.85)" : "white",
       }
     : {
         opacity: 1,
-        borderColor: "rgba(0,0,0,0.08)",
-        boxShadow: "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+        borderColor: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+        boxShadow: dark ? "0 1px 0 rgba(0,0,0,0.15), 0 18px 50px rgba(0,0,0,0.20)" : "0 1px 0 rgba(0,0,0,0.04), 0 18px 50px rgba(0,0,0,0.06)",
+        background: dark ? "rgba(38,38,38,0.85)" : "white",
       };
 
   const importanceLevel = getImportanceLabel(event.importance);
@@ -2407,10 +2601,7 @@ function TimeBlockLight({
       <button
         type="button"
         onClick={onOpen}
-        className={cx(
-          "group w-full text-left rounded-3xl border px-4 py-3 transition relative overflow-hidden",
-          "bg-white hover:bg-black/[0.02] hover:-translate-y-[1px]"
-        )}
+        className="group w-full text-left rounded-3xl border px-4 py-3 transition relative overflow-hidden hover:-translate-y-[1px]"
         style={cardStyle}
       >
         {/* COMPLETED overlay — obvious, with blur and text */}
@@ -2493,7 +2684,7 @@ function ListRow({
   const completed = !!event.completed;
 
   return (
-    <div className={cx("rounded-2xl border bg-white relative overflow-hidden", compact ? "opacity-95" : "")} style={getSurfaceSoftStyle(dark)}>
+    <div className={cx("rounded-2xl border relative overflow-hidden", compact ? "opacity-95" : "")} style={getSurfaceSoftStyle(dark)}>
       {/* COMPLETED overlay */}
       {completed && (
         <div className="pointer-events-none absolute inset-0">

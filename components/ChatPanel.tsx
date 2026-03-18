@@ -5,7 +5,7 @@ import { useChatPanel } from "@/contexts/ChatPanelContext";
 import { StructuredQuestions, type StructuredQuestion } from "./StructuredQuestions";
 
 const OLIVE = "#4b5e3c";
-const MAX_CHARS = 200;
+const MAX_CHARS = 350;
 
 type Role = "user" | "assistant";
 
@@ -264,12 +264,26 @@ export function ChatPanel() {
   const charCount = input.length;
   const isOverLimit = charCount > MAX_CHARS;
 
-  const border = "rgba(0,0,0,0.10)";
-  const borderStrong = "rgba(0,0,0,0.14)";
+  // Dark mode detection
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDark(document.documentElement.classList.contains("dark"));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  const border = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)";
+  const borderStrong = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)";
   const surface = "var(--surface)";
   const bg = "var(--background)";
   const fg = "var(--foreground)";
   const muted = "var(--muted-foreground)";
+  const cardBg = isDark ? "rgba(38,38,38,0.85)" : "rgba(255,255,255,0.70)";
+  const msgBubbleBg = isDark ? "rgba(38,38,38,0.90)" : "rgba(255,255,255,0.80)";
+  const textPrimary = isDark ? "rgba(240,240,240,0.92)" : "rgba(17,17,17,0.92)";
+  const textMuted = isDark ? "rgba(240,240,240,0.55)" : "rgba(17,17,17,0.55)";
 
   return (
     <>
@@ -302,8 +316,10 @@ export function ChatPanel() {
             </div>
             <button
               onClick={handleClose}
-              className="h-8 w-8 rounded-lg flex items-center justify-center transition hover:bg-black/[0.06]"
+              className="h-8 w-8 rounded-lg flex items-center justify-center transition"
               style={{ color: muted }}
+              onMouseEnter={(e) => e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
               aria-label="Close"
             >
               ×
@@ -330,10 +346,10 @@ export function ChatPanel() {
                 className="rounded-3xl border px-4 py-4"
                 style={{
                   borderColor: border,
-                  background: "rgba(255,255,255,0.70)",
+                  background: cardBg,
                 }}
               >
-                <div className="text-sm font-semibold mb-2">Start a conversation</div>
+                <div className="text-sm font-semibold mb-2" style={{ color: textPrimary }}>Start a conversation</div>
                 <div className="text-sm" style={{ color: muted }}>
                   Ask about your schedule, priorities, or what to focus on next.
                 </div>
@@ -351,15 +367,15 @@ export function ChatPanel() {
                         borderColor: borderStrong,
                         background:
                           m.role === "user"
-                            ? "rgba(75,94,60,0.08)"
-                            : "rgba(255,255,255,0.80)",
+                            ? (isDark ? "rgba(75,94,60,0.20)" : "rgba(75,94,60,0.08)")
+                            : msgBubbleBg,
                         boxShadow:
                           m.role === "user" ? "0 0 0 1px rgba(75,94,60,0.14)" : "none",
                       }}
                     >
                       <div
                         className="text-sm leading-relaxed whitespace-pre-wrap"
-                        style={{ color: "rgba(17,17,17,0.92)" }}
+                        style={{ color: textPrimary }}
                       >
                         {m.content}
                         {m.isStreaming && !m.actionLabel && (
@@ -384,7 +400,7 @@ export function ChatPanel() {
                       )}
 
                       {!m.isStreaming && (
-                        <div className="mt-2 text-[11px]" style={{ color: "rgba(17,17,17,0.55)" }}>
+                        <div className="mt-2 text-[11px]" style={{ color: textMuted }}>
                           <span suppressHydrationWarning>
                             {mounted ? formatTime(m.createdAt) : ""}
                           </span>
@@ -416,7 +432,7 @@ export function ChatPanel() {
               className="rounded-3xl border px-4 py-3"
               style={{
                 borderColor: border,
-                background: "rgba(255,255,255,0.80)",
+                background: msgBubbleBg,
               }}
             >
               <textarea
@@ -434,7 +450,7 @@ export function ChatPanel() {
                 className="w-full resize-none bg-transparent outline-none text-sm leading-relaxed"
                 style={{
                   height: 0,
-                  color: "rgba(17,17,17,0.92)",
+                  color: textPrimary,
                 }}
               />
 
@@ -456,14 +472,14 @@ export function ChatPanel() {
                     input.trim() && !streaming && !isOverLimit
                       ? {
                           borderColor: "rgba(75,94,60,0.30)",
-                          background: "rgba(75,94,60,0.10)",
-                          color: "rgba(17,17,17,0.92)",
+                          background: isDark ? "rgba(75,94,60,0.25)" : "rgba(75,94,60,0.10)",
+                          color: textPrimary,
                           boxShadow: "0 0 0 1px rgba(75,94,60,0.14)",
                         }
                       : {
-                          borderColor: "rgba(0,0,0,0.08)",
-                          background: "rgba(0,0,0,0.03)",
-                          color: "rgba(17,17,17,0.45)",
+                          borderColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                          background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+                          color: textMuted,
                           cursor: "not-allowed",
                         }
                   }

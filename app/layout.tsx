@@ -133,7 +133,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
               <div className="h-16 flex items-center">
                 {/* Left: brand */}
                 <div className="flex items-center min-w-[220px]">
-                  <img src={dark ? "/jynx-logo-dark.png" : "/jynx-logo.png"} alt="Jynx" className="h-9" style={{ objectFit: "contain" }} />
+                  <img
+                    src="/jynx-logo.png"
+                    alt="Jynx"
+                    className="h-9"
+                    style={{
+                      objectFit: "contain",
+                      filter: dark ? "invert(1) hue-rotate(180deg)" : undefined,
+                    }}
+                  />
                 </div>
 
                 {/* Center: tabs (Vercel-ish: text, active = bold + underline) */}
@@ -211,10 +219,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
                       ? { borderColor: "rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.06)" }
                       : { borderColor: "rgba(0,0,0,0.10)", background: "rgba(0,0,0,0.03)" }
                     }
-                    title="Profile"
-                    aria-label="Profile"
+                    title="Settings"
+                    aria-label="Settings"
                   >
-                    <ProfileIcon className="h-5 w-5" dark={dark} />
+                    <SettingsIcon className="h-5 w-5" dark={dark} />
                   </button>
                 </div>
               </div>
@@ -404,7 +412,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                   color: "var(--foreground)",
                 }}
               >
-                <div className="text-sm font-semibold">Profile</div>
+                <div className="text-sm font-semibold">Settings</div>
 
                 <div className="ml-auto flex items-center gap-2">
                   <button
@@ -717,8 +725,8 @@ function FolderIcon({ className = "", dark = false }: { className?: string; dark
   );
 }
 
-/** Profile icon */
-function ProfileIcon({ className = "", dark = false }: { className?: string; dark?: boolean }) {
+/** Settings icon (gear/cog) */
+function SettingsIcon({ className = "", dark = false }: { className?: string; dark?: boolean }) {
   return (
     <svg
       className={className}
@@ -727,15 +735,16 @@ function ProfileIcon({ className = "", dark = false }: { className?: string; dar
       style={{ color: dark ? "rgba(240,240,240,0.85)" : "rgba(17,17,17,0.85)" }}
     >
       <path
-        d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z"
+        d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
         stroke="currentColor"
         strokeWidth="1.6"
       />
       <path
-        d="M20 20a8 8 0 0 0-16 0"
+        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
