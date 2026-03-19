@@ -64,6 +64,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const [feedbackDislike, setFeedbackDislike] = useState("");
   const [feedbackImprove, setFeedbackImprove] = useState("");
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   // --- scroll-driven "quiet frame" header ---
   const [scrollY, setScrollY] = useState(0);
@@ -474,6 +476,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
               setFeedbackLike("");
               setFeedbackDislike("");
               setFeedbackImprove("");
+              setFeedbackError(null);
             }}
             aria-label="Close feedback"
           />
@@ -502,6 +505,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
                     setFeedbackLike("");
                     setFeedbackDislike("");
                     setFeedbackImprove("");
+                    setFeedbackError(null);
                   }}
                   className="ml-auto rounded-xl px-2 py-1 text-xs border transition"
                   style={dark
@@ -571,18 +575,57 @@ function AppShell({ children }: { children: React.ReactNode }) {
                         }
                       />
                     </div>
+                    {feedbackError && (
+                      <div
+                        className="rounded-xl px-3 py-2 text-[12px] mb-2"
+                        style={{ background: "rgba(239,68,68,0.10)", color: "rgba(185,28,28,0.90)" }}
+                      >
+                        {feedbackError}
+                      </div>
+                    )}
                     <div className="flex justify-end pt-1">
                       <button
-                        onClick={() => {
-                          setFeedbackSubmitted(true);
-                          setFeedbackLike("");
-                          setFeedbackDislike("");
-                          setFeedbackImprove("");
+                        onClick={async () => {
+                          if (!feedbackLike.trim() && !feedbackDislike.trim() && !feedbackImprove.trim()) {
+                            setFeedbackError("Please fill in at least one field");
+                            return;
+                          }
+                          setFeedbackSubmitting(true);
+                          setFeedbackError(null);
+                          try {
+                            const res = await fetch("/api/feedback", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                like: feedbackLike.trim(),
+                                dislike: feedbackDislike.trim(),
+                                improve: feedbackImprove.trim(),
+                              }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) {
+                              throw new Error(data?.error || "Failed to submit");
+                            }
+                            setFeedbackSubmitted(true);
+                            setFeedbackLike("");
+                            setFeedbackDislike("");
+                            setFeedbackImprove("");
+                          } catch (e: any) {
+                            setFeedbackError(e?.message || "Failed to submit feedback");
+                          } finally {
+                            setFeedbackSubmitting(false);
+                          }
                         }}
+                        disabled={feedbackSubmitting}
                         className="rounded-xl px-5 py-2 text-[13px] font-semibold transition hover:opacity-85"
-                        style={{ background: "#1F8A5B", color: "white" }}
+                        style={{
+                          background: "#1F8A5B",
+                          color: "white",
+                          opacity: feedbackSubmitting ? 0.6 : 1,
+                          cursor: feedbackSubmitting ? "not-allowed" : "pointer",
+                        }}
                       >
-                        Submit
+                        {feedbackSubmitting ? "Sending…" : "Submit"}
                       </button>
                     </div>
                   </div>
